@@ -1,5 +1,8 @@
 ####################### load all data and process #####################
 
+# need to rewrite to save output in separate folder
+# need to pull x offset from plate information
+
 library(tidyverse)
 library(readxl)
 library(ggplot2)
@@ -19,6 +22,7 @@ library(data.table)
 library(doMC)
 library(anndata)
 library(uwot)
+library(spdep)
 
 
 BiocManager::install("BiocNeighbors")
@@ -29,9 +33,11 @@ options(mc.cores = 20)
 
 gene_name_conversion <- read_xlsx("/allen/programs/celltypes/workgroups/rnaseqanalysis/mFISH/michaelkunst/vizgen_data/InitialGeneList_AIBS.xlsx", sheet=2)
 
+# needs to be update by pulling information directly from sharepoint site
 run_tracker <- read_xlsx("/allen/programs/celltypes/workgroups/rnaseqanalysis/mFISH/michaelkunst/MERSCOPES/MERSCOPE Atlas Run tracker_220214.xlsx", sheet=1)
 
-cirro_folder <- "/allen/programs/celltypes/workgroups/rnaseqanalysis/mFISH/michaelkunst/MERSCOPES/mouse/for_cirro/"
+assembled_experiments <- run_tracker %>% 
+  dplyr::filter(`Experiment assembled` == "Yes")
 
 source("/allen/programs/celltypes/workgroups/rnaseqanalysis/yzizhen/joint_analysis/forebrain_new/Vizgen/map_knn.R")
 
@@ -72,17 +78,29 @@ cl.df_subset <- train.cl.df %>%
     class_id,
     class_color)
 
+# set filter criteria
+min_genes <- 5
+min_total_reads <- 30
+min_vol <- 100
+upper_bound_reads <- 2000
+upper_genes_read <- 450
 
 ########################## code to process cell by gene table #######################
+inputFolder <- "/allen/programs/celltypes/workgroups/rnaseqanalysis/mFISH/michaelkunst/MERSCOPES/mouse/atlas/merfish_output/"
+outputFolder <- "/allen/programs/celltypes/workgroups/rnaseqanalysis/mFISH/michaelkunst/MERSCOPES/mouse/atlas/merfish_processed/"
 
-folder <- list.dirs("/allen/programs/celltypes/workgroups/rnaseqanalysis/mFISH/michaelkunst/MERSCOPES/mouse/atlas", full.names = TRUE, recursive = FALSE)
-#folder <- folder[ grepl("20220218", folder) ]
 
+folder <- list.dirs(inputFolder, full.names = FALSE, recursive = FALSE)
 
-for (i in folder) {
+folders_to_process <- intersect(folder,assembled_experiments$`Run Name`)
 
-  inputFolder <- i
-  file_name <- basename(inputFolder)
+i <- folders_to_process[5]
+
+for (i in folders_to_process) {
+  
+  file_name <- i
+  
+  dir.create(file.path(paste0(outputFolder,i)), showWarnings = FALSE)
   
   file_name_parts <- str_split(file_name, pattern = "_")
   experiment <- file_name_parts[[1]][2]
@@ -97,24 +115,18 @@ for (i in folder) {
   section_date <- substr(run_tracker[[idx,6]],1,10)
   panel <- run_tracker[[idx,15]]
   codebook_full <- run_tracker[[idx,42]]
+  image_rotation <- run_tracker[[idx,62]]
   codebook_parts <- str_split(codebook_full, pattern = "_")
   codebook <- codebook_parts[[1]][3]
   
-  # set filter criteria
-  min_genes <- 5
-  min_total_reads <- 30
-  min_vol <- 100
-  upper_bound_reads <- 2000
-  upper_genes_read <- 450
   
-  
-  cbg <- read.csv(paste0(inputFolder,"/cell_by_gene.csv"), 
+  cbg <- read.csv(paste0(inputFolder,i,"/cell_by_gene.csv"), 
                   header=TRUE, 
                   row.names = 1,
                   check.names = FALSE)
   
   
-  metadata <- read.csv(paste0(inputFolder,"/processed/metadata_correct_coord.csv"), 
+  metadata <- read.csv(paste0(inputFolder,i,"/cell_metadata.csv"), 
                        header=TRUE,
                        row.names = 1,
                        check.names = FALSE)
@@ -124,6 +136,32 @@ for (i in folder) {
   blanks <- dplyr::select(cbg,contains("Blank"))
   cbg <- dplyr::select(cbg,-contains("Blank"))
   
+  
+  coord <- metadata %>% 
+    dplyr::select(center_x,center_y) 
+  
+  colnames(coord) <- c("center_x","center_y")
+  
+  coord_adj <- Rotation(coord, image_rotation*pi/180)
+  coord_adj <- as.data.frame(coord_adj)
+  colnames(coord_adj) <- c("corrected_x","corrected_y")
+  
+  metadata <- merge(metadata,
+                    coord_adj,
+                    by=0)
+  
+  metadata$rotation <- image_rotation
+  
+  metadata <- tibble::column_to_rownames(metadata,var = "Row.names")
+  
+  ggplot(metadata, aes(x=corrected_x,y=corrected_y))+
+    geom_point(size=0.5,stroke=0,shape=19,color="grey") +
+    coord_fixed() +
+    scale_y_reverse() +
+    ggtitle("All cells") +
+    theme_minimal()
+  
+  ggsave2(paste0(outputFolder,i,"/original_cellxgene.pdf"))
   
   # convert vizgen gene names to Allen gene names
   GeneNames                            = gene_name_conversion$Vizgen.Gene
@@ -213,7 +251,7 @@ for (i in folder) {
     xlab("Proportion of neuronal genes") +
     theme_minimal()
   
-  ggsave2(paste0(inputFolder,"/plots/seg_quality.pdf"))
+  ggsave2(paste0(outputFolder,i,"/seg_quality.pdf"))
   
   # add columns cell quality score
   
@@ -238,7 +276,7 @@ for (i in folder) {
     scale_y_reverse() +
     theme_minimal()
   
-  ggsave2(paste0(inputFolder,"/plots/filtered_data.pdf"))
+  ggsave2(paste0(outputFolder,i,"/filtered_data.pdf"))
   
   ggplot(subset(metadata,cell_qc %in% "High"),aes(x=prop_neuronal_gene)) +
     geom_histogram(aes(y = ..density..), binwidth = 1) +
@@ -248,7 +286,7 @@ for (i in folder) {
     xlab("Proportion of neuronal genes") +
     theme_minimal()
   
-  ggsave2(paste0(inputFolder,"/plots/seg_quality_filtered_data.pdf"))
+  ggsave2(paste0(outputFolder,i,"/seg_quality_filtered_data.pdf"))
   
   
   ggplot(metadata,aes(x=volume)) +
@@ -260,7 +298,7 @@ for (i in folder) {
     geom_vline(xintercept = upper_bound_area, color="blue") +
     theme_minimal()
   
-  ggsave2(paste0(inputFolder,"/plots/cell_volume_distr.pdf"))
+  ggsave2(paste0(outputFolder,i,"/cell_volume_distr.pdf"))
   
   
   ggplot(metadata,aes(x=genes_detected)) +
@@ -272,7 +310,7 @@ for (i in folder) {
     geom_vline(xintercept = upper_genes_read, color="blue") +
     theme_minimal()
   
-  ggsave2(paste0(inputFolder,"/plots/gene_count_distr.pdf"))
+  ggsave2(paste0(outputFolder,i,"/gene_count_distr.pdf"))
   
   
   ggplot(metadata,aes(x=total_reads)) +
@@ -284,7 +322,7 @@ for (i in folder) {
     geom_vline(xintercept = upper_bound_reads, color="blue") +
     theme_minimal()
   
-  ggsave2(paste0(inputFolder,"/plots/spot_count_distr.pdf"))
+  ggsave2(paste0(outputFolder,i,"/spot_count_distr.pdf"))
   
   metadata$section <- section
   metadata$animal <- animal
@@ -330,7 +368,7 @@ for (i in folder) {
   cl.anno$z.score = z.score[cl.anno$sample_id]
   
   anno_mfish <- merge(metadata,
-                      best.map.df,
+                      cl.anno,
                       by.x = 0,
                       by.y="sample_id"
   )
@@ -372,30 +410,6 @@ for (i in folder) {
   aibs_color_scheme_cluster <- cluster_colors$cluster_color 
   names(aibs_color_scheme_cluster) <- cluster_colors$cluster_label
   
-  ggplot(subset(anno_mfish,cell_qc %in% "High"), aes(x=corrected_x, y=corrected_y, color=class_label)) +
-    geom_point(size=.5,  stroke=0, shape=19) +
-    coord_fixed() +
-    guides(color = "none", alpha = "none") +
-    scale_color_manual(values=aibs_color_scheme_class) +
-    scale_y_reverse() +
-    ggtitle("Class mapping") +
-    theme_minimal()
-  
-  ggsave2(paste0(inputFolder,"/plots/class_mapping.pdf"))
-  
-  ggplot(subset(anno_mfish,cell_qc %in% "High"), aes(x=corrected_x, y=corrected_y, color=class_label)) +
-    geom_point(size=.1,  stroke=0, shape=19) +
-    coord_fixed() +
-    guides(color = "none", alpha = "none") +
-    scale_color_manual(values=aibs_color_scheme_class) +
-    scale_y_reverse() +
-    ggtitle("Subclass mapping") +
-    facet_wrap(~class_label) +
-    theme_minimal()
-  
-  ggsave2(paste0(inputFolder,"/plots/class_mapping_facet.pdf"))
-  
-  
   ggplot(subset(anno_mfish,cell_qc %in% "High"),aes(x=avg.cor)) +
     geom_histogram(aes(y = ..density..), binwidth = .01) +
     geom_density() +
@@ -404,7 +418,7 @@ for (i in folder) {
     xlab("Correlation coefficient") +
     theme_minimal()
   
-  ggsave2(paste0(inputFolder,"/plots/corr_coeff.pdf"))
+  ggsave2(paste0(outputFolder,i,"/corr_coeff.pdf"))
   
   ggplot(subset(anno_mfish,cell_qc %in% "High"),aes(x=avg.cor,fill=class_label)) +
     geom_histogram(aes(y = ..density..), binwidth = .01) +
@@ -417,49 +431,19 @@ for (i in folder) {
     guides(color = "none", alpha = "none") +
     theme_minimal()
   
-  ggsave2(paste0(inputFolder,"/plots/corr_coeff_by_class.pdf"))
-  
-  gaba <- anno_mfish %>% 
-    dplyr::filter(class_label=="Gaba")
-  
-  ggplot(subset(gaba,cell_qc %in% "High"), aes(x=corrected_x, y=corrected_y, color=subclass_label)) +
-    geom_point(size=.5,  stroke=0, shape=19) +
-    coord_fixed() +
-    guides(color = "none", alpha = "none") +
-    scale_color_manual(values=aibs_color_scheme_subclass) +
-    scale_y_reverse() +
-    ggtitle("Inhibitory subclasses") +
-    theme_minimal()
-  
-  ggsave2(paste0(inputFolder,"/plots/inhibitory_subclass_mapping.pdf"))
-  
-  glut <- anno_mfish %>% 
-    dplyr::filter(class_label=="Glut")
-  
-  ggplot(subset(glut,cell_qc %in% "High"), aes(x=corrected_x, y=corrected_y, color=subclass_label)) +
-    geom_point(size=.5,  stroke=0, shape=19) +
-    coord_fixed() +
-    guides(color = "none", alpha = "none") +
-    scale_color_manual(values=aibs_color_scheme_subclass) +
-    scale_y_reverse() +
-    ggtitle("Excitatory subclasses") +
-    theme_minimal()
-  
-  ggsave2(paste0(inputFolder,"/plots/excitatory_subclass_mapping.pdf"))
-  
+  ggsave2(paste0(outputFolder,i,"/corr_coeff_by_class.pdf"))
   
   # save the following files, cbg, blank, cbg_cpum, cbg_norm, metadata_processed, 
   # and everything wrapped up in a hdf5 (anndata)
   
   # save individual files as csv
-  write.csv(anno_mfish,paste0(inputFolder,"/processed/metadata_processed.csv"),row.names = TRUE)
-  write.csv(as.matrix(cbg_cpum),paste0(inputFolder,"/processed/cbg_cpum.csv"),row.names = TRUE)
-  write.csv(as.matrix(cbg_norm),paste0(inputFolder,"/processed/cbg_norm.csv"),row.names = TRUE)
-  write.csv(blanks,paste0(inputFolder,"/processed/blanks.csv"),row.names = TRUE)
+  write.csv(anno_mfish,paste0(outputFolder,i,"/metadata_processed.csv"),row.names = TRUE)
+  write.csv(as.matrix(cbg_cpum),paste0(outputFolder,i,"/cbg_cpum.csv"),row.names = TRUE)
+  write.csv(as.matrix(cbg_norm),paste0(outputFolder,i,"/cbg_norm.csv"),row.names = TRUE)
+  write.csv(blanks,paste0(outputFolder,i,"/blanks.csv"),row.names = TRUE)
   # save all files as rda
-  save(anno_mfish,cbg_cpum,cbg_norm,blanks,file=paste0(inputFolder,"/processed/processed_files.rda")) 
+  save(anno_mfish,cbg_cpum,cbg_norm,blanks,file=paste0(outputFolder,i,"/processed_files.rda")) 
   
-  # save filtered files for cirrocumulus as csv
 
   
   # XY_filename
@@ -467,45 +451,20 @@ for (i in folder) {
     dplyr::filter(cell_qc == "High") %>% 
     dplyr::select(corrected_x,corrected_y)
   
+  offset_x <- target_atlas_plate - 47
+  
   coordinates$corrected_y = -(coordinates$corrected_y - mean(coordinates$corrected_y))
+  coordinates$corrected_x = coordinates$corrected_x - min(coordinates$corrected_x)
+  coordinates$corrected_x = coordinates$corrected_x + (offset_x*10000)
+  counter = counter+1
   
-  #write.csv(coordinates,paste0(cirro_folder,"coordinates_",experiment,".csv"),row.names = TRUE)
-
-  # metadata_filename (csv) which includes all mapped labels
-  #write.csv(subset(anno_mfish,cell_qc %in% "High"),paste0(cirro_folder,"metadata_",experiment,".csv"),row.names = TRUE)
-  
-  # count_filename (h5, for now I'm using h5ad) 
   to_keep <- intersect(rownames(cbg),rownames(subset(anno_mfish,cell_qc %in% "High")))
   cbg_filtered <- cbg_norm[to_keep,]
   cbg_filtered <- as.matrix(cbg_filtered)
   
-  h5_file <- AnnData(
-    X = cbg_filtered
-  )
-  
-  #write_h5ad(h5_file,paste0(cirro_folder,"counts_",experiment,".h5ad"))
-  
-  # UMAP3_filename
-  
-  
-  for_umap <- as.data.frame(cbg_filtered)
-  umap_mfish <- umap(for_umap,
-                    n_neighbors = 25,
-                    n_components = 2,
-                    metric = "euclidean",
-                    min_dist = 0.4)
-  
-
-  #write.csv(umap_mfish,paste0(cirro_folder,"umap_",experiment,".csv"),row.names = TRUE)
-  
-  # csv.file for the list of meta data(in the metadata file)  to be displayed
-  metadata_list <- c("class_label","subclass_label","cluster_label","region_label","animal","section","genes_detected","avg.cor","total_reads","prop_neuronal_gene","prop_non_neuronal_gene","merscope")
-  #write.csv(metadata_list,paste0(cirro_folder,"metadata_list_",experiment,".csv"),row.names = TRUE)
   
   # prepare data for anndata format 
-  
   uns <- c("rotation","animal","species","merscope","target_atlas_plate","coverslip_batch","section_date","panel","codebook","min_genes","min_total_reads","min_vol","upper_bound_area","upper_bound_reads","upper_genes_read")
-  
   anno_mfish$subclass_label <- paste(anno_mfish$subclass_id,anno_mfish$subclass_label, sep="_")
   
   anno_mfish_subset <- anno_mfish %>% 
@@ -525,6 +484,12 @@ for (i in folder) {
                   prob)
                                      
   
+  umap_mfish <- umap(cbg_filtered,
+                     n_neighbors = 25,
+                     n_components = 2,
+                     metric = "euclidean",
+                     min_dist = 0.4)
+  
   blanks_filtered <- log2(blanks[to_keep,]+1)
   
   ad <- AnnData(
@@ -536,15 +501,9 @@ for (i in folder) {
       X_umap = umap_mfish
     ),
     uns = list(
-      rotation = unique(metadata$rotation),
-      animal = animal,
       species = species,
       merscope = merscope,
-      target_atlas_plate = target_atlas_plate,
-      coverslip_batch = coverslip_batch,
-      section_date = section_date,
-      panel = panel,
-      codebook = codebook,
+      gene_panel = gene_panel,
       min_genes = min_genes,
       min_total_reads = min_total_reads,
       min_vol = min_vol,
@@ -555,6 +514,35 @@ for (i in folder) {
   )
   
   write_h5ad(ad,paste0(inputFolder,"/processed/",experiment,".h5ad"))
-  write_h5ad(ad,paste0(cirro_folder,experiment,".h5ad"))
 }
+
+cirro_folder <- "/allen/programs/celltypes/workgroups/rnaseqanalysis/mFISH/michaelkunst/MERSCOPES/mouse/for_cirro/"
+
+files <- list.files("/allen/programs/celltypes/workgroups/rnaseqanalysis/mFISH/michaelkunst/MERSCOPES/mouse/atlas/", 
+                    recursive = TRUE, 
+                    pattern = ".h5ad",
+                    full.names = TRUE)
+
+anndatas <- lapply(files,read_h5ad)
+
+combined_ad <- concat(
+  anndatas)
+
+umap_mfish <- umap(as.data.frame(combined_ad$X),
+                   n_neighbors = 25,
+                   n_components = 2,
+                   metric = "euclidean",
+                   min_dist = 0.4)
+
+combined_ad$obsm[['X_umap']] <- umap_mfish  
+
+write_h5ad(combined_ad,paste0(cirro_folder,"atlas_brain_1.h5ad"))
+
+
+
+
+
+
+
+
 
