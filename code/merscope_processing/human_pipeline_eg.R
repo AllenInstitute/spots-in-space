@@ -326,8 +326,8 @@ for (i in folder) {
     train.cl.dat = cl.means[useGenes,]
     vizgen.dat = vizgen.dat[useGenes,]
 
-    index.bs = build_train_index_bs(train.cl.dat, method="cor",fn = "fb.index")
-    map.result = map_cells_knn_bs(vizgen.dat, train.index.bs=index.bs, method="cor", mc.cores=10)
+    index.bs = build_train_index_bs(train.cl.dat, method="Annoy.Cosine",fn = "fb.index")
+    map.result = map_cells_knn_bs(vizgen.dat, train.index.bs=index.bs, method="Annoy.Cosine", mc.cores=10)
     best.map.df = map.result$best.map.df
     cl.anno = best.map.df %>% left_join(train.cl.df,by=c("best.cl"="cluster"))
     
@@ -426,28 +426,4 @@ for (i in folder) {
     write_h5ad(ad,paste0(inputFolder,"/processed/",file_name,".h5ad"))
   }
 }
-
-
-
-# cirro_folder <- "/allen/programs/celltypes/workgroups/rnaseqanalysis/mFISH/michaelkunst/MERSCOPES/for_cirro_human/"
-# 
-# files <- list.files("nas05_survey_data/scratch/vizgen_download/analyzed_data/", 
-#                     recursive = TRUE, 
-#                     pattern = ".h5ad",
-#                     full.names = TRUE)
-# 
-# anndatas <- lapply(files,read_h5ad)
-# 
-# combined_ad <- concat(anndatas)
-# 
-# umap_mfish <- umap(as.data.frame(combined_ad$X),
-#                    n_neighbors = 25,
-#                    n_components = 2,
-#                    metric = "euclidean",
-#                    min_dist = 0.4,
-#                    pca = 50)
-# 
-# combined_ad$obsm[['X_umap']] <- umap_mfish  
-# 
-# write_h5ad(combined_ad,paste0(cirro_folder,"human_merscope_data.h5ad"))
 
