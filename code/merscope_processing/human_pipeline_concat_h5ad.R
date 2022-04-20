@@ -1,8 +1,7 @@
 library(anndata)
-library(ggplot2)
-library(umap)
+library(uwot)
 
-save_folder <- "~/surveyNAS05/scratch/vizgen_download/analyzed_data/"
+save_folder <- "/home/imaging_mfish/surveyNAS05/scratch/vizgen_download/analyzed_data/"
 
 files <- list.files(save_folder,
                     recursive = TRUE,
@@ -22,4 +21,4 @@ umap_mfish <- umap(as.data.frame(combined_ad$X),
 
 combined_ad$obsm[['X_umap']] <- umap_mfish
 
-write_h5ad(combined_ad,paste0(cirro_folder,"human_merscope_data_vizgen_download.h5ad"))
+write_h5ad(combined_ad,paste0(save_folder,"human_merscope_data_vizgen_download", ".h5ad"))
