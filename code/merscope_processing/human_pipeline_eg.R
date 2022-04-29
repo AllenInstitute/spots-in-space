@@ -29,17 +29,17 @@ options(scipen=999)
 options(mc.cores = 20)
 
 ########################## code to process cell by gene table #######################
-
-inputFolder <- "~/surveyNAS05/scratch/vizgen_download/analyzed_data/"
-run_tracker <- read_xlsx("~/surveyNAS05/scratch/MERSCOPE Run tracker_211102.xlsx", sheet=1)
+#"/home/imaging_mfish/surveyNAS05/scratch/vizgen_download/analyzed_data/"
+inputFolder <- "~/MERSCOPENAS02_data/human/merfish_output"
+run_tracker <- read_xlsx("~/surveyNAS05/scratch/MERSCOPE_Human_Imaging_Tracker.xlsx", sheet=1)
 
 run_tracker_human <- run_tracker %>% 
   dplyr::filter(Species == "Human") %>% 
-  drop_na(`Experiment name`) 
+  drop_na(`Experiment Name`) 
 
-run_tracker_human$`Experiment name` <- str_replace_all(run_tracker_human$`Experiment name`,"mtg", "MTG") 
-run_tracker_human$`Experiment name` <- str_replace_all(run_tracker_human$`Experiment name`,"cx", "Cx") 
-run_tracker_human$`Experiment name` <- str_replace_all(run_tracker_human$`Experiment name`,"CX", "Cx") 
+run_tracker_human$`Experiment Name` <- str_replace_all(run_tracker_human$`Experiment Name`,"mtg", "MTG") 
+run_tracker_human$`Experiment Name` <- str_replace_all(run_tracker_human$`Experiment Name`,"cx", "Cx") 
+run_tracker_human$`Experiment Name` <- str_replace_all(run_tracker_human$`Experiment Name`,"CX", "Cx") 
 
 min_genes <- 3
 min_total_reads <- 30
@@ -51,12 +51,12 @@ upper_genes_read <- 130
 gene_panel <- "VZG167a"
 
 # load files for mapping
-source("~/surveyNAS05/scratch/map_knn.R")
+source("/home/imaging_mfish/projects/spatial-analysis-wg/code/merscope_processing/map_knn.R")
 
 #mappingFolder <- "/allen/programs/celltypes/workgroups/rnaseqanalysis/Nik/Analyses_for_great_apes_paper/Step9_final_taxonomies_after_manual_subclass_confirmation/individual_species/human/"    
 
 # read count matrix for macaque rnaseq data
-mat_rnaseq <- readRDS(paste0("~/surveyNAS05/scratch/human_all_raw_UMI_expression_matrix.RDS"))
+mat_rnaseq <- readRDS(paste0("/home/imaging_mfish/projects/spatial-analysis-wg/code/merscope_processing/human_all_raw_UMI_expression_matrix.RDS"))
 # read in annotation
 metadata_rnaseq <- readRDS(paste0("~/surveyNAS05/scratch/Master_metadata_for_plots_and_sharing_12_16_21.RDS"))
 #filter out smart-seq data from metadata
@@ -78,33 +78,34 @@ train.cl.df <- metadata_rnaseq %>%
                 class) %>% 
   distinct(cluster, .keep_all = TRUE)
 
-folder <- list.dirs("~/surveyNAS05/scratch/vizgen_download/analyzed_data", full.names = TRUE, recursive = FALSE)
+folder <- list.dirs(inputFolder, full.names = TRUE, recursive = FALSE)
 
-counter = 0
+counter = 0 #if concatenating multiple files across folders, set this to the last counter value +1 or spatial cirro won't increment right
+#and your doritos will overlap
 
 for (i in folder) {
   inputFolder <- i
   file_name <- basename(inputFolder)
   #below are changes to accommodate vizgen processed data and folder structure
   if (file_name != 'Assembled') {
-    #file_name_parts <- str_split(file_name, pattern = "_")
-    # experiment <- file_name_parts[[1]][2]
-    # experiment <- str_replace_all(experiment,"mtg", "MTG") 
-    # experiment <- str_replace_all(experiment,"cx", "Cx") 
-    # experiment <- str_replace_all(experiment,"CX", "Cx") 
-    # idx <- which(run_tracker_human$`Experiment name` == experiment)
-    # species <- run_tracker_human[[idx,2]]
-    # section <- run_tracker_human[[idx,1]]
-    # merscope <- file_name_parts[[1]][3]
-    # collection_year <- substring(file_name_parts[[1]][2],2,3)
-    # source <- substring(file_name_parts[[1]][2],4,5)
+    file_name_parts <- str_split(file_name, pattern = "_")
+    experiment <- file_name_parts[[1]][2]
+    experiment <- str_replace_all(experiment,"mtg", "MTG")
+    experiment <- str_replace_all(experiment,"cx", "Cx")
+    experiment <- str_replace_all(experiment,"CX", "Cx")
+    #idx <- which(run_tracker_human$`Experiment Name` == experiment) #not in current run tracker! have it default to counter if 0
+    #species <- run_tracker_human[[idx,2]]
+    #section <- run_tracker_human[[idx,1]]
+    merscope <- file_name_parts[[1]][3]
+    collection_year <- substring(file_name_parts[[1]][2],2,3)
+    source <- substring(file_name_parts[[1]][2],4,5)
     experiment <- file_name
     idx <- counter
     species <- 'human'
-    section <- 'vizgen_run'
-    merscope <- 'vizgen_run'
-    collection_year <- '2022'
-    source <- 'vizgen_run'
+    section <- substring(experiment, 6, 8)
+    #merscope <- 'vizgen run'
+    #collection_year <- '2022'
+    #source <- 'vizgen_run'
     #above are changes to accommodate vizgen processed data and folder structure
     
     cbg <- read.csv(paste0(inputFolder,"/region_0/cell_by_gene.csv"), 
@@ -326,13 +327,14 @@ for (i in folder) {
     train.cl.dat = cl.means[useGenes,]
     vizgen.dat = vizgen.dat[useGenes,]
 
-    index.bs = build_train_index_bs(train.cl.dat, method="Annoy.Cosine",fn = "fb.index")
-    map.result = map_cells_knn_bs(vizgen.dat, train.index.bs=index.bs, method="Annoy.Cosine", mc.cores=10)
+    index.bs = build_train_index_bs(train.cl.dat, method="cor",fn = "fb.index") #eventually Annoy.cosine for method
+    map.result = map_cells_knn_bs(vizgen.dat, train.index.bs=index.bs, method="cor", mc.cores=4) #ditto
     best.map.df = map.result$best.map.df
     cl.anno = best.map.df %>% left_join(train.cl.df,by=c("best.cl"="cluster"))
     
+    #if annoy.cosine on 329, setNames = avg.dist
     cl.list = with(cl.anno, list(cl=setNames(best.cl, sample_id),subclass=setNames(subclass, sample_id),subclass=setNames(best.cl, sample_id)))
-    z.score=z_score(cl.list, val=with(best.map.df, setNames(avg.cor,sample_id)), min.sample=100)
+    z.score=z_score(cl.list, val=with(best.map.df, setNames(avg.cor,sample_id)), min.sample=100) 
     cl.anno$z.score = z.score[cl.anno$sample_id]
 
     anno_mfish <- merge(metadata,
@@ -344,6 +346,7 @@ for (i in folder) {
     anno_mfish <- column_to_rownames(anno_mfish, var = "Row.names")
     anno_mfish <- anno_mfish[match(rownames(cbg_cpum),rownames(anno_mfish)),]
     
+    #if annoy.cosine on 329, x = avg.dist
     ggplot(subset(anno_mfish,cell_qc %in% "High"),aes(x=avg.cor)) +
       geom_histogram(aes(y = ..density..), binwidth = .01) +
       geom_density() +
@@ -354,6 +357,7 @@ for (i in folder) {
     
     ggsave2(paste0(inputFolder,"/plots/corr_coeff.pdf"))
     
+    #if annoy.cosine on 329, x = avg.dist
     ggplot(subset(anno_mfish,cell_qc %in% "High"),aes(x=avg.cor,fill=neighborhood)) +
       geom_histogram(aes(y = ..density..), binwidth = .01) +
       geom_density() +
@@ -394,6 +398,7 @@ for (i in folder) {
     colnames(anno_mfish)[29] <- "cluster"
     # prepare data for anndata format
     uns <- c("species","merscope","gene_panel","min_genes","min_total_reads","min_vol","upper_bound_area","upper_bound_reads","upper_genes_read")
+    #if annoy.cosine on 329, avg.cor = avg.dist
     anno_mfish_subset <- anno_mfish %>%
       dplyr::filter(cell_qc == "High") %>%
       dplyr::select(cluster,cross_species_cluster,subclass, neighborhood,class,merscope,avg.cor,genes_detected,total_reads,prob,volume)
