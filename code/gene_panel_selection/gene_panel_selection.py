@@ -222,10 +222,12 @@ class GeneBasisMethod(GenePanelMethod):
 
     def neighborhood_score(self, gene_panel: GenePanelSelection):
         neigh_df = None
-        # will need to pack this up a bit more to evaluate data that doesnt' already have it
+        # will need to pack this up a bit more to evaluate data that doesnt' already have sce data
+        # option to also run from a GeneBasisMethod instance that has an sce
         if self.sce is None:
-            self.sce = self.df_to_sce(self.exp_data)
+            self.df_to_sce()
         for level in ['class', 'subclass', 'cluster']:
+            print(f'Level: {level}')
             neighbor_score = self.gB.evaluate_library(
                 self.sce, 
                 genes_selection=gene_panel.gene_panel['gene'],  
@@ -247,7 +249,11 @@ class GeneBasisMethod(GenePanelMethod):
         return neigh_df
 
 
-def get_neighborhood_scores(gene_panel: GenePanelSelection, exp_data: ExpressionDataset):
-    gene_basis = GeneBasisMethod(exp_data)
+def get_neighborhood_scores(gene_panel: GenePanelSelection):
+    gene_basis = GeneBasisMethod(gene_panel.exp_data)
     neighborhood_scores = gene_basis.neighborhood_score(gene_panel)
+    with open(os.path.join(gene_panel.run_directory, 'neighborhood_scores'), 'wb') as file:
+        pkl.dump(neighborhood_scores, file)
+        file.close()
+
     return neighborhood_scores
