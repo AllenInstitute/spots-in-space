@@ -1,4 +1,5 @@
 from ast import Expr
+from operator import ne
 import pandas
 import math
 import os
@@ -81,7 +82,7 @@ class ExpressionDataset:
 class GenePanelSelection:
     """Contains a gene panel selection as well as information about how the selection was performed.
     """
-    def __init__(self, exp_data: ExpressionDataset, gene_panel: list, method: GenePanelMethod, args: dict):
+    def __init__(self, exp_data: ExpressionDataset, gene_panel: list, method: 'GenePanelMethod', args: dict):
         self.exp_data = exp_data
         self.gene_panel = gene_panel
         self.method = method
@@ -121,14 +122,13 @@ class GenePanelSelection:
             file.close()
         
         return selection
-    
-    def evaluate_panel(self, method: GenePanelMethod):
-        raise NotImplementedError()
-
 
 class GenePanelMethod():
-    def select_gene_panel(size: int, data: ExpressionDataset, args: dict={}) -> GenePanelSelection:
+    def select_gene_panel(self, size: int, data: ExpressionDataset, args: dict={}) -> GenePanelSelection:
         raise NotImplementedError('select_gene_panel must be implementd in a subclass')
+    
+    def evaluate_gene_panel(self, selection: GenePanelSelection):
+        raise NotImplementedError('evaluate_gene_panel must be implemented in a subclass')
 
 
 class ScranMethod(GenePanelMethod):
@@ -167,6 +167,7 @@ class GeneBasisMethod(GenePanelMethod):
         anno = exp_data.annotation_data
         anno.index.rename('cell', inplace=True) # <- renaming sample_id to 'cell' is important for geneBasis ability to read the file and align with the expression data
         self.exp_data.annotation_data = anno
+        self.sce = None
 
     def df_to_sce(self, args:dict={}):
         print('saving expression and annotation data to csv...')
@@ -190,7 +191,7 @@ class GeneBasisMethod(GenePanelMethod):
         self.annotation_data_file = annotation_data_filename
     
     def raw_to_sce(self, args: dict):
-        # used in geneBasis to convert csv data files into SingleCellExperiment object used by geneBasis to select panel
+        # used in geneBasis to convert csv data files into SingleCellExperiment object used by geneBasis to select and evaluate panel
         default_args = {
             'counts_type': 'logcounts',
             'transform_to_logcounts': False,
@@ -219,4 +220,34 @@ class GeneBasisMethod(GenePanelMethod):
 
         return gps
 
-    
+    def neighborhood_score(self, gene_panel: GenePanelSelection):
+        neigh_df = None
+        # will need to pack this up a bit more to evaluate data that doesnt' already have it
+        if self.sce is None:
+            self.sce = self.df_to_sce(self.exp_data)
+        for level in ['class', 'subclass', 'cluster']:
+            neighbor_score = self.gB.evaluate_library(
+                self.sce, 
+                genes_selection=gene_panel.gene_panel['gene'],  
+                celltype_id = level,
+                return_cell_score_stat = True, 
+                return_gene_score_stat = False, 
+                return_celltype_stat = False, 
+                verbose = True
+                )
+            df = neighbor_score.rx2['cell_score_stat'].set_index('cell')
+            if neigh_df is None:
+                neigh_df = df
+            else:
+                neigh_df = neigh_df.merge(df['cell_score'], left_index=True, right_index=True)
+                
+            neigh_df = neigh_df.rename(columns={'cell_score': f'{level}_cell_score'})
+
+        neigh_df = neigh_df.merge(gene_panel.exp_data.annotation_data, left_index=True, right_index=True)
+        return neigh_df
+
+
+def get_neighborhood_scores(gene_panel: GenePanelSelection, exp_data: ExpressionDataset):
+    gene_basis = GeneBasisMethod(exp_data)
+    neighborhood_scores = gene_basis.neighborhood_score(gene_panel)
+    return neighborhood_scores
