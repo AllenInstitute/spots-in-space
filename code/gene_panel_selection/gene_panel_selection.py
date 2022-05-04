@@ -1,4 +1,5 @@
 from ast import Expr
+from calendar import c
 from operator import ne
 import pandas
 import math
@@ -7,12 +8,18 @@ import numpy as np
 import pickle as pkl
 from datetime import datetime
 
-import rpy2.robjects as ro
-from rpy2.robjects.packages import importr
-import rpy2.rinterface as rinterface
-from rpy2.robjects import pandas2ri
-pandas2ri.activate()
-readr = importr('readr')
+_r_init_done = False
+rinterface = None
+def importr(lib):
+    global _r_init_done, rinterface
+    import rpy2.robjects as ro
+    from rpy2.robjects.packages import importr as rpy2_importr
+    import rpy2.rinterface as rinterface
+    from rpy2.robjects import pandas2ri
+    if not _r_init_done:
+        pandas2ri.activate()
+        readr = rpy2_importr('readr')
+    return rpy2_importr(lib)
 
 
 class ExpressionDataset:
@@ -132,11 +139,11 @@ class GenePanelMethod():
 
 
 class ScranMethod(GenePanelMethod):
-    scran = importr('scran')
 
     def __init__(self, exp_data = ExpressionDataset):
         self.exp_data = exp_data
-    
+        self.scran = importr('scran')
+
     def select_gene_panel(self, size: int, args:dict):
         exp_var = self.scran.modelGeneVar(self.exp_data.expression_data)
         var_thresh = args.get('var_thresh', 0)
@@ -159,15 +166,14 @@ class ScranMethod(GenePanelMethod):
         return gps
 
 class GeneBasisMethod(GenePanelMethod):
-    gB = importr('geneBasisR')
-    SummarizedExperiment = importr('SummarizedExperiment')
-
     def __init__(self, exp_data: ExpressionDataset):
         self.exp_data = exp_data
         anno = exp_data.annotation_data
         anno.index.rename('cell', inplace=True) # <- renaming sample_id to 'cell' is important for geneBasis ability to read the file and align with the expression data
         self.exp_data.annotation_data = anno
         self.sce = None
+        self.gB = importr('geneBasisR')
+        self.SummarizedExperiment = importr('SummarizedExperiment')
 
     def df_to_sce(self, args:dict={}):
         print('saving expression and annotation data to csv...')
@@ -221,39 +227,53 @@ class GeneBasisMethod(GenePanelMethod):
         return gps
 
     def neighborhood_score(self, gene_panel: GenePanelSelection):
-        neigh_df = None
-        # will need to pack this up a bit more to evaluate data that doesnt' already have sce data
-        # option to also run from a GeneBasisMethod instance that has an sce
         if self.sce is None:
             self.df_to_sce()
+        neighbor_score = self.gB.evaluate_library(
+            self.sce, 
+            genes_selection=gene_panel.gene_panel['gene'],  
+            celltype_id = rinterface.NULL,
+            return_cell_score_stat = True, 
+            return_gene_score_stat = False, 
+            return_celltype_stat = False, 
+            verbose = True
+            )
+        neigh_df = neighbor_score.rx2['cell_score_stat'].set_index('cell').rename(columns={'cell_score': f'neighborhood_cell_score'})
+        neigh_df = neigh_df.merge(gene_panel.exp_data.annotation_data, left_index=True, right_index=True)
+        return neigh_df
+    
+    def celltype_mapping(self, gene_panel: GenePanelSelection):
+        print('Performing celltype mapping')
+        if self.sce is None:
+            self.df_to_sce()
+        frac_mapped_dict = {}
+        confusion_dict = {}
         for level in ['class', 'subclass', 'cluster']:
             print(f'Level: {level}')
-            neighbor_score = self.gB.evaluate_library(
+            cell_mapping = self.gB.get_celltype_mapping(
                 self.sce, 
                 genes_selection=gene_panel.gene_panel['gene'],  
                 celltype_id = level,
-                return_cell_score_stat = True, 
-                return_gene_score_stat = False, 
-                return_celltype_stat = False, 
-                verbose = True
+                return_stat = True, 
                 )
-            df = neighbor_score.rx2['cell_score_stat'].set_index('cell')
-            if neigh_df is None:
-                neigh_df = df
-            else:
-                neigh_df = neigh_df.merge(df['cell_score'], left_index=True, right_index=True)
-                
-            neigh_df = neigh_df.rename(columns={'cell_score': f'{level}_cell_score'})
+            frac_mapped_dict[level] = cell_mapping.rx2['stat']
+            confusion_matrix = pandas.pivot_table(cell_mapping.rx2['mapping'], values='cell', index='mapped_celltype', columns='celltype', aggfunc='count')
+            confusion_dict[level] = confusion_matrix
 
-        neigh_df = neigh_df.merge(gene_panel.exp_data.annotation_data, left_index=True, right_index=True)
-        return neigh_df
+        frac_mapped_df = pandas.concat(frac_mapped_dict, axis=1)
+        confusion_matrix_df = pandas.concat(confusion_dict, axis=1)
+        return frac_mapped_df, confusion_matrix_df
 
+    def panel_eval(self, gene_panel: GenePanelSelection):
+        neighbor_score = self.neighborhood_score(gene_panel)
+        frac_mapped, confusion_matrix = self.celltype_mapping(gene_panel)
+        return neighbor_score, frac_mapped, confusion_matrix
 
-def get_neighborhood_scores(gene_panel: GenePanelSelection):
+def gene_basis_panel_eval(gene_panel: GenePanelSelection):
     gene_basis = GeneBasisMethod(gene_panel.exp_data)
-    neighborhood_scores = gene_basis.neighborhood_score(gene_panel)
-    with open(os.path.join(gene_panel.run_directory, 'neighborhood_scores'), 'wb') as file:
-        pkl.dump(neighborhood_scores, file)
+    panel_eval = gene_basis.panel_eval(gene_panel)
+    with open(os.path.join(gene_panel.run_directory, 'gene_basis_evaluation'), 'wb') as file:
+        pkl.dump(panel_eval, file)
         file.close()
 
-    return neighborhood_scores
+    return panel_eval
