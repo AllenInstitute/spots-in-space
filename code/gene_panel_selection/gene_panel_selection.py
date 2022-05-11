@@ -4,6 +4,7 @@ from operator import ne
 import pandas
 import math
 import os
+import typing
 import numpy as np
 import pickle as pkl
 from datetime import datetime
@@ -41,9 +42,10 @@ class ExpressionDataset:
     logcounts : bool
         Whether the gene counts are log normalized or not
     """
-    def __init__(self, expression_data: pandas.DataFrame, annotation_data: pandas.DataFrame=None, region: str=None, save_path: str=None, logcounts: bool=False):
+    def __init__(self, expression_data: pandas.DataFrame, annotation_data: pandas.DataFrame=None,  cpm_data: pandas.DataFrame=None, region: str=None, save_path: str=None, logcounts: bool=False):
         self.expression_data = expression_data
         self.annotation_data = annotation_data
+        self._cpm_data = cpm_data
         self.log_exp = logcounts
         self.region = region
 
@@ -57,8 +59,19 @@ class ExpressionDataset:
             file.close()
             print(f'gene panel UID: {dir_ts}')
 
+    @property
+    def genes(self):
+        return self.expression_data.columns
+
+    @property
+    def cpm_data(self):
+        if self._cpm_data is None:
+            # todo: generate from raw data
+            raise NotImplementedError()
+        return self._cpm_data
+
     @classmethod
-    def load_arrow(cls, gene_file: str, annotation_file: str, expression_file: str):
+    def load_arrow(cls, gene_file: str, annotation_file: str, expression_file: str, cpm_file: typing.Optional[str]):
         """Return dataset loaded from 3 arrow files
 
         * ``expression_file`` contains one gene per row, one cell per column.
@@ -69,10 +82,16 @@ class ExpressionDataset:
         genes = pandas.read_feather(gene_file)
         expression = pandas.read_feather(expression_file)
         expression = expression.set_index(genes['gene']).T
+        if cpm_file is not None:
+            cpm = pandas.read_feather(cpm_file)
+            cpm = cpm.set_index(genes['gene']).T
+        else:
+            cpm = None
 
         exp_data = ExpressionDataset(
             expression_data=expression,
             annotation_data=annotations,
+            cpm_data=cpm,
         )
 
         return exp_data
@@ -141,6 +160,10 @@ class GenePanelSelection:
             file.close()
         
         return selection
+    
+    def evaluate_panel(self, method: GenePanelMethod):
+        raise NotImplementedError()
+
 
 class GenePanelMethod():
     def select_gene_panel(self, size: int, data: ExpressionDataset, args: dict={}) -> GenePanelSelection:
@@ -181,7 +204,9 @@ class ScranMethod(GenePanelMethod):
 
         return gps
 
+
 class GeneBasisMethod(GenePanelMethod):
+
     def __init__(self, exp_data: ExpressionDataset):
         self.exp_data = exp_data
         anno = exp_data.annotation_data
@@ -213,7 +238,14 @@ class GeneBasisMethod(GenePanelMethod):
         self.annotation_data_file = annotation_data_filename
     
     def raw_to_sce(self, args: dict):
-        # used in geneBasis to convert csv data files into SingleCellExperiment object used by geneBasis to select and evaluate panel
+        """ Used in geneBasis to convert csv data files into SingleCellExperiment 
+        object used by geneBasis to select and evaluate panel
+
+        Parameters:
+        -----------
+        args : dict
+            Optional arguments to pass to geneBasis.raw_to_sce
+        """
         default_args = {
             'counts_type': 'logcounts',
             'transform_to_logcounts': False,
@@ -227,6 +259,16 @@ class GeneBasisMethod(GenePanelMethod):
         self.sce = self.gB.raw_to_sce(counts_dir=self.expression_data_file, meta_dir=self.annotation_data_file, verbose=True, **args)
     
     def select_gene_panel(self, size: int, args:dict={}):
+        """
+        Paramters
+        ---------
+        size : int
+            Size of gene panel to select
+        data : ExpressionDataset
+            Gene expression dataset from which to derive panel
+        args : dict | {}
+            Optional arguments to pass to geneBasis.gene_search
+        """
         gene_panel = self.gB.gene_search(self.sce, n_genes_total = size, **args, verbose = True)
 
         gps = GenePanelSelection(
@@ -285,6 +327,86 @@ class GeneBasisMethod(GenePanelMethod):
         neighbor_score = self.neighborhood_score(gene_panel)
         frac_mapped, confusion_matrix = self.celltype_mapping(gene_panel, levels)
         return neighbor_score, frac_mapped, confusion_matrix
+
+
+class PROPOSEMethod(GenePanelMethod):
+    def select_gene_panel(self, size: int, data: ExpressionDataset, cuda_device=0, train_fraction=0.8, test_fraction=0.1, pre_eliminate=500) -> GenePanelSelection:
+        """
+        Paramters
+        ---------
+        size : int
+            Size of gene panel to select
+        data : ExpressionDataset
+            Gene expression dataset from which to derive panel
+        cuda_device : int
+            Index of cuda GPU device to use
+        train_fraction : float
+            Fraction of expression data to use for training (samples not used for training and testing are used for validation)
+        test_fraction : float
+            Fraction of expression data to hold out for testing
+        pre_eliminate : int
+            Maximum size of gene set to process with model
+        """
+        from propose import PROPOSE, HurdleLoss
+        from propose import ExpressionDataset as ProposeExpressionDataset
+        import torch
+        import torch.nn as nn
+
+        # Arrange raw and CPM data
+        raw = data.expression_data.values.astype(np.float32)
+        cpm = data.cpm_data.values.astype(np.float32)
+
+        # Generate logarithmized and binarized data
+        binary = (raw > 0).astype(np.float32)
+        log = np.log(1 + raw)
+        logcpm = np.log(1 + cpm)
+
+        # For data splitting
+        n = len(raw)
+        n_train = int(train_fraction * n)
+        n_test = int(test_fraction * n)
+        all_rows = np.arange(n)
+        np.random.seed(0)
+        np.random.shuffle(all_rows)
+        train_inds = all_rows[:n_train]
+        val_inds = all_rows[n_train:-n_test]
+        test_inds = all_rows[-n_test:]
+        print(f'{n} total examples, {len(train_inds)} training examples, {len(val_inds)} validation examples, {len(test_inds)} test examples')
+
+        # Set up datasets
+        train_dataset = ProposeExpressionDataset(binary[train_inds], logcpm[train_inds])
+        val_dataset = ProposeExpressionDataset(binary[val_inds], logcpm[val_inds])
+
+        selector = PROPOSE(
+            train_dataset,
+            val_dataset,
+            loss_fn=HurdleLoss(),
+            device=torch.device('cuda', cuda_device),
+            hidden=[128, 128]
+        )
+
+        # Eliminate many candidates
+        candidates, model = selector.eliminate(target=pre_eliminate, mbsize=128, max_nepochs=500)
+
+        # Select specific number of genes
+        inds, model = selector.select(num_genes=size, mbsize=128, max_nepochs=500)
+
+        gps = GenePanelSelection(
+            exp_data = data,
+            gene_panel = data.genes[inds],
+            method = self,
+            args = {
+                'n_genes_selected': len(inds),
+                'train_inds': train_inds,
+                'validation_inds': val_inds,
+                'test_inds': test_inds,
+                'pre_candidates': candidates,
+                'model': model,
+                'train_fraction': train_fraction,
+                'test_fraction': test_fraction,
+                'pre_eliminate': pre_eliminate,
+            },
+        )
 
 def gene_basis_panel_eval(gene_panel: GenePanelSelection, levels: list=['class', 'subclass', 'cluster']):
     """Peform gene panel evaluation using geneBasis. 
