@@ -31,15 +31,16 @@ class ExpressionDataset:
     expression_data : pandas dataframe
         Dataframe containing count of genes detected per cell. Columns are genes, with gene names contained in the column names.
         Rows are samples (cells), with the sample IDs contained in the index.
+    expression_type : str
+        Indicates the kind of data in *expression_data*. Options are "raw" (raw expression counts), "cpm", "logcpm", "binary"
     annotation_data : pandas dataframe | None
         Dataframe containing per-cell annotations. Each row is one cell, with sample name contained in the index.
         Columns should include 'cluster', 'subclass', and 'class'.
     """
-    def __init__(self, expression_data: pandas.DataFrame, annotation_data: pandas.DataFrame=None,  cpm_data: pandas.DataFrame=None, save_path: str=None, logcounts: bool=False):
+    def __init__(self, expression_data: pandas.DataFrame, expression_type, annotation_data: pandas.DataFrame=None, save_path: str=None):
         self.expression_data = expression_data
+        self.expression_type = expression_type
         self.annotation_data = annotation_data
-        self._cpm_data = cpm_data
-        self.log_exp = logcounts
 
         if save_path is not None:
             #initiate save directory and dump ExpressionDataset
@@ -54,35 +55,59 @@ class ExpressionDataset:
     def genes(self):
         return self.expression_data.columns
 
-    @property
-    def cpm_data(self):
-        if self._cpm_data is None:
-            # todo: generate from raw data
+    def normalize(self, expression_type: str):
+        """Return a normalized copy of this dataset.
+
+        Parameters
+        ----------
+        expression_type : str
+            Type of data to return. Options are 'cpm', 'logcpm', and 'binary'
+        """        
+        if expression_type == self.expression_type:
+            return self.copy()
+        
+        if expression_type == 'cpm':
+            assert self.expression_type == 'raw'
             raise NotImplementedError()
-        return self._cpm_data
+        elif expression_type == 'logcpm':
+            assert self.expression_type in ['raw', 'cpm']
+            if self.expression_type == 'raw':
+                return self.normalize('cpm').normalize('logcpm')
+            elif self.expression_type == 'cpm':
+                expression = np.log2(1 + self.expression_data)
+                return self.copy(expression_data=expression, expression_type='logcpm')
+        elif expression_type == 'binary':
+            assert self.expression_type in ['raw', 'cpm']
+            return self.copy(expression_data=(self.expression_data > 0), expression_type='binary')
 
     @classmethod
-    def load_arrow(cls, gene_file: str, annotation_file: str, expression_file: str, cpm_file: typing.Optional[str]):
+    def load_arrow(cls, gene_file: str, annotation_file: str, expression_file: str, expression_type: str, max_n_samples: typing.Optional[int]=None):
         """Return dataset loaded from 3 arrow files
 
-        * ``expression_file`` contains one gene per row, one cell per column.
-        * ``gene_file`` contains a column 'gene' with the same length and order as rows in expression_file.
-        * ``annotation_file`` contains columns 'sample_id', 'cluster', 'subclass', and 'class'. 
+        Parameters
+        ----------
+        gene_file : str
+            Name of arrow file containing a column 'gene' with the same length and order as rows in expression_file.
+        annotation_file : str
+            Name of arrow file containing columns 'sample_id', 'cluster', 'subclass', and 'class'. 
+        expression_file : str
+            Name of arrow file containing one gene per row, one cell per column.
+        expression_type : str
+            Type of expression data provided in *expression_file* (see ExpressionDataset.__init__(expression_type))
         """
         annotations = pandas.read_feather(annotation_file).set_index('sample_id')
         genes = pandas.read_feather(gene_file)
         expression = pandas.read_feather(expression_file)
         expression = expression.set_index(genes['gene']).T
-        if cpm_file is not None:
-            cpm = pandas.read_feather(cpm_file)
-            cpm = cpm.set_index(genes['gene']).T
-        else:
-            cpm = None
+        assert len(expression) == len(annotations)
+
+        if max_n_samples is None:
+            max_n_samples = len(expression)
 
         exp_data = ExpressionDataset(
-            expression_data=expression,
-            annotation_data=annotations,
-            cpm_data=cpm,
+            expression_data=expression.iloc[:max_n_samples],
+            expression_type=expression_type,
+            annotation_data=annotations.iloc[:max_n_samples],
         )
 
         return exp_data
@@ -100,10 +125,24 @@ class ExpressionDataset:
         #previously saved expression dataset?
         return exp_data
     
-    def logcounts(self):
-        self.expression_data = self.expression_data.applymap(lambda x: math.log(x+1, 2), na_action='ignore')
-        self.log_exp = True
-    
+    def select_genes(self, genes: list) -> 'ExpressionDataset':
+        exp_data = self.copy(expression_data=self.expression_data[genes])
+        if hasattr(self, 'run_directory'):
+            exp_data.run_directory = self.run_directory
+        
+        return exp_data
+
+    def copy(self, **kwds):
+        """Create a copy of this ExpressionDataset with some arguments changed.
+        """
+        default_kwds = dict(
+            expression_data=self.expression_data,
+            annotation_data=self.annotation_data,
+            expression_type=self.expression_type,
+        )
+        default_kwds.update(kwds)
+        return ExpressionDataset(**default_kwds)
+
 
 class GenePanelSelection:
     """Contains a gene panel selection as well as information about how the selection was performed.
@@ -113,26 +152,16 @@ class GenePanelSelection:
         self.gene_panel = gene_panel
         self.method = method
         self.args = args
-        self.run_directory = self.exp_data.run_directory
-        file_name = args.get('file_name', 'gene_panel_selection')
-        file = open(os.path.join(self.run_directory, file_name), 'wb')
-        pkl.dump(self, file)
-        file.close()
-
+        # self.run_directory = self.exp_data.run_directory
+        # file_name = args.get('file_name', 'gene_panel_selection')
+        # file = open(os.path.join(self.run_directory, file_name), 'wb')
+        # pkl.dump(self, file)
+        # file.close()
 
     def expression_dataset(self):
         """Return a new ExpressionDataset containing only the genes selected in this panel.
         """
-        exp_data = ExpressionDataset(
-            expression_data=self.exp_data.expression_data[self.exp_data.expression_data.index.isin(self.gene_panel)],
-            annotation_data=self.exp_data.annotation_data,
-            logcounts = self.exp_data.log_exp,
-        )
-
-        if hasattr(self.exp_data, 'run_directory'):
-            exp_data.run_directory = self.exp_data.run_directory
-        
-        return exp_data
+        return self.exp_data.select_genes(self.gene_panel)
     
     def report(self):
         print(self.args)
@@ -149,7 +178,7 @@ class GenePanelSelection:
         
         return selection
     
-    def evaluate_panel(self, method: GenePanelMethod):
+    def evaluate_panel(self, method: 'GenePanelMethod'):
         raise NotImplementedError()
 
 
@@ -193,9 +222,9 @@ class GeneBasisMethod(GenePanelMethod):
 
     def __init__(self, exp_data: ExpressionDataset):
         self.exp_data = exp_data
-        anno = exp_data.annotation_data
+        anno = exp_data.annotation_data.copy()
         anno.index.rename('cell', inplace=True) # <- renaming sample_id to 'cell' is important for geneBasis ability to read the file and align with the expression data
-        self.exp_data.annotation_data = anno
+        self.exp_data = exp_data.copy(annotation_data=anno)
         self.sce = None
         self.gB = importr('geneBasisR')
         self.SummarizedExperiment = importr('SummarizedExperiment')
@@ -244,7 +273,7 @@ class GeneBasisMethod(GenePanelMethod):
             method = self,
             args = {
                 'n_genes_selected': len(gene_panel),
-                'used_log_counts': self.exp_data.log_exp,
+                'expression_data_type': self.exp_data.expression_type,
                 'file_name': 'gene_panel_selection',
             }
         )
@@ -306,14 +335,19 @@ def gene_basis_panel_eval(gene_panel: GenePanelSelection):
 
 
 class PROPOSEMethod(GenePanelMethod):
-    def select_gene_panel(self, size: int, data: ExpressionDataset, cuda_device=0, train_fraction=0.8, test_fraction=0.1, pre_eliminate=500) -> GenePanelSelection:
+    def select_gene_panel(self, size: int, data: ExpressionDataset, use_classes=True, annotation_column='cluster', cuda_device=0, train_fraction=0.8, test_fraction=0.1, pre_eliminate=500) -> GenePanelSelection:
         """
+
         Paramters
         ---------
         size : int
             Size of gene panel to select
         data : ExpressionDataset
             Gene expression dataset from which to derive panel
+        use_classes : bool
+            If True, optimize for predicting classes rather than gene expression
+        annotation_column : str
+            Name of annotation column that holds classes (when use_clases is True)
         cuda_device : int
             Index of cuda GPU device to use
         train_fraction : float
@@ -327,18 +361,9 @@ class PROPOSEMethod(GenePanelMethod):
         from propose import ExpressionDataset as ProposeExpressionDataset
         import torch
         import torch.nn as nn
-
-        # Arrange raw and CPM data
-        raw = data.expression_data.values.astype(np.float32)
-        cpm = data.cpm_data.values.astype(np.float32)
-
-        # Generate logarithmized and binarized data
-        binary = (raw > 0).astype(np.float32)
-        log = np.log(1 + raw)
-        logcpm = np.log(1 + cpm)
-
+    
         # For data splitting
-        n = len(raw)
+        n = len(data.expression_data)
         n_train = int(train_fraction * n)
         n_test = int(test_fraction * n)
         all_rows = np.arange(n)
@@ -350,19 +375,29 @@ class PROPOSEMethod(GenePanelMethod):
         print(f'{n} total examples, {len(train_inds)} training examples, {len(val_inds)} validation examples, {len(test_inds)} test examples')
 
         # Set up datasets
-        train_dataset = ProposeExpressionDataset(binary[train_inds], logcpm[train_inds])
-        val_dataset = ProposeExpressionDataset(binary[val_inds], logcpm[val_inds])
+        binary = data.normalize('binary').expression_data.to_numpy(dtype='float32')
+        if use_classes:
+            classes = data.annotation_data[annotation_column].to_numpy()
+            self.class_codes = pandas.Categorical(classes).codes
+            train_dataset = ProposeExpressionDataset(binary[train_inds], self.class_codes[train_inds])
+            val_dataset = ProposeExpressionDataset(binary[val_inds], self.class_codes[val_inds])
+            loss_fn = torch.nn.CrossEntropyLoss()
+        else:
+            logcpm = data.normalize('logcpm').expression_data.to_numpy(dtype='float32')
+            train_dataset = ProposeExpressionDataset(binary[train_inds], logcpm[train_inds])
+            val_dataset = ProposeExpressionDataset(binary[val_inds], logcpm[val_inds])
+            loss_fn = HurdleLoss()
 
         selector = PROPOSE(
             train_dataset,
             val_dataset,
-            loss_fn=HurdleLoss(),
+            loss_fn=loss_fn,
             device=torch.device('cuda', cuda_device),
             hidden=[128, 128]
         )
 
         # Eliminate many candidates
-        candidates, model = selector.eliminate(target=pre_eliminate, mbsize=128, max_nepochs=500)
+        candidates, model = selector.eliminate(target=pre_eliminate, mbsize=128, max_nepochs=500, lam_init=0.00001)
 
         # Select specific number of genes
         inds, model = selector.select(num_genes=size, mbsize=128, max_nepochs=500)
@@ -372,6 +407,8 @@ class PROPOSEMethod(GenePanelMethod):
             gene_panel = data.genes[inds],
             method = self,
             args = {
+                'use_classes': use_classes,
+                'annotation_column': annotation_column,
                 'n_genes_selected': len(inds),
                 'train_inds': train_inds,
                 'validation_inds': val_inds,
@@ -383,3 +420,41 @@ class PROPOSEMethod(GenePanelMethod):
                 'pre_eliminate': pre_eliminate,
             },
         )
+
+        return gps
+
+
+class SeuratMethod(GenePanelMethod):
+    def select_gene_panel(self, size: int, data: ExpressionDataset, flavor='seurat_v3') -> GenePanelSelection:
+        """
+        Paramters
+        ---------
+        size : int
+            Size of gene panel to select
+        data : ExpressionDataset
+            Gene expression dataset from which to derive panel
+        """
+        if flavor == 'seurat_v3':
+            assert data.expression_type == 'raw'
+        else:
+            assert data.expression_type == 'logcpm'
+
+        import scanpy
+        from anndata import AnnData
+        ann = AnnData(X=data.expression_data.values.astype('float32'))
+        annotations = scanpy.pp.highly_variable_genes(ann, n_top_genes=size, flavor=flavor, inplace=False)
+
+        if flavor == 'seurat_v3':
+            inds = np.where(~np.isnan(annotations['highly_variable_rank'].values))[0]
+        else:
+            inds = np.where(annotations['highly_variable'].values)[0]
+
+        gps = GenePanelSelection(
+            exp_data = data,
+            gene_panel = data.genes[inds],
+            method = self,
+            args = {
+                'n_genes_selected': len(inds),
+            },
+        )
+        return gps
