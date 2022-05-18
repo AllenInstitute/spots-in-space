@@ -8,6 +8,7 @@ import typing
 import numpy as np
 import pickle as pkl
 from datetime import datetime
+import inspect
 
 _r_init_done = False
 rinterface = None
@@ -36,11 +37,18 @@ class ExpressionDataset:
     annotation_data : pandas dataframe | None
         Dataframe containing per-cell annotations. Each row is one cell, with sample name contained in the index.
         Columns should include 'cluster', 'subclass', and 'class'.
+    region : string
+        Region of the brain this data comes from
+    save_path : string
+        Directory to save date for later recall
+    logcounts : bool
+        Whether the gene counts are log normalized or not
     """
-    def __init__(self, expression_data: pandas.DataFrame, expression_type, annotation_data: pandas.DataFrame=None, save_path: str=None):
+    def __init__(self, expression_data: pandas.DataFrame, expression_type, annotation_data: pandas.DataFrame=None, region: str=None, save_path: str=None):
         self.expression_data = expression_data
         self.expression_type = expression_type
         self.annotation_data = annotation_data
+        self.region = region
 
         if save_path is not None:
             #initiate save directory and dump ExpressionDataset
@@ -50,6 +58,9 @@ class ExpressionDataset:
             file = open(os.path.join(self.run_directory, 'expression_dataset'), 'wb')
             pkl.dump(self, file)
             file.close()
+            print(f'gene panel UID: {dir_ts}')
+        else:
+            self.run_directory = None
 
     @property
     def genes(self):
@@ -114,7 +125,7 @@ class ExpressionDataset:
 
     @classmethod
     def load_from_timestamp(cls, directory: str, timestamp: str):
-        path = os.path.join(directory, timestamp, '/expression_dataset')
+        path = os.path.join(directory, timestamp, 'expression_dataset')
         if os.path.exists(path) is False:
             print(f'expression dataset file does not exist for timestamp {timestamp} in directory {directory}')
             return
@@ -152,11 +163,15 @@ class GenePanelSelection:
         self.gene_panel = gene_panel
         self.method = method
         self.args = args
-        # self.run_directory = self.exp_data.run_directory
-        # file_name = args.get('file_name', 'gene_panel_selection')
-        # file = open(os.path.join(self.run_directory, file_name), 'wb')
-        # pkl.dump(self, file)
-        # file.close()
+        self.run_directory = self.exp_data.run_directory
+        if self.run_directory is not None:
+            file_name = self.args.get('file_name', 'gene_panel_selection')
+            file = open(os.path.join(self.run_directory, file_name), 'wb')
+            pkl.dump(self, file)
+            file.close()
+
+    def __getstate__(self):
+        return {k:v for (k, v) in self.__dict__.items() if not inspect.ismethod(getattr(self, k))}
 
     def expression_dataset(self):
         """Return a new ExpressionDataset containing only the genes selected in this panel.
@@ -165,6 +180,7 @@ class GenePanelSelection:
     
     def report(self):
         print(self.args)
+
 
     @classmethod
     def load_gene_panel_selection(cls, directory='str', timestamp='str', filename='str'):
@@ -188,6 +204,9 @@ class GenePanelMethod():
     
     def evaluate_gene_panel(self, selection: GenePanelSelection):
         raise NotImplementedError('evaluate_gene_panel must be implemented in a subclass')
+    
+    def __getstate__(self):
+        return {k:v for (k, v) in self.__dict__.items() if not inspect.ismethod(getattr(self, k))}
 
 
 class ScranMethod(GenePanelMethod):
@@ -206,7 +225,7 @@ class ScranMethod(GenePanelMethod):
         gps = GenePanelSelection(
             exp_data = self.exp_data,
             gene_panel = top_hvgs,
-            method = self,
+            method = ScranMethod,
             args = {
                 'n_genes_selected': len(top_hvgs),
                 'variance_threshold': args.get('var_thresh', 0),
@@ -214,6 +233,7 @@ class ScranMethod(GenePanelMethod):
                 'file_name': 'hvg_selection',
             }
         )
+
 
         return gps
 
@@ -251,7 +271,14 @@ class GeneBasisMethod(GenePanelMethod):
         self.annotation_data_file = annotation_data_filename
     
     def raw_to_sce(self, args: dict):
-        # used in geneBasis to convert csv data files into SingleCellExperiment object used by geneBasis to select and evaluate panel
+        """ Used in geneBasis to convert csv data files into SingleCellExperiment 
+        object used by geneBasis to select and evaluate panel
+
+        Parameters:
+        -----------
+        args : dict
+            Optional arguments to pass to geneBasis.raw_to_sce
+        """
         default_args = {
             'counts_type': 'logcounts',
             'transform_to_logcounts': False,
@@ -265,12 +292,22 @@ class GeneBasisMethod(GenePanelMethod):
         self.sce = self.gB.raw_to_sce(counts_dir=self.expression_data_file, meta_dir=self.annotation_data_file, verbose=True, **args)
     
     def select_gene_panel(self, size: int, args:dict={}):
+        """
+        Paramters
+        ---------
+        size : int
+            Size of gene panel to select
+        data : ExpressionDataset
+            Gene expression dataset from which to derive panel
+        args : dict | {}
+            Optional arguments to pass to geneBasis.gene_search
+        """
         gene_panel = self.gB.gene_search(self.sce, n_genes_total = size, **args, verbose = True)
 
         gps = GenePanelSelection(
             exp_data = self.exp_data,
             gene_panel = gene_panel,
-            method = self,
+            method = GeneBasisMethod,
             args = {
                 'n_genes_selected': len(gene_panel),
                 'expression_data_type': self.exp_data.expression_type,
@@ -296,13 +333,13 @@ class GeneBasisMethod(GenePanelMethod):
         neigh_df = neigh_df.merge(gene_panel.exp_data.annotation_data, left_index=True, right_index=True)
         return neigh_df
     
-    def celltype_mapping(self, gene_panel: GenePanelSelection):
+    def celltype_mapping(self, gene_panel: GenePanelSelection, levels: list=['class', 'subclass', 'cluster']):
         print('Performing celltype mapping')
         if self.sce is None:
             self.df_to_sce()
         frac_mapped_dict = {}
         confusion_dict = {}
-        for level in ['class', 'subclass', 'cluster']:
+        for level in levels:
             print(f'Level: {level}')
             cell_mapping = self.gB.get_celltype_mapping(
                 self.sce, 
@@ -311,27 +348,18 @@ class GeneBasisMethod(GenePanelMethod):
                 return_stat = True, 
                 )
             frac_mapped_dict[level] = cell_mapping.rx2['stat']
-            confusion_matrix = pandas.pivot_table(cell_mapping.rx2['mapping'], values='cell', index='mapped_celltype', columns='celltype', aggfunc='count')
+            df = cell_mapping.rx2['mapping']
+            confusion_matrix = pandas.pivot_table(df, values='cell', index='mapped_celltype', columns='celltype', aggfunc='count', margins=True)
             confusion_dict[level] = confusion_matrix
 
         frac_mapped_df = pandas.concat(frac_mapped_dict, axis=1)
         confusion_matrix_df = pandas.concat(confusion_dict, axis=1)
         return frac_mapped_df, confusion_matrix_df
 
-    def panel_eval(self, gene_panel: GenePanelSelection):
+    def panel_eval(self, gene_panel: GenePanelSelection, levels: list=['class', 'subclass', 'cluster']):
         neighbor_score = self.neighborhood_score(gene_panel)
-        frac_mapped, confusion_matrix = self.celltype_mapping(gene_panel)
+        frac_mapped, confusion_matrix = self.celltype_mapping(gene_panel, levels)
         return neighbor_score, frac_mapped, confusion_matrix
-
-def gene_basis_panel_eval(gene_panel: GenePanelSelection):
-    gene_basis = GeneBasisMethod(gene_panel.exp_data)
-    panel_eval = gene_basis.panel_eval(gene_panel)
-    with open(os.path.join(gene_panel.run_directory, 'gene_basis_evaluation'), 'wb') as file:
-        pkl.dump(panel_eval, file)
-        file.close()
-
-    return panel_eval
-
 
 
 class PROPOSEMethod(GenePanelMethod):
@@ -458,3 +486,78 @@ class SeuratMethod(GenePanelMethod):
             },
         )
         return gps
+
+
+def gene_basis_panel_eval(gene_panel: GenePanelSelection, levels: list=['class', 'subclass', 'cluster']):
+    """Peform gene panel evaluation using geneBasis. 
+    Peforms two evaluations at various cell group levels:
+        1) Neighborhood score
+        2) Confusion matrix / fraction mapped correctly
+
+    Parameters
+    ----------
+    gene_panel: GenePanelSelection
+
+    levels: list | ['class', 'subclass', 'cluster']
+        List of cell group levels to perform confusion matrix. Defaults to ['class', 'subclass', 'cluster']
+    """
+    gene_basis = GeneBasisMethod(gene_panel.exp_data)
+    panel_eval = gene_basis.panel_eval(gene_panel, levels)
+    with open(os.path.join(gene_panel.run_directory, 'gene_basis_evaluation'), 'wb') as file:
+        pkl.dump(panel_eval, file)
+        file.close()
+
+    return panel_eval
+
+def marker_gene_eval(gene_panel: GenePanelSelection, marker_gene_files: dict):
+    """Evaluates how many known marker genes are present in the gene panel
+
+    Parameters
+    ----------
+    gene_panel : GenePanelSelection
+        GenePanelSelection with list of genes to perform evaluation on
+    marker_gene_files: dictionary
+        Dictionary where keys are the level (cluster, subclass, class) of the marker genes
+        and values are csv files with at least one column called 'cluster' that specifies the
+        cell group and 'gene' specifying a marker gene for that group
+    """
+
+    marker_gene_dict = {}
+    for level, marker_gene_file in marker_gene_files.items():
+        marker_genes = pandas.read_csv(marker_gene_file)
+        marker_genes = marker_genes[['cluster', 'gene']]
+        marker_genes['in_gene_panel'] = marker_genes.apply(lambda x: x['gene'] in gene_panel.gene_panel['gene'].to_list(), axis=1)
+        marker_gene_dict[level] = marker_genes
+    
+    marker_genes_df = pandas.concat(marker_gene_dict, axis=1)
+    return marker_genes_df
+
+def norm_confusion_matrix(confusion_matrix: pandas.DataFrame):
+    """ Normalize confusion matrix to fraction of mapped cells
+
+    Parameters:
+    -----------
+    confusion_matrix: pandas.Dataframe or pandas.MultiIndex
+        Dataframe or MultiIndex of pivot tables with known cell types
+        on the columns and mapped cell types on the rows with elements
+        containing counts. Marginal counts in a row call 'All' also
+        required to calculate the fraction of correctly mapped cells.
+        Included when calling pandas.DataFrame.pivot_table(margins=True)
+    """
+    if isinstance(confusion_matrix.columns, pandas.MultiIndex):
+        norm_matrix = {}
+        for level in confusion_matrix.columns.levels[0].to_list():
+            table = confusion_matrix[level].dropna(how='all')
+            norm_table = table.apply(lambda x: x/table.loc['All'], axis=1)
+            norm_table.drop(columns='All', inplace=True)
+            norm_table.drop(labels='All', inplace=True)
+            norm_matrix[level] = norm_table
+        return pandas.concat(norm_matrix, axis=1)
+    else:
+        table = confusion_matrix
+        norm_matrix = table.apply(lambda x: x/table.iloc['All'], axis=1)
+        norm_matrix.drop(columns='All', inplace=True)
+        norm_matrix.drop(labels='All', inplace=True)
+
+        return norm_matrix
+
