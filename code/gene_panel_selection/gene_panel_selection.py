@@ -160,9 +160,6 @@ class GenePanelSelection:
             file.close()
         
         return selection
-    
-    def evaluate_panel(self, method: GenePanelMethod):
-        raise NotImplementedError()
 
 
 class GenePanelMethod():
@@ -182,7 +179,7 @@ class ScranMethod(GenePanelMethod):
         self.exp_data = exp_data
         self.scran = importr('scran')
 
-    def select_gene_panel(self, size: int, args:dict):
+    def select_gene_panel(self, size: int, args:dict, file_name: str='hvg_selection'):
         exp_var = self.scran.modelGeneVar(self.exp_data.expression_data)
         var_thresh = args.get('var_thresh', 0)
         top_hvgs = list(self.scran.getTopHVGs(exp_var, var_threshold=var_thresh))
@@ -197,7 +194,7 @@ class ScranMethod(GenePanelMethod):
                 'n_genes_selected': len(top_hvgs),
                 'variance_threshold': args.get('var_thresh', 0),
                 'used_log_counts': self.exp_data.log_exp,
-                'file_name': 'hvg_selection',
+                'file_name': file_name,
             }
         )
 
@@ -258,7 +255,7 @@ class GeneBasisMethod(GenePanelMethod):
             args = default_args
         self.sce = self.gB.raw_to_sce(counts_dir=self.expression_data_file, meta_dir=self.annotation_data_file, verbose=True, **args)
     
-    def select_gene_panel(self, size: int, args:dict={}):
+    def select_gene_panel(self, size: int, file_name: str='gene_panel_selection', args:dict={}):
         """
         Paramters
         ---------
@@ -278,7 +275,7 @@ class GeneBasisMethod(GenePanelMethod):
             args = {
                 'n_genes_selected': len(gene_panel),
                 'used_log_counts': self.exp_data.log_exp,
-                'file_name': 'gene_panel_selection',
+                'file_name': file_name,
             }
         )
 
