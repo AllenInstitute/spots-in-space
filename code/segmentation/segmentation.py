@@ -379,6 +379,7 @@ class SpotTable:
     
     @staticmethod
     def cell_palette(cells):
+        import seaborn
         cell_set = np.unique(cells)
         n_cells = len(cell_set)
         colors = seaborn.color_palette('dark', 30)
