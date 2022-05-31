@@ -13,7 +13,7 @@ import inspect
 _r_init_done = False
 rinterface = None
 def importr(lib):
-    global _r_init_done, rinterface
+    global _r_init_done, rinterface, ro
     import rpy2.robjects as ro
     from rpy2.robjects.packages import importr as rpy2_importr
     import rpy2.rinterface as rinterface
@@ -152,7 +152,9 @@ class ExpressionDataset:
             expression_type=self.expression_type,
         )
         default_kwds.update(kwds)
-        return ExpressionDataset(**default_kwds)
+        exp_data =  ExpressionDataset(**default_kwds)
+        exp_data.run_directory = self.run_directory
+        return exp_data
 
 
 class GenePanelSelection:
@@ -215,7 +217,8 @@ class ScranMethod(GenePanelMethod):
         self.scran = importr('scran')
 
     def select_gene_panel(self, size: int, args:dict, file_name: str='hvg_selection'):
-        exp_var = self.scran.modelGeneVar(self.exp_data.expression_data)
+        expression_data = self.exp_data.expression_data.T
+        exp_var = self.scran.modelGeneVar(expression_data)
         var_thresh = args.get('var_thresh', 0)
         top_hvgs = list(self.scran.getTopHVGs(exp_var, var_threshold=var_thresh))
         if size is not None and np.isfinite(size):
@@ -228,7 +231,6 @@ class ScranMethod(GenePanelMethod):
             args = {
                 'n_genes_selected': len(top_hvgs),
                 'variance_threshold': args.get('var_thresh', 0),
-                'used_log_counts': self.exp_data.log_exp,
                 'file_name': file_name,
             }
         )
@@ -259,8 +261,9 @@ class GeneBasisMethod(GenePanelMethod):
         expression_data_filename = os.path.join(path, 'expression_data.csv')
         if os.path.exists(expression_data_filename):
             print(f'{expression_data_filename} already exists')
-        else:   
-            self.exp_data.expression_data.to_csv(expression_data_filename, index_label=False) # having an index label throws off the matchup between the expression and anno files
+        else: 
+            expression_data = self.exp_data.expression_data.T  
+            expression_data.to_csv(expression_data_filename, index_label=False) # having an index label throws off the matchup between the expression and anno files
         self.expression_data_file = expression_data_filename    
         annotation_data_filename = os.path.join(path, 'annotation_data.csv')
         if os.path.exists(annotation_data_filename):
@@ -286,8 +289,7 @@ class GeneBasisMethod(GenePanelMethod):
             'batch': rinterface.NULL,
         }
 
-        if bool(args) is False:
-            args = default_args
+        args.update(default_args)
         self.sce = self.gB.raw_to_sce(counts_dir=self.expression_data_file, meta_dir=self.annotation_data_file, verbose=True, **args)
     
     def select_gene_panel(self, size: int, file_name: str='gene_panel_selection', args:dict={}):
@@ -301,17 +303,25 @@ class GeneBasisMethod(GenePanelMethod):
         args : dict | {}
             Optional arguments to pass to geneBasis.gene_search
         """
+        
+        # check some R conversions to optional arguments
+        if bool(args):
+            for k, v in args.items():
+                if v is None:
+                    args[k] = rinterface.NULL
+                if type(v) is list and all(isinstance(element, str) for element in v):
+                    args[k] = ro.vectors.StrVector(v)
+        
         gene_panel = self.gB.gene_search(self.sce, n_genes_total = size, **args, verbose = True)
 
         gps = GenePanelSelection(
             exp_data = self.exp_data,
-            gene_panel = gene_panel,
+            gene_panel = gene_panel['gene'].to_list(),
             method = GeneBasisMethod,
             args = {
                 'n_genes_selected': len(gene_panel),
-                'used_log_counts': self.exp_data.log_exp,
                 'expression_data_type': self.exp_data.expression_type,
-                'file_name': 'gene_panel_selection',
+                'file_name': file_name,
             }
         )
 
@@ -322,7 +332,7 @@ class GeneBasisMethod(GenePanelMethod):
             self.df_to_sce()
         neighbor_score = self.gB.evaluate_library(
             self.sce, 
-            genes_selection=gene_panel.gene_panel['gene'],  
+            genes_selection=ro.vectors.StrVector(gene_panel.gene_panel),  
             celltype_id = rinterface.NULL,
             return_cell_score_stat = True, 
             return_gene_score_stat = False, 
@@ -343,7 +353,7 @@ class GeneBasisMethod(GenePanelMethod):
             print(f'Level: {level}')
             cell_mapping = self.gB.get_celltype_mapping(
                 self.sce, 
-                genes_selection=gene_panel.gene_panel['gene'],  
+                genes_selection=ro.vectors.StrVector(gene_panel.gene_panel),  
                 celltype_id = level,
                 return_stat = True, 
                 )
