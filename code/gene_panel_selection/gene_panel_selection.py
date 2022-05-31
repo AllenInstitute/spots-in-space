@@ -536,7 +536,7 @@ def marker_gene_eval(gene_panel: GenePanelSelection, marker_gene_files: dict):
     for level, marker_gene_file in marker_gene_files.items():
         marker_genes = pandas.read_csv(marker_gene_file)
         marker_genes = marker_genes[['cluster', 'gene']]
-        marker_genes['in_gene_panel'] = marker_genes.apply(lambda x: x['gene'] in gene_panel.gene_panel['gene'].to_list(), axis=1)
+        marker_genes['in_gene_panel'] = marker_genes.apply(lambda x: x['gene'] in gene_panel.gene_panel, axis=1)
         marker_gene_dict[level] = marker_genes
     
     marker_genes_df = pandas.concat(marker_gene_dict, axis=1)
@@ -571,3 +571,9 @@ def norm_confusion_matrix(confusion_matrix: pandas.DataFrame):
 
         return norm_matrix
 
+def load_panel_eval(path: str):
+    with open(path, 'rb') as file:
+        eval = pkl.load(file)
+        file.close()
+    
+    return eval
