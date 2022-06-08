@@ -3,6 +3,10 @@ import numpy as np
 from tqdm.notebook import tqdm
 
 
+def log_plus_1(x):
+    return np.log(x + 1)
+
+
 class SpotTable:
     """Represents a spatial transcriptomics spot table.
     
@@ -392,19 +396,26 @@ class SpotTable:
         palette[-5] = (1, 0, 0)
         return palette
 
-    def cell_scatter_plot(self, ax, alpha=0.2, size=1.5, z_slice=None):
+    def scatter_plot(self, ax, color='gene', alpha=0.2, size=1.5, z_slice=None):
         import seaborn
         if z_slice is not None:
             zvals = np.unique(self.data['z'])
             zval = zvals[int(z_slice * (len(zvals)-1))]
             mask = self.data['z'] == zval
             self = self[mask]
+            
+        if color == 'cell': 
+            palette = self.cell_palette(self.cell_ids)
+            hue = self.cell_ids
+        else:
+            hue = self.data[color]
+            palette = None
         
         seaborn.scatterplot(
             x=self.data['x'], 
             y=self.data['y'], 
-            hue=self.cell_ids, 
-            palette=self.cell_palette(self.cell_ids), 
+            hue=hue, 
+            palette=palette,
             linewidth=0, 
             alpha=alpha,
             size=size,
@@ -412,6 +423,80 @@ class SpotTable:
             legend=False
         )
         ax.set_aspect('equal')
+
+    def cell_scatter_plot(self, *args, **kwds):
+        """Scatter plot of spots colored by cell ID
+        """
+        kwds['color'] = 'cell'
+        return self.scatter_plot(*args, **kwds)
+
+    def binned_expression_counts(self, binsize, spacing=None):
+        """Return an array of spatially binned gene expression counts
+        """
+        x = self.data['x']
+        y = self.data['y']
+        gene = self.data['gene']
+        spacing = spacing or binsize
+        padding = (binsize - spacing) / 2
+        
+        xrange = x.min(), x.max()
+        yrange = y.min(), y.max()
+        gene_set = np.unique(gene)
+        gene_inds = {gene_set[i]:i for i in range(len(gene_set))} 
+        
+        x_bins = int(np.ceil((xrange[1] - xrange[0]) / spacing))
+        y_bins = int(np.ceil((yrange[1] - yrange[0]) / spacing))
+        shape = (x_bins, y_bins, len(gene_set))
+        
+        counts = np.zeros(shape, dtype='uint32')
+        for i in tqdm(range(x_bins)):
+            xbin = (xrange[0] + i * spacing - padding), (xrange[0] + (i+1) * spacing + padding)
+            xmask = (x > xbin[0]) & (x < xbin[1])
+            y2 = y[xmask]
+            g2 = gene[xmask]
+            for j in range(y_bins):
+                ybin = (yrange[0] + j * spacing - padding), (yrange[0] + (j+1) * spacing + padding)
+                ymask = (y2 > ybin[0]) & (y2 < ybin[1])
+                g3 = g2[ymask]
+                for g, c in zip(*np.unique(g3, return_counts=True)):
+                    counts[i, j, gene_inds[g]] = c
+                    
+        return counts, gene_set, gene_inds, (xrange[0], xrange[0] + binsize * x_bins), (yrange[0], yrange[0] + binsize * y_bins)
+
+    def reduced_expression_map(self, binsize, umap_args, ax, spacing=None, umap_ax=None, norm=log_plus_1):
+        import seaborn
+        print("Binning expression counts..")
+        bec, genes, gene_index, xrange, yrange = self.binned_expression_counts(binsize=binsize, spacing=spacing)
+
+        print("Reducing binned expression counts..")
+        umap_args['n_components'] = 2
+        if norm is not None:
+            norm_bec = norm(bec)
+        else:
+            norm_bec = bec
+        reduced = reduce_expression(norm_bec, umap_args=umap_args)
+        
+        norm = bec.sum(axis=2)
+        norm = norm / norm.max()
+        color = rainbow_wheel(reduced) * np.sqrt(norm[:, :, None])
+        
+        show_float_rgb(color, extent=xrange + yrange, ax=ax)
+
+        if umap_ax is not None:
+            flat = reduced.reshape(reduced.shape[0] * reduced.shape[1], reduced.shape[2])
+            color = rainbow_wheel(flat)
+            seaborn.scatterplot(x=flat[:,0], y=flat[:,1], c=color, alpha=0.2, ax=umap_ax)
+
+        return (bec, genes, xrange, yrange), (reduced,)
+
+    def reduced_color_scatterplot(self, binsize, umap_args, ax, alpha=0.2, spacing=None, size=2):
+        """Scatter plot that assigns colors to genes based on their prevalence in different gene expression patterns
+        """
+        import seaborn
+        color = reduced_gene_colors(self.data, binsize=binsize, umap_args=umap_args, spacing=spacing)
+        
+        ax.set_facecolor('black')
+        seaborn.scatterplot(x=self.data['x'], y=self.data['y'], c=color, alpha=alpha, linewidth=0, ax=ax, size=size, legend=False)    
 
 
 def load_baysor_result(result_file, remove_noise=True, remove_no_cell=True):
@@ -440,4 +525,105 @@ def load_baysor_result(result_file, remove_noise=True, remove_no_cell=True):
 def run_baysor(baysor_bin, input_file, output_file, scale=5):
     os.system(f'{baysor_bin} run {input_file} -o {output_file} -s {scale} --no-ncv-estimation')
     
+    
 
+def reduce_expression(data, umap_args):
+    import umap
+    from sklearn.preprocessing import StandardScaler
+    
+    default_umap_args = {'n_neighbors': 3, 'min_dist': 0.4, 'n_components': 3}
+    default_umap_args.update(umap_args)
+
+    flat_data = data.reshape(data.shape[0] * data.shape[1], data.shape[2])
+    
+    # randomize order (because umap has some order-dependent effects)
+    order = np.arange(flat_data.shape[0])
+    np.random.shuffle(order)
+    flat_data = flat_data[order]
+    
+    # remove rows with no transcripts
+    mask = flat_data.sum(axis=1) > 0
+    masked_data = flat_data[mask]
+    
+    # scale in prep for umap
+    scaler = StandardScaler()
+    scaled = scaler.fit_transform(masked_data)
+    
+    # reduce down to 3D
+    reducer = umap.UMAP(**default_umap_args)    
+    reduced = reducer.fit_transform(scaled)
+    
+    # re-insert rows with no transcripts (all 0)
+    final = np.zeros((len(flat_data), reduced.shape[1]), dtype=reduced.dtype)
+    final[mask] = reduced
+    
+    # un-shuffle order
+    reverse_order = np.argsort(order)
+    final = final[reverse_order]
+    
+    # return reshaped to original image
+    return final.reshape(data.shape[0], data.shape[1], final.shape[-1])
+    
+
+def map_to_ubyte(data):
+    mn, mx = data.min(), data.max()
+    return np.clip((data - mn) * 255 / (mx - mn), 0, 255).astype('ubyte')
+
+def rainbow_wheel(points, center=None, radius=None, center_color=None):
+    """Given an Nx2 array of point locations, return an Nx3 array of RGB
+    colors derived from a rainbow color wheel centered over the mean point location.
+    """
+    import matplotlib.pyplot as plt
+    import scipy.interpolate
+    flat = points.reshape(np.product(points.shape[:-1]), points.shape[-1])
+    if center is None:
+        center = flat.mean(axis=0)
+    if radius is None:
+        radius = 4 * flat.std(axis=0)
+    f = np.linspace(0, 1, 10)[:-1]
+    theta = f * 2 * np.pi
+    x = np.vstack([radius[0] * np.cos(theta) + center[0], radius[1] * np.sin(theta) + center[1]]).T
+    c = plt.cm.gist_rainbow(f)[:, :3]
+    
+    if center_color is not None:
+        x = np.concatenate([x, center[None, :]], axis=0)
+        c = np.concatenate([c, np.array(center_color)[None, :]], axis=0)
+    
+    color = scipy.interpolate.griddata(x, c, flat[:, :2], fill_value=0)
+    return color.reshape(points.shape[:-1] + (3,))
+    
+def show_float_rgb(data, extent, ax):
+    """Show a color image given a WxHx3 array of floats. 
+    Each channel is normalized independently. 
+    """
+    rgb = np.empty(data.shape[:2] + (3,), dtype='ubyte')
+    for i in (0, 1, 2):
+        rgb[..., i] = map_to_ubyte(data[..., i])
+
+    return ax.imshow(np.rot90(rgb), extent=extent, aspect='equal')
+    
+def gene_center_of_mass(bec, reduced):
+    """Given binned expression counts and a umap reduction, 
+    find the center of mass position for each gene in umap space.
+    """
+    expression_sum = bec.sum(axis=0)
+    expression_sum[expression_sum==0] = 1  # silence div-by-zero warnings
+    expression_norm = bec / expression_sum
+
+    x = (reduced[:, :, 0, None] * expression_norm).sum(axis=0).sum(axis=0)
+    y = (reduced[:, :, 1, None] * expression_norm).sum(axis=0).sum(axis=0)
+    gene_pts = np.vstack([x, y]).T
+    return gene_pts
+    
+def reduced_gene_colors(data, binsize, umap_args, spacing=None):
+    print("Binning expression counts..")
+    bec, genes, gene_index, xrange, yrange = binned_expression_counts(data['x'], data['y'], data['gene'], binsize=binsize, spacing=spacing)
+
+    print("Reducing binned expression counts..")
+    umap_args['n_components'] = 2
+    reduced = reduce_expression(bec, umap_args=umap_args)
+    
+    gene_pts = gene_center_of_mass(bec, reduced)
+    gene_colors = rainbow_wheel(gene_pts, center_color=(0.8, 0.8, 0.8))
+    color = [gene_colors[gene_index[g]] for g in data['gene']]
+    return np.array(color)
