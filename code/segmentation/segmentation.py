@@ -73,16 +73,46 @@ class SpotTable:
         )
         return self[mask]
 
-    def save_csv(self, file_name: str):
-        """Save a CSV file with columns x, y, z, gene that is appropriate for running Baysor.
+    def save_csv(self, file_name: str, columns: list=None):
+        """Save a CSV file with columns x, y, z, gene, [cell_id].
+        
+        Optionally, use the *columns* argument to specify which columns to write.
+        By default, the cell ID column is only present if cell IDs are available.
         """
-        args = dict(
-            fmt=['%0.7g', '%0.7g', '%0.7g', '%d'],
-            header='x,y,z,gene',
-            delimiter=',',
-            comments='',
-        )
-        np.savetxt(file_name, self.data, **args)
+        # can't use np.savetext since columns are spread over multiple arrays.
+        
+        # where to find data for each CSV column
+        col_data = {
+            'x': self.data['x'],
+            'y': self.data['y'],
+            'z': self.data['z'],
+            'gene': self.data['gene'],
+            'cell_id': self.cell_ids,
+        }
+        # how to format each CSV column
+        col_fmts = {
+            'x': '0.7g',
+            'y': '0.7g',
+            'z': '0.7g',
+            'gene': 'd',
+            'cell_id': 'd',
+        }
+        
+        # which columns to write?
+        if columns is None:
+            columns = ['x', 'y', 'z', 'gene']
+            if self.cell_ids is not None:
+                columns.append('cell_id')
+                
+        # write csv
+        header = ','.join(columns)
+        line_format = ','.join(['{%s:%s}'%(col, col_fmts[col]) for col in columns])
+        with open(file_name, 'w') as fh:
+            fh.write(header + '\n')
+            for i in range(len(self)):
+                line = line_format.format(**{col:col_data[col][i] for col in columns})
+                fh.write(line)
+                fh.write('\n')
 
     def save_json(self, json_file: str):
         """Save parent_region and parent_inds to json.
