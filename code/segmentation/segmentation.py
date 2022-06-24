@@ -2,9 +2,30 @@ import os, json
 import numpy as np
 from tqdm.notebook import tqdm
 
+import geojson
+from scipy.spatial import Delaunay
+import shapely
+from shapely.geometry import MultiLineString
+from shapely.ops import unary_union, polygonize
+
+import pandas as pd
+
+
 
 def log_plus_1(x):
     return np.log(x + 1)
+
+def polyToGeoJson(polygon):
+    """
+    turns a single shapely Polygon into a geojson polygon 
+    Args:
+        polygon shapely.Polygon 
+    Returns:
+        geojson polygon
+    """
+    poly_array = np.array(polygon.exterior.coords)
+
+    return geojson.Polygon([[(poly_array[i,0], poly_array[i,1]) for i in range(poly_array.shape[0])]])
 
 
 class SpotTable:
@@ -36,7 +57,8 @@ class SpotTable:
         self._cell_ids = cell_ids
         self._cell_index = None
         self._cell_bounds = None
-        
+        self.cell_polygons = {}
+
     def __len__(self):
         return len(self.data)
         
@@ -160,6 +182,140 @@ class SpotTable:
                     rows['y'].max(),
                 )
         return self._cell_bounds[cell_id]
+
+
+    @staticmethod
+    def cell_polygon(cell_points_array, alpha_inv):
+        """
+        get 2D alpha shape from a set of points, modified slightly from 
+        http://blog.thehumangeo.com/2014/05/12/drawing-boundaries-in-python/
+
+
+        args:
+        cell_points  numpy array of  point locations with expected columns [x,y].
+        alpha_inv parameter that sets the radius filter on the Delaunay triangulation.  
+                traditionally alpha is defined as 1/radius, 
+                and here the input is inverted for slightly more intuitive use
+        """
+
+
+
+
+        tri = Delaunay(cell_points_array)
+        # Make a list of line segments: 
+        # edge_points = [ ((x1_1, y1_1), (x2_1, y2_1)),
+        #                 ((x1_2, y1_2), (x2_2, y2_2)),
+        #                 ... ]
+
+
+        edge_points = []
+        edges = set()
+
+        def add_edge(i, j):
+            """Add a line between the i-th and j-th points, if not in the list already"""
+            if (i, j) in edges or (j, i) in edges:
+                # already added
+                return
+            edges.add( (i, j) )
+            edge_points.append(cell_points_array[ [i, j] ])
+
+
+        # loop over triangles:
+        # ia, ib, ic = indices of corner points of the triangle
+        for ia, ib, ic in tri.vertices:
+            pa = cell_points_array[ia]
+            pb = cell_points_array[ib]
+            pc = cell_points_array[ic]
+
+            # Lengths of sides of triangle
+            a = np.sqrt((pa[0]-pb[0])**2 + (pa[1]-pb[1])**2)
+            b = np.sqrt((pb[0]-pc[0])**2 + (pb[1]-pc[1])**2)
+            c = np.sqrt((pc[0]-pa[0])**2 + (pc[1]-pa[1])**2)
+
+            # Semiperimeter of triangle
+            s = (a + b + c)/2.0
+
+            # Area of triangle by Heron's formula
+            area = np.sqrt(s*(s-a)*(s-b)*(s-c))
+
+            circum_r = a*b*c/(4.0*area)
+
+            # Here's the radius filter.
+            if circum_r < alpha_inv:
+                add_edge(ia, ib)
+                add_edge(ib, ic)
+                add_edge(ic, ia)
+
+        m = MultiLineString(edge_points)
+        triangles = list(polygonize(m))
+        tp = unary_union(triangles)
+        
+        return tp
+
+
+    @staticmethod
+    def calculate_cell_features( cell_polygon):
+        
+        return  {"area":cell_polygon.area, "centroid":np.array(cell_polygon.centroid.coords)}
+
+    def calculate_cell_polygons(self, alpha_inv=2.5):
+
+        # run through all cell_ids, generate polygons and add to self.cell_polygons dict 
+        # increases the alpha_inv parameter by 0.5 until a single polygon is generated
+        self.cell_polygons = {}
+        for cid in tqdm(np.unique(self.cell_ids)):
+            inds = self.cell_indices(cid)
+            rows = self.data[inds]
+            if rows.shape[0]>3:
+                putative_polygon = self.cell_polygon(np.stack([rows["x"], rows["y"]]).T, alpha_inv)
+                # increase alpha_inv unti we only have 1 polygon... this should be pretty rare.
+                tries = 0
+                flex_alpha_inv = alpha_inv
+                while tries <20 and isinstance(putative_polygon, shapely.geometry.MultiPolygon  ):
+                    flex_alpha_inv += .5
+                    tries += 1
+                    putative_polygon = self.cell_polygon(np.stack([rows["x"], rows["y"]]).T, flex_alpha_inv)
+
+                self.cell_polygons[cid] = putative_polygon
+            else:    
+                self.cell_polygons[cid] = None
+
+    def get_cell_features(self):
+
+        # run through self.polys and calculate features
+        if len(self.cell_polygons.keys()) == 0:
+            return None
+
+        cell_features = []
+        for cid in self.cell_polygons:
+            feature_info = {"cell_id":cid}
+            if self.cell_polygons[cid]:
+                feature_info.update(self.calculate_cell_features(self.cell_polygons[cid]))
+            else:
+                feature_info.update(dict(area=0., centroid = None))
+            cell_features.append(feature_info)
+
+
+
+        return pd.DataFrame.from_records(cell_features)
+
+    def save_cell_polygons(self, geojson_save_path):
+        """
+        save a geojson geometry collection from the cell polygons
+        """
+
+        if len(self.cell_polygons)==0:
+            return
+        
+        geojsonROIs = []
+        for poly_key in self.cell_polygons.keys():
+            if self.cell_polygons[poly_key]:
+                if len(self.cell_polygons[poly_key].exterior.coords) > 2:
+                    geojsonROIs.append(polyToGeoJson(self.cell_polygons[poly_key])) 
+        
+        with open(geojson_save_path, 'w') as w:
+            json.dump( geojson.GeometryCollection(geojsonROIs), w)
+
         
     def cell_indices(self, cell_ids: int | np.ndarray):
         """Return indices giving table location of all spots with *cell_ids*
@@ -529,19 +685,35 @@ class SpotTable:
         seaborn.scatterplot(x=self.data['x'], y=self.data['y'], c=color, alpha=alpha, linewidth=0, ax=ax, size=size, legend=False)    
 
 
-def load_baysor_result(result_file, remove_noise=True, remove_no_cell=True):
-    dtype = [('x', 'float32'), ('y', 'float32'), ('z', 'float32'), ('cluster', int), ('cell', int), ('is_noise', bool)]
-    converters = {
-        9: lambda x: x == 'true',
-    }
-    result_data = np.loadtxt(
-        result_file, 
-        skiprows=1, 
-        usecols=[0, 1, 2, 6, 7, 9], 
-        delimiter=',', 
-        dtype=dtype, 
-        converters=converters
-    )
+def load_baysor_result(result_file, remove_noise=True, remove_no_cell=True, brl_output = False):
+    if brl_output:
+        dtype = [('x', 'float32'), ('y', 'float32'), ('z', 'float32'),('gene',str),('cluster', int), ('cell', int), ('is_noise', bool)]
+
+        converters = {
+            6: lambda x: x == 'true',
+        }
+        result_data = np.loadtxt(
+            result_file, 
+            skiprows=1, 
+            usecols=[0, 1, 2, 3,4, 5, 6], 
+            delimiter=',', 
+            dtype=dtype, 
+            converters=converters
+        )
+    else:
+        dtype = [('x', 'float32'), ('y', 'float32'), ('z', 'float32'),('cluster', int), ('cell', int), ('is_noise', bool)]
+
+        converters = {
+            9: lambda x: x == 'true',
+        }
+        result_data = np.loadtxt(
+            result_file, 
+            skiprows=1, 
+            usecols=[0, 1, 2, 6, 7, 9], 
+            delimiter=',', 
+            dtype=dtype, 
+            converters=converters
+        )
 
     z_vals = np.unique(result_data['z'])
     if remove_noise:
