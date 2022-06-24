@@ -195,7 +195,7 @@ class SpotTable:
         cell_points  numpy array of  point locations with expected columns [x,y].
         alpha_inv parameter that sets the radius filter on the Delaunay triangulation.  
                 traditionally alpha is defined as 1/radius, 
-                and here the input is inverted for slightly more intuitive use
+                and here the function input is inverted for slightly more intuitive use
         """
 
 
@@ -258,7 +258,7 @@ class SpotTable:
         
         return  {"area":cell_polygon.area, "centroid":np.array(cell_polygon.centroid.coords)}
 
-    def calculate_cell_polygons(self, alpha_inv=2.5):
+    def calculate_cell_polygons(self, alpha_inv=1.5):
 
         # run through all cell_ids, generate polygons and add to self.cell_polygons dict 
         # increases the alpha_inv parameter by 0.5 until a single polygon is generated
