@@ -11,7 +11,6 @@ from shapely.ops import unary_union, polygonize
 import pandas as pd
 
 
-
 def log_plus_1(x):
     return np.log(x + 1)
 
@@ -37,8 +36,16 @@ class SpotTable:
 
     Parameters
     ----------
-    data : array
-        Structured array of spots with columns x, y, z, and gene (at least)
+    pos : array
+        Array of shape (N, 3) giving the pos of each detected transcript.
+    gene_names : array | None
+        Array of shape (N,) giving the name of the gene detected in each transcript. 
+        Must specify either *gene_names* or *gene_ids*, not both.
+    gene_ids : array | None
+        Array of shape (N,) describing the gene detected in each transcript, as an index into *gene_id_to_name*.
+        Must specify either *gene_names* or *gene_ids*, not both.
+    gene_id_to_name: ndarray | None
+        Array mapping from values in *gene_ids* to string names.
     cell_ids : array | None
         Optional array of cell IDs per spot
     parent_table : SpotTable | None
@@ -47,21 +54,87 @@ class SpotTable:
         Indices used to select the subset of spots in this table from the parent spots.
     parent_region : tuple | None
         X,Y boundaries ((xmin, xmax), (ymin, ymax)) used to select this table from the parent table.
-        
     """
-    def __init__(self, data: np.ndarray, cell_ids: None|np.ndarray=None, parent_table: 'None|SpotTable'=None, parent_inds: None|np.ndarray=None, parent_region: None|tuple=None):
-        self.data = data
+    def __init__(self, 
+                 pos: np.ndarray,
+                 gene_names: None|np.ndarray=None, 
+                 gene_ids: None|np.ndarray=None, 
+                 gene_id_to_name: None|np.ndarray=None,
+                 cell_ids: None|np.ndarray=None, 
+                 parent_table: 'None|SpotTable'=None, 
+                 parent_inds: None|np.ndarray=None, 
+                 parent_region: None|tuple=None):
+        
+        self.pos = pos
         self.parent_table = parent_table
         self.parent_inds = parent_inds
         self.parent_region = parent_region
+
+        if gene_names is not None:
+            assert gene_ids is None and gene_id_to_name is None
+            gene_ids, gene_to_id, id_to_gene = self._make_gene_index(gene_names)
+            self.gene_ids = gene_ids
+            self.gene_name_to_id = gene_to_id
+            self.gene_id_to_name = id_to_gene
+        elif gene_ids is not None:
+            assert gene_id_to_name is not None
+            self.gene_ids = gene_ids
+            self.gene_id_to_name = gene_id_to_name
+            self.gene_name_to_id = {name:id for id,name in enumerate(self.gene_id_to_name)}
+        else:
+            raise Exception("Must specify either gene_names or gene_ids")
+
+        self._gene_names = None
         self._cell_ids = cell_ids
         self._cell_index = None
         self._cell_bounds = None
         self.cell_polygons = {}
 
     def __len__(self):
-        return len(self.data)
-        
+        return len(self.pos)
+
+    def dataframe(self, cols=None):
+        """Return a dataframe containing the specified columns.
+
+        By default, columns are x, y, z, gene_ids, and cell_ids (if available).
+        Also available: gene_names
+        """
+        if cols is None:
+            cols = ['x', 'y', 'z', 'gene_ids']
+            if self.cell_ids is not None:
+                cols.append('cell_ids')
+        return pd.DataFrame({col:getattr(self, col) for col in cols})
+
+    @property
+    def gene_names(self):
+        if self._gene_names is None:
+            self._gene_names = self.map_gene_ids_to_names(self.gene_ids)
+        return self._gene_names
+
+    @property
+    def x(self):
+        return self.pos[:, 0]
+
+    @property
+    def y(self):
+        return self.pos[:, 1]
+
+    @property
+    def z(self):
+        return self.pos[:, 2]
+
+    def map_gene_names_to_ids(self, names):
+        out = np.empty(len(names), dtype=self.gene_ids.dtype)
+        for i,name in enumerate(names):
+            out[i] = self.gene_name_to_id[name]
+        return out
+
+    def map_gene_ids_to_names(self, ids):
+        out = np.empty(len(ids), dtype=self.gene_id_to_name.dtype)
+        for i,id in enumerate(ids):
+            out[i] = self.gene_id_to_name[id]
+        return out
+
     @property
     def cell_ids(self):
         """An array of cell IDs.
@@ -76,7 +149,7 @@ class SpotTable:
     def bounds(self):
         """Return ((xmin, xmax), (ymin, ymax)) giving the boundaries of data included in this table.
         """
-        return (self.data['x'].min(), self.data['x'].max()), (self.data['y'].min(), self.data['y'].max())
+        return (self.x.min(), self.x.max()), (self.y.min(), self.y.max())
         
     def cell_ids_changed(self):
         """Call when self.cell_ids has been modified to invalidate caches.
@@ -88,15 +161,23 @@ class SpotTable:
         """Return a SpotTable including the subset of this table inside the region xlim, ylim
         """
         mask = (
-            (self.data['x'] >= xlim[0]) & 
-            (self.data['x'] <  xlim[1]) & 
-            (self.data['y'] >= ylim[0]) & 
-            (self.data['y'] <  ylim[1])
+            (self.x >= xlim[0]) & 
+            (self.x <  xlim[1]) & 
+            (self.y >= ylim[0]) & 
+            (self.y <  ylim[1])
         )
-        return self[mask]
+        sub = self[mask]
+        sub.parent_region = (xlim, ylim)
+        return sub
+
+    def get_genes(self, gene_names=None, gene_ids=None):
+        """Return a subtable containing only the genes specified by either gene_names or gene_ids.
+        """
+        inds = self.gene_indices(gene_names=gene_names, gene_ids=gene_ids)
+        return self[inds]
 
     def save_csv(self, file_name: str, columns: list=None):
-        """Save a CSV file with columns x, y, z, gene, [cell_id].
+        """Save a CSV file with columns x, y, z, gene_id, [gene_name, cell_id].
         
         Optionally, use the *columns* argument to specify which columns to write.
         By default, the cell ID column is only present if cell IDs are available.
@@ -105,24 +186,28 @@ class SpotTable:
         
         # where to find data for each CSV column
         col_data = {
-            'x': self.data['x'],
-            'y': self.data['y'],
-            'z': self.data['z'],
-            'gene': self.data['gene'],
+            'x': self.x,
+            'y': self.y,
+            'z': self.z,
+            'gene_id': self.gene_ids,
             'cell_id': self.cell_ids,
         }
+        if 'gene_name' in columns:
+            col_data['gene_name'] = self.gene_names
+        
         # how to format each CSV column
         col_fmts = {
             'x': '0.7g',
             'y': '0.7g',
             'z': '0.7g',
-            'gene': 'd',
+            'gene_id': 'd',
+            'gene_name': 's',
             'cell_id': 'd',
         }
         
         # which columns to write?
         if columns is None:
-            columns = ['x', 'y', 'z', 'gene']
+            columns = ['x', 'y', 'z', 'gene_id']
             if self.cell_ids is not None:
                 columns.append('cell_id')
                 
@@ -165,8 +250,67 @@ class SpotTable:
         """Return a new SpotTable loaded from a baysor result file.
         """
         result = load_baysor_result(file_name, **kwds)
-        return SpotTable(data=result, cell_ids=result['cell'])
+        pos = result[['x', 'y', 'z']].view(dtype=result.dtypes.fields['x'][0]).reshape(len(result), 3)
+        return SpotTable(pos=pos, gene_ids=result['gene'], cell_ids=result['cell'])
+
+    @classmethod
+    def load_merscope(cls, csv_file: str, cache_file: str|None, csv_cols: dict|tuple=(('x', 2), ('y', 3), ('z', 4), ('gene', 8)), max_rows: int|None=None):
+        """Load MERSCOPE data from a detected transcripts CSV file.
+
+        CSV reading is slow, so optionally cache the result to a .npz file.
+        """
+        if cache_file is None or not os.path.exists(cache_file):
+            print("Loading csv..")
+            dtype = [('x', 'float32'), ('y', 'float32'), ('z', 'float32'), ('gene', 'S20')]
+            csv_cols = dict(csv_cols)
+            usecols = [csv_cols[col] for col in ['x', 'y', 'z', 'gene']]
+            raw_data = np.loadtxt(csv_file, skiprows=1, usecols=usecols, delimiter=',', dtype=dtype, max_rows=max_rows)
+            pos = raw_data.view('float32').reshape(len(raw_data), raw_data.itemsize//4)[:, :3]
+            max_gene_len = max(map(len, raw_data['gene']))
+            table = SpotTable(pos=pos, gene_names=raw_data['gene'].astype(f'U{max_gene_len}'))
+
+            if cache_file is not None:                
+                print("Recompressing to npz..")
+                table.save_npz(cache_file)
+
+            return table
+        else:
+            print("Loading from npz..")
+            return cls.load_npz(cache_file)
+
+    def save_npz(self, npz_file):
+        fields = {
+            'pos': self.pos,
+            'gene_ids': self.gene_ids, 
+            'gene_id_to_name': self.gene_id_to_name,
+        }
+        if self._cell_ids is not None:
+            fields['cell_ids'] = self._cell_ids
         
+        np.savez_compressed(npz_file, **fields) 
+
+    @classmethod
+    def load_npz(cls, npz_file):
+        fields = np.load(npz_file)
+        return SpotTable(**fields)
+
+    def _make_gene_index(cls, gene_names):
+        """Given an array of gene names, return an array of integer gene IDs and dictionaries
+        that map from gene to ID, and from ID to gene.
+        """
+        genes = np.unique(gene_names)
+        max_len = max(map(len, genes))
+        gene_to_id = {}
+        id_to_gene = np.empty(len(genes), dtype=f'U{max_len}')
+
+        for i, gene in enumerate(genes):
+            gene_to_id[gene] = i
+            id_to_gene[i] = gene
+
+        gene_ids = np.array([gene_to_id[gene] for gene in gene_names], dtype=np.min_scalar_type(len(genes)))
+
+        return gene_ids, gene_to_id, id_to_gene
+
     def cell_bounds(self, cell_id: int):
         """Return xmin, xmax, ymin, ymax for *cell_id*
         """
@@ -174,15 +318,14 @@ class SpotTable:
             self._cell_bounds = {}
             for cid in np.unique(self.cell_ids):
                 inds = self.cell_indices(cid)
-                rows = self.data[inds]
+                rows = self.pos[inds]
                 self._cell_bounds[cid] = (
-                    rows['x'].min(),
-                    rows['x'].max(),
-                    rows['y'].min(),
-                    rows['y'].max(),
+                    rows[:,0].min(),
+                    rows[:,0].max(),
+                    rows[:,1].min(),
+                    rows[:,1].max(),
                 )
         return self._cell_bounds[cell_id]
-
 
     @staticmethod
     def cell_polygon(cell_points_array, alpha_inv):
@@ -190,23 +333,17 @@ class SpotTable:
         get 2D alpha shape from a set of points, modified slightly from 
         http://blog.thehumangeo.com/2014/05/12/drawing-boundaries-in-python/
 
-
         args:
         cell_points  numpy array of  point locations with expected columns [x,y].
         alpha_inv parameter that sets the radius filter on the Delaunay triangulation.  
                 traditionally alpha is defined as 1/radius, 
                 and here the function input is inverted for slightly more intuitive use
         """
-
-
-
-
         tri = Delaunay(cell_points_array)
         # Make a list of line segments: 
         # edge_points = [ ((x1_1, y1_1), (x2_1, y2_1)),
         #                 ((x1_2, y1_2), (x2_2, y2_2)),
         #                 ... ]
-
 
         edge_points = []
         edges = set()
@@ -218,7 +355,6 @@ class SpotTable:
                 return
             edges.add( (i, j) )
             edge_points.append(cell_points_array[ [i, j] ])
-
 
         # loop over triangles:
         # ia, ib, ic = indices of corner points of the triangle
@@ -252,36 +388,32 @@ class SpotTable:
         
         return tp
 
-
     @staticmethod
     def calculate_cell_features( cell_polygon):
-        
         return  {"area":cell_polygon.area, "centroid":np.array(cell_polygon.centroid.coords)}
 
     def calculate_cell_polygons(self, alpha_inv=1.5):
-
         # run through all cell_ids, generate polygons and add to self.cell_polygons dict 
         # increases the alpha_inv parameter by 0.5 until a single polygon is generated
         self.cell_polygons = {}
         for cid in tqdm(np.unique(self.cell_ids)):
             inds = self.cell_indices(cid)
-            rows = self.data[inds]
-            if rows.shape[0]>3:
-                putative_polygon = self.cell_polygon(np.stack([rows["x"], rows["y"]]).T, alpha_inv)
+            xy_pos = self.pos[inds][:, :2]
+            if xy_pos.shape[0] > 3:
+                putative_polygon = self.cell_polygon(xy_pos, alpha_inv)
                 # increase alpha_inv unti we only have 1 polygon... this should be pretty rare.
                 tries = 0
                 flex_alpha_inv = alpha_inv
                 while tries <20 and isinstance(putative_polygon, shapely.geometry.MultiPolygon  ):
                     flex_alpha_inv += .5
                     tries += 1
-                    putative_polygon = self.cell_polygon(np.stack([rows["x"], rows["y"]]).T, flex_alpha_inv)
+                    putative_polygon = self.cell_polygon(xy_pos, flex_alpha_inv)
 
                 self.cell_polygons[cid] = putative_polygon
             else:    
                 self.cell_polygons[cid] = None
 
     def get_cell_features(self):
-
         # run through self.polys and calculate features
         if len(self.cell_polygons.keys()) == 0:
             return None
@@ -294,8 +426,6 @@ class SpotTable:
             else:
                 feature_info.update(dict(area=0., centroid = None))
             cell_features.append(feature_info)
-
-
 
         return pd.DataFrame.from_records(cell_features)
 
@@ -348,6 +478,14 @@ class SpotTable:
         for cid in cell_ids:
             mask[self.cell_indices(cid)] = True
         return mask
+
+    def gene_indices(self, gene_names=None, gene_ids=None):
+        """Return an array of indices where the detected transcript is in either gene_names or gene_ids
+        """
+        assert (gene_names is not None) != (gene_ids is not None)
+        if gene_names is not None:
+            gene_ids = self.map_gene_names_to_ids(gene_names)
+        return np.argwhere(np.isin(self.gene_ids, gene_ids))[:, 0]
     
     def map_indices_to_parent(self, inds: np.ndarray):
         """Given an array of indices into this SpotTable, return a new array of indices that
@@ -375,35 +513,39 @@ class SpotTable:
 
         *item* may be an integer array of indices to select, or a boolean mask array.
         """
-        data = self.data[item]
+        pos = self.pos[item]
+        gene_ids = self.gene_ids[item]
+        cell_ids = None if self.cell_ids is None else self.cell_ids[item]
+
         subset = type(self)(
-            data=data, 
+            pos=pos,
+            gene_ids=gene_ids,
+            gene_id_to_name=self.gene_id_to_name,
+            cell_ids=cell_ids, 
             parent_table=self, 
             parent_inds=np.arange(len(self))[item],
-            parent_region=((data['x'].min(), data['x'].max()), (data['y'].min(), data['y'].max()))
+            parent_region=((pos[:,0].min(), pos[:,0].max()), (pos[:,1].min(), pos[:,1].max()))
         )
-        
-        cells = self.cell_ids
-        if cells is not None:
-            subset.cell_ids = cells[item]
             
         return subset
     
     def copy(self, deep:bool=False, **kwds):
         """Return a copy of self, optionally with some attributes replaced.
         """
-        defaults = dict(
+        init_kwargs = dict(
             parent_table=self.parent_table,
             parent_inds=self.parent_inds,
             parent_region=self.parent_region,
         )
-        defaults.update(kwds)
-        if 'data' not in defaults:
-            defaults['data'] = self.data.copy() if deep else self.data
-        if 'cell_ids' not in defaults:
-            defaults['cell_ids'] = self.cell_ids.copy() if deep else self.cell_ids
+        init_kwargs.update(kwds)
+        for name in ['pos', 'gene_ids', 'gene_id_to_name', 'cell_ids']:
+            if name not in init_kwargs:
+                val = getattr(self, name)
+                if deep:
+                    val = val.copy()
+                init_kwargs[name] = val
             
-        return SpotTable(**defaults)
+        return SpotTable(**init_kwargs)
 
     def split_tiles(self, max_spots_per_tile: int, overlap: float):
         """Return a list of SpotTables that tile this one.
@@ -569,9 +711,10 @@ class SpotTable:
     
     @staticmethod
     def cell_palette(cells):
+        """Generate a color palette suitable for distinguisging individual cells
+        """
         import seaborn
         cell_set = np.unique(cells)
-        n_cells = len(cell_set)
         colors = seaborn.color_palette('dark', 30)
         palette = {cid: colors[i%len(colors)] for i, cid in enumerate(cell_set)}
         palette[0] = (0, 1, 1)
@@ -582,25 +725,25 @@ class SpotTable:
         palette[-5] = (1, 0, 0)
         return palette
 
-    def scatter_plot(self, ax, color='gene', alpha=0.2, size=1.5, z_slice=None):
+    def scatter_plot(self, ax, color='gene_ids', alpha=0.2, size=1.5, z_slice=None):
         import seaborn
         if z_slice is not None:
-            zvals = np.unique(self.data['z'])
+            zvals = np.unique(self.z)
             zval = zvals[int(z_slice * (len(zvals)-1))]
-            mask = self.data['z'] == zval
+            mask = self.z == zval
             self = self[mask]
             
         if color == 'cell': 
             palette = self.cell_palette(self.cell_ids)
-            hue = self.cell_ids
+            color = 'cell_ids'
         else:
-            hue = self.data[color]
             palette = None
-        
+
         seaborn.scatterplot(
-            x=self.data['x'], 
-            y=self.data['y'], 
-            hue=hue, 
+            data=self.dataframe(),
+            x='x', 
+            y='y', 
+            hue=color, 
             palette=palette,
             linewidth=0, 
             alpha=alpha,
@@ -616,43 +759,43 @@ class SpotTable:
         kwds['color'] = 'cell'
         return self.scatter_plot(*args, **kwds)
 
-    def binned_expression_counts(self, binsize, spacing=None):
-        """Return an array of spatially binned gene expression counts
+    def binned_expression_counts(self, binsize):
+        """Return an array of spatially binned gene expression counts with shape (n_x_bins, n_y_bins, n_genes)
         """
-        x = self.data['x']
-        y = self.data['y']
-        gene = self.data['gene']
-        spacing = spacing or binsize
-        padding = (binsize - spacing) / 2
+        x = self.x
+        y = self.y
+        gene = self.gene_ids
         
         xrange = x.min(), x.max()
         yrange = y.min(), y.max()
-        gene_set = np.unique(gene)
-        gene_inds = {gene_set[i]:i for i in range(len(gene_set))} 
         
-        x_bins = int(np.ceil((xrange[1] - xrange[0]) / spacing))
-        y_bins = int(np.ceil((yrange[1] - yrange[0]) / spacing))
-        shape = (x_bins, y_bins, len(gene_set))
+        gene_id_bins = np.arange(len(self.gene_id_to_name) + 1)
+        x_bins = int(np.ceil((xrange[1] - xrange[0]) / binsize))
+        y_bins = int(np.ceil((yrange[1] - yrange[0]) / binsize))
         
-        counts = np.zeros(shape, dtype='uint32')
-        for i in tqdm(range(x_bins)):
-            xbin = (xrange[0] + i * spacing - padding), (xrange[0] + (i+1) * spacing + padding)
-            xmask = (x > xbin[0]) & (x < xbin[1])
-            y2 = y[xmask]
-            g2 = gene[xmask]
-            for j in range(y_bins):
-                ybin = (yrange[0] + j * spacing - padding), (yrange[0] + (j+1) * spacing + padding)
-                ymask = (y2 > ybin[0]) & (y2 < ybin[1])
-                g3 = g2[ymask]
-                for g, c in zip(*np.unique(g3, return_counts=True)):
-                    counts[i, j, gene_inds[g]] = c
+        hist = np.histogramdd(
+            sample=np.stack([x, y, gene], axis=1),
+            bins=(x_bins, y_bins, gene_id_bins),
+        )
                     
-        return counts, gene_set, gene_inds, (xrange[0], xrange[0] + binsize * x_bins), (yrange[0], yrange[0] + binsize * y_bins)
+        return hist
 
-    def reduced_expression_map(self, binsize, umap_args, ax, spacing=None, umap_ax=None, norm=log_plus_1):
+    def reduced_expression_map(self, binsize, umap_args=None, ax=None, umap_ax=None, norm=log_plus_1):
         import seaborn
+        import matplotlib.pyplot as plt
+
+        if ax is None:
+            fig, ax = plt.subplots()
+
+        if umap_args is None:
+            umap_args = dict(
+                min_dist=0.4,
+                n_neighbors=10,
+                random_state=0,
+            )
+
         print("Binning expression counts..")
-        bec, genes, gene_index, xrange, yrange = self.binned_expression_counts(binsize=binsize, spacing=spacing)
+        bec, (xbins, ybins, gbins) = self.binned_expression_counts(binsize=binsize)
 
         print("Reducing binned expression counts..")
         umap_args['n_components'] = 2
@@ -666,23 +809,37 @@ class SpotTable:
         norm = norm / norm.max()
         color = rainbow_wheel(reduced) * np.sqrt(norm[:, :, None])
         
-        show_float_rgb(color, extent=xrange + yrange, ax=ax)
+        xrange = xbins[0], xbins[-1]
+        yrange = ybins[0], ybins[-1]
+        show_float_rgb(color.transpose(1, 0, 2), extent=xrange + yrange, ax=ax)
 
         if umap_ax is not None:
             flat = reduced.reshape(reduced.shape[0] * reduced.shape[1], reduced.shape[2])
             color = rainbow_wheel(flat)
             seaborn.scatterplot(x=flat[:,0], y=flat[:,1], c=color, alpha=0.2, ax=umap_ax)
 
-        return (bec, genes, xrange, yrange), (reduced,)
+        return bec, (xbins, ybins, gbins), (reduced,)
 
-    def reduced_color_scatterplot(self, binsize, umap_args, ax, alpha=0.2, spacing=None, size=2):
-        """Scatter plot that assigns colors to genes based on their prevalence in different gene expression patterns
+    def show_image(self, ax, image_size=300, log=True):
+        """Show an image of binned spot positions.
         """
-        import seaborn
-        color = reduced_gene_colors(self.data, binsize=binsize, umap_args=umap_args, spacing=spacing)
-        
-        ax.set_facecolor('black')
-        seaborn.scatterplot(x=self.data['x'], y=self.data['y'], c=color, alpha=alpha, linewidth=0, ax=ax, size=size, legend=False)    
+        xbins = np.linspace(self.x.min(), self.x.max(), image_size)
+        ybins = np.linspace(self.y.min(), self.y.max(), image_size)
+        hist = np.histogram2d(self.x, self.y, bins=[xbins, ybins])
+        if log:
+            img = np.log(hist[0] + 1)
+        else:
+            img = hist[0]
+        ax.imshow(img.T, origin='lower', aspect='equal', cmap='inferno', extent=[xbins[0], xbins[-1], ybins[0], ybins[-1]])
+
+    def show_subregion_images(self, subtables, ax, **kwds):
+        """Show a spot table image and successive subregions
+        """
+        tables = [self] + list(subtables)
+        for i, table in enumerate(tables):
+            table.show_image(ax=ax[i], **kwds)
+            if i > 0:
+                table.plot_rect(ax[i-1], 'c')
 
 
 def load_baysor_result(result_file, remove_noise=True, remove_no_cell=True, brl_output = False):
@@ -727,7 +884,6 @@ def load_baysor_result(result_file, remove_noise=True, remove_no_cell=True, brl_
 def run_baysor(baysor_bin, input_file, output_file, scale=5):
     os.system(f'{baysor_bin} run {input_file} -o {output_file} -s {scale} --no-ncv-estimation')
     
-    
 
 def reduce_expression(data, umap_args):
     import umap
@@ -771,6 +927,7 @@ def map_to_ubyte(data):
     mn, mx = data.min(), data.max()
     return np.clip((data - mn) * 255 / (mx - mn), 0, 255).astype('ubyte')
 
+
 def rainbow_wheel(points, center=None, radius=None, center_color=None):
     """Given an Nx2 array of point locations, return an Nx3 array of RGB
     colors derived from a rainbow color wheel centered over the mean point location.
@@ -793,7 +950,8 @@ def rainbow_wheel(points, center=None, radius=None, center_color=None):
     
     color = scipy.interpolate.griddata(x, c, flat[:, :2], fill_value=0)
     return color.reshape(points.shape[:-1] + (3,))
-    
+
+
 def show_float_rgb(data, extent, ax):
     """Show a color image given a WxHx3 array of floats. 
     Each channel is normalized independently. 
@@ -802,30 +960,4 @@ def show_float_rgb(data, extent, ax):
     for i in (0, 1, 2):
         rgb[..., i] = map_to_ubyte(data[..., i])
 
-    return ax.imshow(np.rot90(rgb), extent=extent, aspect='equal')
-    
-def gene_center_of_mass(bec, reduced):
-    """Given binned expression counts and a umap reduction, 
-    find the center of mass position for each gene in umap space.
-    """
-    expression_sum = bec.sum(axis=0)
-    expression_sum[expression_sum==0] = 1  # silence div-by-zero warnings
-    expression_norm = bec / expression_sum
-
-    x = (reduced[:, :, 0, None] * expression_norm).sum(axis=0).sum(axis=0)
-    y = (reduced[:, :, 1, None] * expression_norm).sum(axis=0).sum(axis=0)
-    gene_pts = np.vstack([x, y]).T
-    return gene_pts
-    
-def reduced_gene_colors(data, binsize, umap_args, spacing=None):
-    print("Binning expression counts..")
-    bec, genes, gene_index, xrange, yrange = binned_expression_counts(data['x'], data['y'], data['gene'], binsize=binsize, spacing=spacing)
-
-    print("Reducing binned expression counts..")
-    umap_args['n_components'] = 2
-    reduced = reduce_expression(bec, umap_args=umap_args)
-    
-    gene_pts = gene_center_of_mass(bec, reduced)
-    gene_colors = rainbow_wheel(gene_pts, center_color=(0.8, 0.8, 0.8))
-    color = [gene_colors[gene_index[g]] for g in data['gene']]
-    return np.array(color)
+    return ax.imshow(rgb, extent=extent, aspect='equal', origin='lower')
