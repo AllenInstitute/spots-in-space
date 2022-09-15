@@ -278,6 +278,34 @@ class SpotTable:
             print("Loading from npz..")
             return cls.load_npz(cache_file)
 
+    @classmethod
+    def load_stereoseq(cls, gem_file: str, cache_file: str|None, gem_cols: dict|tuple=(('gene', 0), ('x', 1), ('y', 2), ('MIDcounts', 3)), skiprows: int|None=1,  max_rows: int|None=None):
+        """
+        Load StereoSeq data from gem file. This can be slow so optionally cache the result to a .npz file.
+        """
+        if cache_file is None or not os.path.exists(cache_file):
+            print('Loading gem...')
+            dtype = [('gene', 'S20'), ('x', 'uint16'), ('y', 'uint16'), ('MIDcounts', 'int')]
+            gem_cols = dict(gem_cols)
+            usecols = [gem_cols[col] for col in ['gene', 'x', 'y', 'MIDcounts']]
+            raw_data = np.loadtxt(gem_file, skiprows=skiprows, usecols=usecols, delimiter='\t', dtype=dtype, max_rows=max_rows)
+            counts = np.asarray(raw_data['MIDcounts'], dtype='uint8')
+            pos = np.empty((sum(raw_data['MIDcounts']), 2), dtype='float32')
+            pos[:, 0] = np.repeat(raw_data['x'], counts)
+            pos[:, 1] = np.repeat(raw_data['y'], counts)
+            genes = np.repeat(raw_data['gene'], counts)
+            max_gene_len = max(map(len, genes))
+            table = SpotTable(pos=pos, gene_names=genes.astype(f'U{max_gene_len}'))
+
+            if cache_file is not None:                
+                print("Recompressing to npz..")
+                table.save_npz(cache_file)
+
+            return table
+        else:
+            print("Loading from npz..")
+            return cls.load_npz(cache_file)
+
     def save_npz(self, npz_file):
         fields = {
             'pos': self.pos,
@@ -725,7 +753,7 @@ class SpotTable:
         palette[-5] = (1, 0, 0)
         return palette
 
-    def scatter_plot(self, ax, color='gene_ids', alpha=0.2, size=1.5, z_slice=None):
+    def scatter_plot(self, ax, x='x', y='y', color='gene_ids', alpha=0.2, size=1.5, z_slice=None):
         import seaborn
         if z_slice is not None:
             zvals = np.unique(self.z)
@@ -740,14 +768,14 @@ class SpotTable:
             palette = None
 
         seaborn.scatterplot(
-            data=self.dataframe(),
-            x='x', 
-            y='y', 
+            data=self.dataframe(cols=[x, y, color]),
+            x=x, 
+            y=y, 
             hue=color, 
             palette=palette,
             linewidth=0, 
             alpha=alpha,
-            size=size,
+            s=size,
             ax=ax,
             legend=False
         )
