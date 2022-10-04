@@ -101,6 +101,8 @@ class SpotTable:
         """
         if cols is None:
             cols = ['x', 'y', 'z', 'gene_ids']
+            if self.pos.shape[1] == 2:
+                cols.remove('z')
             if self.cell_ids is not None:
                 cols.append('cell_ids')
         return pd.DataFrame({col:getattr(self, col) for col in cols})
