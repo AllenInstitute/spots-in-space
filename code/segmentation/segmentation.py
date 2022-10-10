@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os, json
 import numpy as np
 from tqdm.notebook import tqdm
@@ -279,7 +280,7 @@ class SpotTable:
             return cls.load_npz(cache_file)
 
     @classmethod
-    def load_stereoseq(cls, gem_file: str, cache_file: str|None, gem_cols: dict|tuple=(('gene', 0), ('x', 1), ('y', 2), ('MIDcounts', 3)), skiprows: int|None=1,  max_rows: int|None=None):
+    def load_stereoseq(cls, gem_file: str|None=None, cache_file: str|None=None, gem_cols: dict|tuple=(('gene', 0), ('x', 1), ('y', 2), ('MIDcounts', 3)), skiprows: int|None=1,  max_rows: int|None=None):
         """
         Load StereoSeq data from gem file. This can be slow so optionally cache the result to a .npz file.
         """
@@ -807,6 +808,7 @@ class SpotTable:
         )
                     
         return hist
+    
 
     def reduced_expression_map(self, binsize, umap_args=None, ax=None, umap_ax=None, norm=log_plus_1):
         import seaborn
