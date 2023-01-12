@@ -120,11 +120,17 @@ class SpotTable:
 
     @property
     def y(self):
-        return self.pos[:, 1]
+        if self.pos.shape[1] < 2:
+            return None
+        else:
+            return self.pos[:, 1]
 
     @property
     def z(self):
-        return self.pos[:, 2]
+        if self.pos.shape[1] < 3:
+            return None
+        else:
+            return self.pos[:, 2]
 
     def map_gene_names_to_ids(self, names):
         out = np.empty(len(names), dtype=self.gene_ids.dtype)
@@ -179,24 +185,25 @@ class SpotTable:
         inds = self.gene_indices(gene_names=gene_names, gene_ids=gene_ids)
         return self[inds]
 
-    def save_csv(self, file_name: str, col_data: dict=None):
+    def save_csv(self, file_name: str, columns: list=None):
         """Save a CSV file with columns x, y, z, gene_id, [gene_name, cell_id].
         
-        Optionally, use the *columns* argument to specify which columns to write.
+        Optionally, use the *col_data* argument to specify which columns to write like:
+            {name of column: self.column_attribute}.
         By default, the cell ID column is only present if cell IDs are available.
         """
         # can't use np.savetext since columns are spread over multiple arrays.
         
         # where to find data for each CSV column
-        if col_data is None:
-            col_data = {
-                'x': self.x,
-                'y': self.y,
-                'z': self.z,
-                'gene_id': self.gene_ids,
-                'cell_id': self.cell_ids,
-                'gene_name': self.gene_names,
-            }
+        col_data = {
+            'x': self.x,
+            'y': self.y,
+            'z': self.z,
+            'gene_id': self.gene_ids,
+            'cell_id': self.cell_ids,
+        }
+        if 'gene_name' in columns:
+            col_data['gene_name'] = self.gene_names
         
         # how to format each CSV column
         col_fmts = {
@@ -209,7 +216,10 @@ class SpotTable:
         }
         
         # which columns to write?
-        columns = list(col_data.keys())
+        if columns is None:
+            columns = ['x', 'y', 'z', 'gene_id']
+            if self.cell_ids is not None:
+                columns.append('cell_id')
                 
         # write csv
         header = ','.join(columns)
