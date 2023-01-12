@@ -188,8 +188,7 @@ class SpotTable:
     def save_csv(self, file_name: str, columns: list=None):
         """Save a CSV file with columns x, y, z, gene_id, [gene_name, cell_id].
         
-        Optionally, use the *col_data* argument to specify which columns to write like:
-            {name of column: self.column_attribute}.
+        Optionally, use the *columns* argument to specify which columns to write.
         By default, the cell ID column is only present if cell IDs are available.
         """
         # can't use np.savetext since columns are spread over multiple arrays.
