@@ -7,7 +7,7 @@ l2norm <- function(X, by="column")
 {
   if (by=="column") {
     l2norm <- sqrt(Matrix::colSums(X^2))
-    if (!any(l2norm==0)) {
+    if (!any(l2norm==0) | !any(is.na(l2norm))) {
       X=sweep(X, 2, l2norm, "/", check.margin=FALSE)
     }
     else{
@@ -16,10 +16,11 @@ l2norm <- function(X, by="column")
     X = X 
   } else {
     l2norm <- sqrt(Matrix::rowSums(X^2))
-    if (!any(l2norm==0)) {      
+    if (!any(l2norm==0)| !any(is.na(l2norm))) {      
       X= X/l2norm
     }
     else{
+      print('hit else')
       warning("L2 norms of zero detected for distance='Cosine'")
       X = X/ pmax(l2norm,1)
     }
@@ -183,10 +184,10 @@ build_train_index_bs <- function(cl.dat, method= c("Annoy.Cosine","cor","Annoy.E
     registerDoMC(cores=mc.cores)
     ###for each cluster, find markers that discriminate it from other types
     train.dat <- foreach(i=1:iter, .combine="c") %dopar% {
-      train.markers = sample(row.names(cl.dat), round(nrow(cl.dat) * sample.markers.prop))
-      train.cl.dat = cl.dat[train.markers,]
-      index = build_train_index(cl.dat = train.cl.dat, method=method, fn = paste0(fn, ".",i))
-      return(list(list(cl.dat=train.cl.dat, index=index)))
+    train.markers = sample(row.names(cl.dat), round(nrow(cl.dat) * sample.markers.prop))
+    train.cl.dat = cl.dat[train.markers,]
+    index = build_train_index(cl.dat = train.cl.dat, method=method, fn = paste0(fn, ".",i))
+    return(list(list(cl.dat=train.cl.dat, index=index)))
     }   
   }
 
