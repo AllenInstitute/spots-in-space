@@ -179,7 +179,7 @@ class SpotTable:
         inds = self.gene_indices(gene_names=gene_names, gene_ids=gene_ids)
         return self[inds]
 
-    def save_csv(self, file_name: str, columns: list=None):
+    def save_csv(self, file_name: str, col_data: dict=None):
         """Save a CSV file with columns x, y, z, gene_id, [gene_name, cell_id].
         
         Optionally, use the *columns* argument to specify which columns to write.
@@ -188,15 +188,15 @@ class SpotTable:
         # can't use np.savetext since columns are spread over multiple arrays.
         
         # where to find data for each CSV column
-        col_data = {
-            'x': self.x,
-            'y': self.y,
-            'z': self.z,
-            'gene_id': self.gene_ids,
-            'cell_id': self.cell_ids,
-        }
-        if 'gene_name' in columns:
-            col_data['gene_name'] = self.gene_names
+        if col_data is None:
+            col_data = {
+                'x': self.x,
+                'y': self.y,
+                'z': self.z,
+                'gene_id': self.gene_ids,
+                'cell_id': self.cell_ids,
+                'gene_name': self.gene_names,
+            }
         
         # how to format each CSV column
         col_fmts = {
@@ -209,10 +209,7 @@ class SpotTable:
         }
         
         # which columns to write?
-        if columns is None:
-            columns = ['x', 'y', 'z', 'gene_id']
-            if self.cell_ids is not None:
-                columns.append('cell_id')
+        columns = list(col_data.keys())
                 
         # write csv
         header = ','.join(columns)
@@ -293,7 +290,7 @@ class SpotTable:
             usecols = [gem_cols[col] for col in ['gene', 'x', 'y', 'MIDcounts']]
             raw_data = np.loadtxt(gem_file, skiprows=skiprows, usecols=usecols, delimiter='\t', dtype=dtype, max_rows=max_rows)
             counts = np.asarray(raw_data['MIDcounts'], dtype='uint8')
-            pos = np.empty((sum(raw_data['MIDcounts']), 2), dtype='float32')
+            pos = np.empty((sum(counts), 2), dtype='float32')
             pos[:, 0] = np.repeat(raw_data['x'], counts)
             pos[:, 1] = np.repeat(raw_data['y'], counts)
             genes = np.repeat(raw_data['gene'], counts)
