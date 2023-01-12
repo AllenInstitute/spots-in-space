@@ -120,11 +120,17 @@ class SpotTable:
 
     @property
     def y(self):
-        return self.pos[:, 1]
+        if self.pos.shape[1] < 2:
+            return None
+        else:
+            return self.pos[:, 1]
 
     @property
     def z(self):
-        return self.pos[:, 2]
+        if self.pos.shape[1] < 3:
+            return None
+        else:
+            return self.pos[:, 2]
 
     def map_gene_names_to_ids(self, names):
         out = np.empty(len(names), dtype=self.gene_ids.dtype)
@@ -293,7 +299,7 @@ class SpotTable:
             usecols = [gem_cols[col] for col in ['gene', 'x', 'y', 'MIDcounts']]
             raw_data = np.loadtxt(gem_file, skiprows=skiprows, usecols=usecols, delimiter='\t', dtype=dtype, max_rows=max_rows)
             counts = np.asarray(raw_data['MIDcounts'], dtype='uint8')
-            pos = np.empty((sum(raw_data['MIDcounts']), 2), dtype='float32')
+            pos = np.empty((sum(counts), 2), dtype='float32')
             pos[:, 0] = np.repeat(raw_data['x'], counts)
             pos[:, 1] = np.repeat(raw_data['y'], counts)
             genes = np.repeat(raw_data['gene'], counts)

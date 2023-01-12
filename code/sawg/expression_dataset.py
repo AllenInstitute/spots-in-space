@@ -13,6 +13,7 @@ import inspect
 _r_init_done = False
 rinterface = None
 def importr(lib):
+    # os.environ['R_HOME'] = 'C:\\Users\stephanies\AppData\Local\Continuum\miniconda3\envs\r_env\lib\R'
     global _r_init_done, rinterface, ro
     import rpy2.robjects as ro
     from rpy2.robjects.packages import importr as rpy2_importr
@@ -20,6 +21,7 @@ def importr(lib):
     from rpy2.robjects import pandas2ri
     if not _r_init_done:
         pandas2ri.activate()
+        # print('pandas2ri activated')
         readr = rpy2_importr('readr')
     return rpy2_importr(lib)
 
@@ -339,7 +341,13 @@ class GeneBasisMethod(GenePanelMethod):
             return_celltype_stat = False, 
             verbose = True
             )
-        neigh_df = neighbor_score.rx2['cell_score_stat'].set_index('cell').rename(columns={'cell_score': f'neighborhood_cell_score'})
+        neigh_df = neighbor_score.rx2['cell_score_stat']
+        if not isinstance(neigh_df, pandas.DataFrame):
+            try:
+                neigh_df = pandas2ri.rpy2py(neigh_df)
+            except AttributeError:
+                neigh_df = pandas2ri.ri2py(neigh_df)
+        neigh_df = neigh_df.set_index('cell').rename(columns={'cell_score': f'neighborhood_cell_score'})
         neigh_df = neigh_df.merge(gene_panel.exp_data.annotation_data, left_index=True, right_index=True)
         return neigh_df
     
@@ -357,8 +365,8 @@ class GeneBasisMethod(GenePanelMethod):
                 celltype_id = level,
                 return_stat = True, 
                 )
-            frac_mapped_dict[level] = cell_mapping.rx2['stat']
-            df = cell_mapping.rx2['mapping']
+            frac_mapped_dict[level] = pandas2ri.rpy2py(cell_mapping.rx2['stat'])
+            df = pandas2ri.rpy2py(cell_mapping.rx2['mapping'])
             confusion_matrix = pandas.pivot_table(df, values='cell', index='mapped_celltype', columns='celltype', aggfunc='count', margins=True)
             confusion_dict[level] = confusion_matrix
 
@@ -498,7 +506,7 @@ class SeuratMethod(GenePanelMethod):
         return gps
 
 
-def gene_basis_panel_eval(gene_panel: GenePanelSelection, levels: list=['class', 'subclass', 'cluster']):
+def gene_basis_panel_eval(gene_panel: GenePanelSelection, levels: list=['class', 'subclass', 'cluster'], file_name: str='gene_basis_evaluation'):
     """Peform gene panel evaluation using geneBasis. 
     Peforms two evaluations at various cell group levels:
         1) Neighborhood score
@@ -513,7 +521,7 @@ def gene_basis_panel_eval(gene_panel: GenePanelSelection, levels: list=['class',
     """
     gene_basis = GeneBasisMethod(gene_panel.exp_data)
     panel_eval = gene_basis.panel_eval(gene_panel, levels)
-    with open(os.path.join(gene_panel.run_directory, 'gene_basis_evaluation'), 'wb') as file:
+    with open(os.path.join(gene_panel.run_directory, file_name), 'wb') as file:
         pkl.dump(panel_eval, file)
         file.close()
 
