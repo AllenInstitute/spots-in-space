@@ -90,6 +90,7 @@ class SpotTable:
         self._cell_index = None
         self._cell_bounds = None
         self.cell_polygons = {}
+        self.images = {}
 
     def __len__(self):
         return len(self.pos)
@@ -872,6 +873,121 @@ class SpotTable:
             table.show_image(ax=ax[i], **kwds)
             if i > 0:
                 table.plot_rect(ax[i-1], 'c')
+
+    def add_image(self, image):
+        """Attach an image to this dataset
+        """
+        if image.name is not None and image.name in [img.name for img in self.images]:
+            raise Exception(f"An image named {image.name} is already attached")
+        self.images.append(image)
+
+    def get_image(self, name=None, channel=None):
+        """Return the image with the given name or channel name
+        """
+        if name is not None:
+            selected = [img for img in self.images if img.name == name]
+            if len(selected) == 0:
+                raise Exception(f"No image found with name={name}")
+        elif channel is not None:
+            selected = [img for img in self.images if channel in img.channels]
+            if len(selected) == 0:
+                raise Exception(f"No image found with channel {channel}")
+            if len(selected) > 1:
+                raise Exception(f"Multiple images found with channel {channel}")
+        else:
+            raise Exception("Must specify at least one of name or channel")
+        selected_img = selected[0]
+            
+        if channel is not None:
+            return selected_img.get_channel(channel)
+        else:
+            return selected_img            
+        
+    def show_image(self, ax, channel=None, z_index=None, z_pos=None, name=None):
+        """Show a channel / z plane from an image
+        """
+        img = self.get_image(name=name, channel=channel)
+        if z_index is not None:
+            img = img.get_z_index(z_index)
+        if z_pos is not None:
+            img = img.get_z_pos(z_pos)
+            
+        return img
+        
+
+
+class ImageBase:
+    def get_channel(self, channel):
+        assert channel in self.channels
+        return ImageView(self, channels=[channel])
+        
+    def get_subregion(self, region):
+        """Return a view of this image limited to the region [(xmin, ymin), (xmax, ymax)]
+        """
+        raise NotImplementedError()
+        # todo: map region to slice
+        return ImageView(self, slices=(slice(), slice(*region[0]), slice(*region[1])))
+
+    def __getitem__(self, item):
+        return ImageView(self, slices=item)
+
+    def get_z_index(self, z):
+        z_len = self.shape[0]
+        assert z < z_len
+        return self[z:z+1, ...]
+
+        
+class Image(ImageBase):
+    def __init__(self, file: str, transform: np.ndarray, axes: list, channels: list, name: str|None):
+        """Represents a single image, carrying metadata about:
+        - The file containing image data
+        - The transform that maps from pixel coordinates to spot table coordinates
+        - Which axes are which
+        - What is represented by each channel
+        
+        Parameters
+        ----------
+        file : str
+            Path to image file
+        transform : ndarray
+            3D transformation matrix relating (frame, row, col) image pixel coordinates to (x, y, z) spot coordinates.
+        axes : list
+            List of axis names; options are 'frame', 'row', 'col', 'channel'
+        channels : list
+            List of names given to each channel (e.g.: 'dapi')
+        name : str|None
+            Optional unique identifier for this image
+        """
+        super().__init__(self)
+        self.file = file
+        self.transform = transform
+        self.axes = axes
+        self.channels = channels
+        self.name = name
+                
+
+class ImageStack(ImageBase):
+    """A stack of Image z-planes
+    """
+    def __init__(self, images):
+        super().__init__(self)
+        self.images = images
+
+
+class ImageView(ImageBase):
+    """Represents a subset of data from an Image (a rectangular subregion or subset of channels)
+    """
+    def __init__(self, image, slices=None, channels=None):
+        super().__init__(self)
+        for ch in channels:
+            assert ch in image.channels
+        self.image = image
+        self.view_slices = slices
+        self.view_channels = channels
+        
+    @property
+    def channels(self):
+        return self.view_channels
 
 
 def load_baysor_result(result_file, remove_noise=True, remove_no_cell=True, brl_output = False):
