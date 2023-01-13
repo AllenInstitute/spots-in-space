@@ -62,7 +62,7 @@ class Image(ImageBase):
         file : str
             Path to image file
         transform : ndarray
-            3D transformation matrix relating (frame, row, col) image pixel coordinates to (x, y, z) spot coordinates.
+            2D transformation matrix relating (row, col) image pixel coordinates to (x, y) spot coordinates.
         axes : list
             List of axis names giving order of axes in *file*; options are 'frame', 'row', 'col', 'channel'
         channels : list
@@ -137,6 +137,7 @@ class ImageTransform:
         
         Points must be an array of shape (N, 2).
         """
+        points = np.asarray(points)
         return (self.matrix[:2, :2] @ points.T + self.matrix[:2, 2:]).T
 
     @property
@@ -152,6 +153,7 @@ class ImageTransform:
         
         Points must be an array of shape (N, 2).
         """
+        pixels = np.asarray(pixels)
         return (self.inverse_matrix[:2, :2] @ pixels.T + self.inverse_matrix[:2, 2:]).T
 
     def translated(self, offset):
@@ -164,10 +166,18 @@ class ImageTransform:
 
 class ImageStack(ImageBase):
     """A stack of Image z-planes
+
+    Assumes images are all the same shape and evenly spaced along the z axis.
     """
     def __init__(self, images):
         super().__init__(self)
         self.images = images
+        # z0 = self.images[0].transform.map_from_pixels([[
+
+    @property
+    def shape(self):
+        img_shape = self.images[0].shape
+        return (len(self.images),) + img_shape[1:] 
 
 
 class ImageView(ImageBase):
