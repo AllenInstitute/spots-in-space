@@ -55,6 +55,8 @@ class SpotTable:
         Indices used to select the subset of spots in this table from the parent spots.
     parent_region : tuple | None
         X,Y boundaries ((xmin, xmax), (ymin, ymax)) used to select this table from the parent table.
+    images : list | None
+        List of Image instances to attach
     """
     def __init__(self, 
                  pos: np.ndarray,
@@ -64,7 +66,8 @@ class SpotTable:
                  cell_ids: None|np.ndarray=None, 
                  parent_table: 'None|SpotTable'=None, 
                  parent_inds: None|np.ndarray=None, 
-                 parent_region: None|tuple=None):
+                 parent_region: None|tuple=None,
+                 images: None|list=None):
         
         self.pos = pos
         self.parent_table = parent_table
@@ -90,7 +93,10 @@ class SpotTable:
         self._cell_index = None
         self._cell_bounds = None
         self.cell_polygons = {}
-        self.images = {}
+        self.images = []
+        if images is not None:
+            for img in images:
+                self.add_image(img)
 
     def __len__(self):
         return len(self.pos)
@@ -172,6 +178,7 @@ class SpotTable:
         )
         sub = self[mask]
         sub.parent_region = (xlim, ylim)
+        sub.images = [img.get_subregion(sub.parent_region) for img in sub.images]
         return sub
 
     def get_genes(self, gene_names=None, gene_ids=None):
@@ -556,7 +563,8 @@ class SpotTable:
             cell_ids=cell_ids, 
             parent_table=self, 
             parent_inds=np.arange(len(self))[item],
-            parent_region=((pos[:,0].min(), pos[:,0].max()), (pos[:,1].min(), pos[:,1].max()))
+            parent_region=((pos[:,0].min(), pos[:,0].max()), (pos[:,1].min(), pos[:,1].max())),
+            images=self.images,
         )
             
         return subset
@@ -570,7 +578,7 @@ class SpotTable:
             parent_region=self.parent_region,
         )
         init_kwargs.update(kwds)
-        for name in ['pos', 'gene_ids', 'gene_id_to_name', 'cell_ids']:
+        for name in ['pos', 'gene_ids', 'gene_id_to_name', 'cell_ids', 'images']:
             if name not in init_kwargs:
                 val = getattr(self, name)
                 if deep:

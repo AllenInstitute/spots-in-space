@@ -15,13 +15,15 @@ class ImageBase:
 
     def get_channel(self, channel):
         assert channel in self.channels
+        if len(self.channels) == 1:
+            return self
         return ImageView(self, channels=[channel])
         
     def get_subregion(self, region):
-        """Return a view of this image limited to the region [(xmin, ymin), (xmax, ymax)]
+        """Return a view of this image limited to the region [(xmin, xmax), (ymin, ymax)]
         """
-        corners = np.array(region)
-        tl, br = self.transform.map_to_pixels(corners)
+        corners = np.array(region).T
+        tl, br = self.transform.map_to_pixels(corners).astype(int)
         return self[:, tl[0]:br[0], tl[1]:br[1]]
 
     def __getitem__(self, item):
@@ -32,7 +34,19 @@ class ImageBase:
         assert z < z_len
         return self[z:z+1, ...]
 
-        
+    def show(self, ax, channel=None, **kwds):
+        y_inverted = ax.yaxis_inverted()
+        data = self.get_data(channel=channel)
+        shape = self.shape
+        px_corners = np.array([[0, 0], shape[1:3]])
+        (left, top), (right, bottom) = self.transform.map_from_pixels(px_corners)
+        kwds['extent'] = (left, right, bottom, top)
+        ax.imshow(data, **kwds)
+        # don't let imshow invert the y axis
+        if ax.yaxis_inverted() != y_inverted:
+            ax.invert_yaxis()
+
+
 class Image(ImageBase):
     def __init__(self, file: str, transform: np.ndarray, axes: list, channels: list, name: str|None):
         """Represents a single image, carrying metadata about:
@@ -56,7 +70,7 @@ class Image(ImageBase):
         name : str|None
             Optional unique identifier for this image
         """
-        super().__init__(self)
+        super().__init__()
         self.file = file
         self.transform = transform
         self.axes = axes
@@ -66,7 +80,7 @@ class Image(ImageBase):
 
     @classmethod
     def load_merscope(cls, image_file, transform_file, channel, name=None):
-        um_to_px = np.loadtxt(transform_file)
+        um_to_px = np.loadtxt(transform_file)[:2]
         tr = ImageTransform(um_to_px)
         return Image(file=image_file, transform=tr, axes=['frame', 'row', 'col', 'channel'], channels=[channel], name=name)
 
@@ -112,26 +126,40 @@ class Image(ImageBase):
             return self.channels.index(channel) + 1
 
 
-"""
-import rasterio
-f = '/allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/MERSCOPE/macaque/1191380492/images/mosaic_DAPI_z3.tif'
-src = rasterio.open(f)
-from rasterio.windows import Window
-win = Window(25600, 25600, 128, 128)
-sub = src.read(window=win)
-"""
 class ImageTransform:
     def __init__(self, matrix):
         self.matrix = matrix
         assert matrix.shape == (2, 3)
+        self._inverse = None
 
     def map_to_pixels(self, points):
-        """Map x,y positions to image pixels. 
+        """Map (x, y) positions to image pixels (row, col). 
         
         Points must be an array of shape (N, 2).
         """
-        return (self.matrix[:2, :2] @ points.T + self.matrix[:2, 2:]).astype(int).T
+        return (self.matrix[:2, :2] @ points.T + self.matrix[:2, 2:]).T
 
+    @property
+    def inverse_matrix(self):
+        if self._inverse is None:
+            m3 = np.eye(3)
+            m3[:2] = self.matrix
+            self._inverse = np.linalg.inv(m3)[:2]
+        return self._inverse
+
+    def map_from_pixels(self, pixels):
+        """Map (row, col) image pixels to positions (x, y). 
+        
+        Points must be an array of shape (N, 2).
+        """
+        return (self.inverse_matrix[:2, :2] @ pixels.T + self.inverse_matrix[:2, 2:]).T
+
+    def translated(self, offset):
+        """Return a new transform that is translated by *offset* (where offset is expressed in pixels)
+        """
+        m = self.matrix.copy()
+        m[:, 2] += offset
+        return ImageTransform(m)
 
 
 class ImageStack(ImageBase):
@@ -146,16 +174,44 @@ class ImageView(ImageBase):
     """Represents a subset of data from an Image (a rectangular subregion or subset of channels)
     """
     def __init__(self, image, slices=None, channels=None):
-        super().__init__(self)
-        for ch in channels:
-            assert ch in image.channels
+        super().__init__()
+        if channels is not None:
+            for ch in channels:
+                assert ch in image.channels
         self.image = image
         self.view_slices = slices
         self.view_channels = channels
-        
+
+        offset = np.array([0, 0])
+        if slices is not None:
+            for ax, sl in enumerate(slices[1:3]):
+                offset[ax] = sl.start
+                # for now, let's not support stepping here
+                assert sl.step in (1, None), f"Slice step not supported ({sl})"
+
+        self.transform = image.transform.translated(-offset)
+
+    @property
+    def name(self):
+        return self.image.name
+
+    @property
+    def shape(self):
+        shape = list(self.image.shape)
+        if self.view_slices is not None:
+            for ax, sl in enumerate(self.view_slices):
+                inds = sl.indices(shape[ax])
+                shape[ax] = (inds[1] - inds[0]) // inds[2]
+        if self.view_channels is not None:
+            shape[3] = len(self.view_channels)
+        return shape
+
     @property
     def channels(self):
-        return self.view_channels
+        if self.view_channels is not None:
+            return self.view_channels
+        else:
+            return self.image.channels
 
     def get_data(self, channel=None):
         rows = self.view_slices[1].start, self.view_slices[1].stop
