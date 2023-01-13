@@ -55,6 +55,8 @@ class SpotTable:
         Indices used to select the subset of spots in this table from the parent spots.
     parent_region : tuple | None
         X,Y boundaries ((xmin, xmax), (ymin, ymax)) used to select this table from the parent table.
+    images : list | None
+        List of Image instances to attach
     """
     def __init__(self, 
                  pos: np.ndarray,
@@ -64,7 +66,8 @@ class SpotTable:
                  cell_ids: None|np.ndarray=None, 
                  parent_table: 'None|SpotTable'=None, 
                  parent_inds: None|np.ndarray=None, 
-                 parent_region: None|tuple=None):
+                 parent_region: None|tuple=None,
+                 images: None|list=None):
         
         self.pos = pos
         self.parent_table = parent_table
@@ -90,6 +93,10 @@ class SpotTable:
         self._cell_index = None
         self._cell_bounds = None
         self.cell_polygons = {}
+        self.images = []
+        if images is not None:
+            for img in images:
+                self.add_image(img)
 
     def __len__(self):
         return len(self.pos)
@@ -177,6 +184,7 @@ class SpotTable:
         )
         sub = self[mask]
         sub.parent_region = (xlim, ylim)
+        sub.images = [img.get_subregion(sub.parent_region) for img in sub.images]
         return sub
 
     def get_genes(self, gene_names=None, gene_ids=None):
@@ -561,7 +569,8 @@ class SpotTable:
             cell_ids=cell_ids, 
             parent_table=self, 
             parent_inds=np.arange(len(self))[item],
-            parent_region=((pos[:,0].min(), pos[:,0].max()), (pos[:,1].min(), pos[:,1].max()))
+            parent_region=((pos[:,0].min(), pos[:,0].max()), (pos[:,1].min(), pos[:,1].max())),
+            images=self.images,
         )
             
         return subset
@@ -575,7 +584,7 @@ class SpotTable:
             parent_region=self.parent_region,
         )
         init_kwargs.update(kwds)
-        for name in ['pos', 'gene_ids', 'gene_id_to_name', 'cell_ids']:
+        for name in ['pos', 'gene_ids', 'gene_id_to_name', 'cell_ids', 'images']:
             if name not in init_kwargs:
                 val = getattr(self, name)
                 if deep:
@@ -878,6 +887,48 @@ class SpotTable:
             table.show_image(ax=ax[i], **kwds)
             if i > 0:
                 table.plot_rect(ax[i-1], 'c')
+
+    def add_image(self, image):
+        """Attach an image to this dataset
+        """
+        if image.name is not None and image.name in [img.name for img in self.images]:
+            raise Exception(f"An image named {image.name} is already attached")
+        self.images.append(image)
+
+    def get_image(self, name=None, channel=None):
+        """Return the image with the given name or channel name
+        """
+        if name is not None:
+            selected = [img for img in self.images if img.name == name]
+            if len(selected) == 0:
+                raise Exception(f"No image found with name={name}")
+        elif channel is not None:
+            selected = [img for img in self.images if channel in img.channels]
+            if len(selected) == 0:
+                raise Exception(f"No image found with channel {channel}")
+            if len(selected) > 1:
+                raise Exception(f"Multiple images found with channel {channel}")
+        else:
+            raise Exception("Must specify at least one of name or channel")
+        selected_img = selected[0]
+            
+        if channel is not None:
+            return selected_img.get_channel(channel)
+        else:
+            return selected_img            
+        
+    def show_image(self, ax, channel=None, z_index=None, z_pos=None, name=None):
+        """Show a channel / z plane from an image
+        """
+        img = self.get_image(name=name, channel=channel)
+        if z_index is not None:
+            img = img.get_z_index(z_index)
+        if z_pos is not None:
+            img = img.get_z_pos(z_pos)
+            
+        return img
+        
+
 
 
 def load_baysor_result(result_file, remove_noise=True, remove_no_cell=True, brl_output = False):
