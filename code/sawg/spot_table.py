@@ -11,6 +11,8 @@ from shapely.ops import unary_union, polygonize
 
 import pandas as pd
 
+from .image import ImageStack
+
 
 def log_plus_1(x):
     return np.log(x + 1)
@@ -55,8 +57,6 @@ class SpotTable:
         Indices used to select the subset of spots in this table from the parent spots.
     parent_region : tuple | None
         X,Y boundaries ((xmin, xmax), (ymin, ymax)) used to select this table from the parent table.
-    images : list | None
-        List of Image instances to attach
     """
     def __init__(self, 
                  pos: np.ndarray,
@@ -66,8 +66,7 @@ class SpotTable:
                  cell_ids: None|np.ndarray=None, 
                  parent_table: 'None|SpotTable'=None, 
                  parent_inds: None|np.ndarray=None, 
-                 parent_region: None|tuple=None,
-                 images: None|list=None):
+                 parent_region: None|tuple=None):
         
         self.pos = pos
         self.parent_table = parent_table
@@ -94,9 +93,6 @@ class SpotTable:
         self._cell_bounds = None
         self.cell_polygons = {}
         self.images = []
-        if images is not None:
-            for img in images:
-                self.add_image(img)
 
     def __len__(self):
         return len(self.pos)
@@ -271,29 +267,65 @@ class SpotTable:
         return SpotTable(pos=pos, gene_ids=result['gene'], cell_ids=result['cell'])
 
     @classmethod
-    def load_merscope(cls, csv_file: str, cache_file: str|None, csv_cols: dict|tuple=(('x', 2), ('y', 3), ('z', 4), ('gene', 8)), max_rows: int|None=None):
+    def load_merscope(cls, csv_file: str, cache_file: str|None, image_path: str|None=None, max_rows: int|None=None):
         """Load MERSCOPE data from a detected transcripts CSV file.
 
         CSV reading is slow, so optionally cache the result to a .npz file.
         """
         if cache_file is None or not os.path.exists(cache_file):
             print("Loading csv..")
-            dtype = [('x', 'float32'), ('y', 'float32'), ('z', 'float32'), ('gene', 'S20')]
-            csv_cols = dict(csv_cols)
-            usecols = [csv_cols[col] for col in ['x', 'y', 'z', 'gene']]
-            raw_data = np.loadtxt(csv_file, skiprows=1, usecols=usecols, delimiter=',', dtype=dtype, max_rows=max_rows)
+
+            # Which columns are present in csv file?
+            cols_in_file = open(csv_file, 'r').readline().split(',')
+            cols_in_file = [col.strip() for col in cols_in_file]
+
+            # decide which columns to use for each data source
+            col_map = {}
+            if 'global_x' in cols_in_file:
+                col_map.update({'x': 'global_x', 'y': 'global_y', 'z': 'global_z'})
+            else:
+                col_map.update({'x': 'x', 'y': 'y', 'z': 'z'})
+            col_map['gene'] = 'gene'
+            if 'cell_id' in cols_in_file:
+                col_map['cell_id'] = 'cell_id'
+            col_inds = [cols_in_file.index(c) for c in col_map.values()]
+
+            # pick final dtypes
+            dtype = [('x', 'float32'), ('y', 'float32'), ('z', 'float32'), ('gene', 'S20'), ('cell_id', 'int32')]
+            dtype = [field for field in dtype if field[0] in col_map]
+
+            # convert positions to 2D array
+            raw_data = np.loadtxt(csv_file, skiprows=1, usecols=col_inds, delimiter=',', dtype=dtype, max_rows=max_rows)
             pos = raw_data.view('float32').reshape(len(raw_data), raw_data.itemsize//4)[:, :3]
+
+            # get gene names as fixed-length string
             max_gene_len = max(map(len, raw_data['gene']))
-            table = SpotTable(pos=pos, gene_names=raw_data['gene'].astype(f'U{max_gene_len}'))
+            gene_names = raw_data['gene'].astype(f'U{max_gene_len}')
+
+            # get cell IDs if possible
+            cell_ids = None
+            if 'cell_id' in col_map:
+                cell_ids = raw_data['cell_id']
+
+            # make a spot table!
+            table = SpotTable(pos=pos, gene_names=gene_names, cell_ids=cell_ids)
 
             if cache_file is not None:                
                 print("Recompressing to npz..")
                 table.save_npz(cache_file)
 
-            return table
         else:
             print("Loading from npz..")
-            return cls.load_npz(cache_file)
+            table = cls.load_npz(cache_file)
+
+        # if requested, look for images as well (these are not saved in cache file)
+        images = None
+        if image_path is not None:
+            images = ImageStack.load_merscope_stacks(image_path)
+            for img in images:
+                table.add_image(img)
+
+        return table
 
     @classmethod
     def load_stereoseq(cls, gem_file: str|None=None, cache_file: str|None=None, gem_cols: dict|tuple=(('gene', 0), ('x', 1), ('y', 2), ('MIDcounts', 3)), skiprows: int|None=1,  max_rows: int|None=None):
@@ -330,7 +362,7 @@ class SpotTable:
             'gene_id_to_name': self.gene_id_to_name,
         }
         if self._cell_ids is not None:
-            fields['cell_ids'] = self._cell_ids
+            fields['cell_ids'] = self._cell_ids    
         
         np.savez_compressed(npz_file, **fields) 
 
@@ -570,8 +602,9 @@ class SpotTable:
             parent_table=self, 
             parent_inds=np.arange(len(self))[item],
             parent_region=((pos[:,0].min(), pos[:,0].max()), (pos[:,1].min(), pos[:,1].max())),
-            images=self.images,
         )
+
+        subset.images = self.images[:]
             
         return subset
     
