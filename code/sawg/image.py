@@ -261,7 +261,7 @@ class ImageStack(ImageBase):
         full[0] = first
         del first
         for i, img in enumerate(gen):
-            full[i] = img
+            full[i+1] = img
         return full
 
 
