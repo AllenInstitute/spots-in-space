@@ -291,7 +291,7 @@ class SpotTable:
             col_inds = [cols_in_file.index(c) for c in col_map.values()]
 
             # pick final dtypes
-            dtype = [('x', 'float32'), ('y', 'float32'), ('z', 'float32'), ('gene', 'S20'), ('cell_id', 'int32')]
+            dtype = [('x', 'float32'), ('y', 'float32'), ('z', 'float32'), ('gene', 'S20'), ('cell_id', 'int64')]
             dtype = [field for field in dtype if field[0] in col_map]
 
             # convert positions to 2D array
