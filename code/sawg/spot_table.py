@@ -11,6 +11,8 @@ from shapely.ops import unary_union, polygonize
 
 import pandas as pd
 
+from .image import ImageStack
+
 
 def log_plus_1(x):
     return np.log(x + 1)
@@ -90,6 +92,7 @@ class SpotTable:
         self._cell_index = None
         self._cell_bounds = None
         self.cell_polygons = {}
+        self.images = []
 
     def __len__(self):
         return len(self.pos)
@@ -177,6 +180,7 @@ class SpotTable:
         )
         sub = self[mask]
         sub.parent_region = (xlim, ylim)
+        sub.images = [img.get_subregion(sub.parent_region) for img in sub.images]
         return sub
 
     def get_genes(self, gene_names=None, gene_ids=None):
@@ -263,29 +267,65 @@ class SpotTable:
         return SpotTable(pos=pos, gene_ids=result['gene'], cell_ids=result['cell'])
 
     @classmethod
-    def load_merscope(cls, csv_file: str, cache_file: str|None, csv_cols: dict|tuple=(('x', 2), ('y', 3), ('z', 4), ('gene', 8)), max_rows: int|None=None):
+    def load_merscope(cls, csv_file: str, cache_file: str|None, image_path: str|None=None, max_rows: int|None=None):
         """Load MERSCOPE data from a detected transcripts CSV file.
 
         CSV reading is slow, so optionally cache the result to a .npz file.
         """
         if cache_file is None or not os.path.exists(cache_file):
             print("Loading csv..")
-            dtype = [('x', 'float32'), ('y', 'float32'), ('z', 'float32'), ('gene', 'S20')]
-            csv_cols = dict(csv_cols)
-            usecols = [csv_cols[col] for col in ['x', 'y', 'z', 'gene']]
-            raw_data = np.loadtxt(csv_file, skiprows=1, usecols=usecols, delimiter=',', dtype=dtype, max_rows=max_rows)
+
+            # Which columns are present in csv file?
+            cols_in_file = open(csv_file, 'r').readline().split(',')
+            cols_in_file = [col.strip() for col in cols_in_file]
+
+            # decide which columns to use for each data source
+            col_map = {}
+            if 'global_x' in cols_in_file:
+                col_map.update({'x': 'global_x', 'y': 'global_y', 'z': 'global_z'})
+            else:
+                col_map.update({'x': 'x', 'y': 'y', 'z': 'z'})
+            col_map['gene'] = 'gene'
+            if 'cell_id' in cols_in_file:
+                col_map['cell_id'] = 'cell_id'
+            col_inds = [cols_in_file.index(c) for c in col_map.values()]
+
+            # pick final dtypes
+            dtype = [('x', 'float32'), ('y', 'float32'), ('z', 'float32'), ('gene', 'S20'), ('cell_id', 'int64')]
+            dtype = [field for field in dtype if field[0] in col_map]
+
+            # convert positions to 2D array
+            raw_data = np.loadtxt(csv_file, skiprows=1, usecols=col_inds, delimiter=',', dtype=dtype, max_rows=max_rows)
             pos = raw_data.view('float32').reshape(len(raw_data), raw_data.itemsize//4)[:, :3]
+
+            # get gene names as fixed-length string
             max_gene_len = max(map(len, raw_data['gene']))
-            table = SpotTable(pos=pos, gene_names=raw_data['gene'].astype(f'U{max_gene_len}'))
+            gene_names = raw_data['gene'].astype(f'U{max_gene_len}')
+
+            # get cell IDs if possible
+            cell_ids = None
+            if 'cell_id' in col_map:
+                cell_ids = raw_data['cell_id']
+
+            # make a spot table!
+            table = SpotTable(pos=pos, gene_names=gene_names, cell_ids=cell_ids)
 
             if cache_file is not None:                
                 print("Recompressing to npz..")
                 table.save_npz(cache_file)
 
-            return table
         else:
             print("Loading from npz..")
-            return cls.load_npz(cache_file)
+            table = cls.load_npz(cache_file)
+
+        # if requested, look for images as well (these are not saved in cache file)
+        images = None
+        if image_path is not None:
+            images = ImageStack.load_merscope_stacks(image_path)
+            for img in images:
+                table.add_image(img)
+
+        return table
 
     @classmethod
     def load_stereoseq(cls, gem_file: str|None=None, cache_file: str|None=None, gem_cols: dict|tuple=(('gene', 0), ('x', 1), ('y', 2), ('MIDcounts', 3)), skiprows: int|None=1,  max_rows: int|None=None):
@@ -322,7 +362,7 @@ class SpotTable:
             'gene_id_to_name': self.gene_id_to_name,
         }
         if self._cell_ids is not None:
-            fields['cell_ids'] = self._cell_ids
+            fields['cell_ids'] = self._cell_ids    
         
         np.savez_compressed(npz_file, **fields) 
 
@@ -561,8 +601,10 @@ class SpotTable:
             cell_ids=cell_ids, 
             parent_table=self, 
             parent_inds=np.arange(len(self))[item],
-            parent_region=((pos[:,0].min(), pos[:,0].max()), (pos[:,1].min(), pos[:,1].max()))
+            parent_region=((pos[:,0].min(), pos[:,0].max()), (pos[:,1].min(), pos[:,1].max())),
         )
+
+        subset.images = self.images[:]
             
         return subset
     
@@ -575,7 +617,7 @@ class SpotTable:
             parent_region=self.parent_region,
         )
         init_kwargs.update(kwds)
-        for name in ['pos', 'gene_ids', 'gene_id_to_name', 'cell_ids']:
+        for name in ['pos', 'gene_ids', 'gene_id_to_name', 'cell_ids', 'images']:
             if name not in init_kwargs:
                 val = getattr(self, name)
                 if deep:
@@ -878,6 +920,48 @@ class SpotTable:
             table.show_image(ax=ax[i], **kwds)
             if i > 0:
                 table.plot_rect(ax[i-1], 'c')
+
+    def add_image(self, image):
+        """Attach an image to this dataset
+        """
+        if image.name is not None and image.name in [img.name for img in self.images]:
+            raise Exception(f"An image named {image.name} is already attached")
+        self.images.append(image)
+
+    def get_image(self, name=None, channel=None):
+        """Return the image with the given name or channel name
+        """
+        if name is not None:
+            selected = [img for img in self.images if img.name == name]
+            if len(selected) == 0:
+                raise Exception(f"No image found with name={name}")
+        elif channel is not None:
+            selected = [img for img in self.images if channel in img.channels]
+            if len(selected) == 0:
+                raise Exception(f"No image found with channel {channel}")
+            if len(selected) > 1:
+                raise Exception(f"Multiple images found with channel {channel}")
+        else:
+            raise Exception("Must specify at least one of name or channel")
+        selected_img = selected[0]
+            
+        if channel is not None:
+            return selected_img.get_channel(channel)
+        else:
+            return selected_img            
+        
+    def show_image(self, ax, channel=None, z_index=None, z_pos=None, name=None):
+        """Show a channel / z plane from an image
+        """
+        img = self.get_image(name=name, channel=channel)
+        if z_index is not None:
+            img = img.get_z_index(z_index)
+        if z_pos is not None:
+            img = img.get_z_pos(z_pos)
+            
+        return img
+        
+
 
 
 def load_baysor_result(result_file, remove_noise=True, remove_no_cell=True, brl_output = False):
