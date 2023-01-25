@@ -1,7 +1,11 @@
+from __future__ import annotations
 import os, glob, re
 import numpy as np
-import rasterio
-from rasterio.windows import Window
+from .optional_import import optional_import
+#import rasterio
+rasterio = optional_import('rasterio')
+# from rasterio.windows import Window
+Window = optional_import('rasterio', names='Window', package=__name__)
 
 
 class ImageBase:
