@@ -143,7 +143,7 @@ class TangramMapping(CellTypeMapping):
         for cls in ['exc', 'inh', 'glia']:
             for neighborhood, subclasses in self.ordered_labels[cls].items():
                 if mapping_level == 'cluster':
-                    for subclass, clusters in self.ordered_labels[cls].items():
+                    for subclass, clusters in subclasses.items():
                         discrete_mapping.loc[discrete_mapping['cluster'].isin(clusters), 'subclass'] = subclass
                 discrete_mapping.loc[discrete_mapping['subclass'].isin(subclasses), 'neighborhood'] = neighborhood
                 discrete_mapping.loc[discrete_mapping['subclass'].isin(subclasses), 'class'] = cls
