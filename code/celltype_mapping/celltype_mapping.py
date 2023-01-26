@@ -10,6 +10,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import bz2
 import _pickle as cPickle
+import json
 
 try:
     import tangram as tg
@@ -47,6 +48,15 @@ class TangramMapping(CellTypeMapping):
         self.ad_sc = ad_sc
         self.ad_sp = ad_sp
         self.meta = meta
+
+        self._ordered_labels = None
+
+    @property
+    def ordered_labels(self, reload=False):
+        if hasattr(self, '_ordered_labels') is False or self._ordered_labels is None or reload is True:
+            with open('//allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/snRNAseq_data/ordered_celltype_labels.json') as file:
+                self._ordered_labels = json.load(file)
+        return self._ordered_labels
         
     def set_training_genes(self, training_genes: list, meta: dict={}):
        
@@ -79,7 +89,7 @@ class TangramMapping(CellTypeMapping):
         ad_ge = tg.project_genes(self.ad_map, self.ad_sc, cluster_label=self.meta['cluster_label'], **args)
         self.ad_ge = ad_ge
 
-    def evaluate_mapping(self, args:dict={}):
+    def evaluate_mapping(self, level:str|None=None, args:dict={}):
         """Run a standard set of mapping evaluations
         """
         print('Running core analysis set..')
@@ -92,12 +102,16 @@ class TangramMapping(CellTypeMapping):
 
         print('3) get and plot the maximum cluster label for each spatial position')
         # if self.meta.cluster_label == subclass group into excitatory, inhibitory, non-neuronal
-        if self.meta['cluster_label'] == 'subclass':
+        if level is None:
+            level = self.meta['cluster_label']
+        if level  == 'subclass':
             class_groups = self.ad_sc.obs['class'].unique()
             groups = {group: self.ad_sc.obs[self.ad_sc.obs['class']==(group)]['subclass'].unique().to_list() for group in class_groups}
-            self.plot_discrete_mapping(groups=groups, args=args)
+            self.plot_discrete_mapping_probability(level=level, groups=groups, args=args)
+            self.plot_discrete_mapping(level=level, groups=groups, args=args)
         else:
-            self.plot_discrete_mapping(args=args)
+            self.plot_discrete_mapping_probability(level=level, args=args)
+            self.plot_discrete_mapping(level=level, args=args)
 
         print('4) predict spatial gene expression, plot canonical markers and histogram of scores')
         self.compare_spatial_gene_exp()
@@ -108,65 +122,100 @@ class TangramMapping(CellTypeMapping):
         tg.plot_cell_annotation(self.ad_map, self.ad_sp, annotation=annotation, nrows=nrows, ncols=ncols, invert_y=False, **args)
 
     def get_discrete_cell_mapping(self, threshold: float=0):
-        """Return mapped cell type that has the highest proportion for each cell. Optionally set a lower probability threshold.
+        """Return mapped cell type that has the highest probability for each cell. Optionally set a lower probability threshold.
         """
+        mapping_level = self.meta['cluster_label']
         if 'tangram_ct_pred' not in self.ad_sp.obsm.keys():
-            tg.project_cell_annotations(self.ad_map, self.ad_sp, annotation=self.meta['cluster_label'])
+            tg.project_cell_annotations(self.ad_map, self.ad_sp, annotation=mapping_level)
         
         spatial_prob = self.ad_sp.obsm['tangram_ct_pred']
         spatial_prob_norm = (spatial_prob - spatial_prob.min()) / (spatial_prob.max() - spatial_prob.min())
-       
-        max_prop = spatial_prob_norm.max(axis=1)
-        max_anno = spatial_prob_norm.idxmax(axis=1)
-        max_anno = max_anno.mask(max_prop < threshold)
-        max_prop = max_prop.mask(max_prop < threshold)   
-        max_prop.name = 'cluster_prop'
-        max_anno.name = 'cluster'
+        self.ad_sp.obsm['tangram_ct_pred_norm'] = spatial_prob_norm
 
-        spatial_prob_norm = spatial_prob_norm.merge(max_anno, left_index=True, right_index=True)
-        spatial_prob_norm = spatial_prob_norm.merge(max_prop, left_index=True, right_index=True)
-        spatial_prob_norm = spatial_prob_norm.merge(self.ad_sp.obs[['x', 'y']], left_index=True, right_index=True)
-        self.ad_sp.obsm['discrete_ct_pred'] = spatial_prob_norm
+        max_prob = spatial_prob_norm.max(axis=1)
+        max_anno = spatial_prob_norm.idxmax(axis=1)
+        max_anno = max_anno.mask(max_prob < threshold)
+        max_prob = max_prob.mask(max_prob < threshold)   
+        max_prob.name = mapping_level + '_prob'
+        max_anno.name = mapping_level
+
+        discrete_mapping = pd.DataFrame(max_anno)
+        for cls in ['exc', 'inh', 'glia']:
+            for neighborhood, subclasses in self.ordered_labels[cls].items():
+                if mapping_level == 'cluster':
+                    for subclass, clusters in self.ordered_labels[cls].items():
+                        discrete_mapping.loc[discrete_mapping['cluster'].isin(clusters), 'subclass'] = subclass
+                discrete_mapping.loc[discrete_mapping['subclass'].isin(subclasses), 'neighborhood'] = neighborhood
+                discrete_mapping.loc[discrete_mapping['subclass'].isin(subclasses), 'class'] = cls
+        discrete_mapping = discrete_mapping.merge(pd.DataFrame(max_prob), left_index=True, right_index=True)
+        discrete_mapping = discrete_mapping.merge(self.ad_sp.obs[['x', 'y']], left_index=True, right_index=True)
+        self.ad_sp.obsm['discrete_ct_pred'] = discrete_mapping
     
-    def plot_discrete_mapping(self, groups: dict|None=None, args: dict={}):
-        """Plot the discrete mapping produced from get_discrete_cell_mapping. Optionally provide a dictionary with keys specifying group
-        names and keys a list of labels in self.meta['cluster_label'] to plot separately for easier visualization.
+    def plot_discrete_mapping(self, level: str|None=None, groups: dict|None=None, args: dict={}):
+        """Plot the discrete mapping produced from get_discrete_cell_mapping at hierarchy level. Optionally provide a dictionary with keys specifying group
+        names and keys a list of labels to plot separately for easier visualization. If 'level' is None defaults to self.meta['cluster_label'] 
         """
-        if 'discrete_ct_pred' not in self.ad_sp.obsm.keys():
+        # checking for tangram_ct_pred_norm for backwards compatability 
+        if 'discrete_ct_pred' not in self.ad_sp.obsm.keys() or 'tangram_ct_pred_norm' not in self.ad_sp.obsm.keys(): 
             self.get_discrete_cell_mapping()
+
+        if level is None:
+            level = self.meta['cluster_label']
         
-        violin = {'cut': 0}
-        violin.update(args)
         scatter = {'s': 10, 'alpha': 0.7, 'lw': 0}
         scatter.update(args)
 
         data = self.ad_sp.obsm['discrete_ct_pred']
         if groups is not None:
-            fig1, ax1 = plt.subplots(len(groups), 1, figsize=(15, len(groups)*4))
-            fig2, ax2 = plt.subplots(len(groups), 1, figsize=(8, len(groups)*8))
+            fig, ax = plt.subplots(len(groups), 1, figsize=(8, len(groups)*8))
             for i, (group_name, group) in enumerate(groups.items()):
-                subdata = data[data['cluster'].isin(group)]
-                
-                sns.violinplot(data=subdata, x='cluster', y='cluster_prop', ax=ax1[i], sort=True, **violin)
-                ax1[i].set_ylabel('Max probability')
-                ax1[i].tick_params(axis='x', labelrotation = 45)
-                ax1[i].set_title(group_name)
-
-                sns.scatterplot(data=subdata, x='x', y='y', hue='cluster', ax=ax2[i], hue_order=group, **scatter)
-                ax2[i].set_title(group_name)
+                sns.scatterplot(data=data, x='x', y='y', ax=ax[i], color='grey', s=3, alpha=0.1, lw=0)
+                subdata = data[data[level].isin(group)]
+                sns.scatterplot(data=subdata, x='x', y='y', hue=level, ax=ax[i], hue_order=group, **scatter)
+                ax[i].set_title(group_name)
+                ax[i].legend(bbox_to_anchor=(1,1))
             
-            fig1.set_tight_layout(True)
+            fig.set_tight_layout(True)
+        
         
         else:
-            fig1, ax1 = plt.subplots(figsize=(15, 3))
-            sns.violinplot(data=data, x='cluster', y='cluster_prop', ax=ax1, sort=True, **violin)
-            ax1.set_ylabel('Max probability')
-            ax1.tick_params(axis='x', labelrotation = 45)
-            
-            fig2, ax2 = plt.subplots(figsize=(8, 8))
-            sns.scatterplot(data=data, x='x', y='y', hue='cluster',ax=ax2, **scatter)
+            fig, ax = plt.subplots(figsize=(8, 8))
+            sns.scatterplot(data=data, x='x', y='y', hue=level,ax=ax, **scatter)
+            ax.legend(bbox_to_anchor=(1,1))
+        
+        return fig
 
-    
+    def plot_discrete_mapping_probability(self, groups: dict|None=None, args: dict={}):
+        # checking for tangram_ct_pred_norm for backwards compatability 
+        if 'discrete_ct_pred' not in self.ad_sp.obsm.keys() or 'tangram_ct_pred_norm' not in self.ad_sp.obsm.keys(): 
+            self.get_discrete_cell_mapping()
+        
+        level = self.meta['cluster_label']
+
+        violin = {'cut': 0}
+        violin.update(args)
+
+        data = self.ad_sp.obsm['discrete_ct_pred']
+        if groups is not None:
+            fig, ax = plt.subplots(len(groups), 1, figsize=(15, len(groups)*4))
+            for i, (group_name, group) in enumerate(groups.items()):
+                subdata = data[data[level].isin(group)]
+                
+                sns.violinplot(data=subdata, x=level, y=level + '_prob', ax=ax[i], order=group, **violin)
+                ax[i].set_ylabel('Max probability')
+                ax[i].set_xticklabels(ax[i].get_xticklabels(), rotation = 45, ha='right')
+                ax[i].set_title(group_name)
+            
+            fig.set_tight_layout(True)
+        
+        else:
+            fig, ax = plt.subplots(figsize=(15, 3))
+            sns.violinplot(data=data, x=level, y=level + '_prob', ax=ax, sort=True, **violin)
+            ax.set_ylabel('Max probability')
+            ax.set_xticklabels(ax.get_xticklabels(), rotation = 45, ha='right')
+            
+        return fig
+
     def compare_spatial_gene_exp(self, genes: list=['cux2', 'rorb', 'fezf2', 'lhx6', 'pvalb', 'grik1', 'lamp5', 'gfap', 'opalin', 'mog'], args: dict={}):
         if not hasattr(self, 'ad_ge'):
             self.project_genes()
@@ -181,22 +230,30 @@ class TangramMapping(CellTypeMapping):
         sns.histplot(spatial_score, x='score', hue='is_training', ax=ax)
 
     def save_mapping(self, save_path: str, file_name:str='tangram_mapping', meta:dict={}, replace=False):
-
+        self.meta.update(meta)
         if self.run_directory is None or replace is False:
             dir_ts = '{:0.3f}'.format(datetime.now().timestamp())
             self.run_directory = os.path.join(save_path, dir_ts)
             os.mkdir(self.run_directory)
+        with open(os.path.join(self.run_directory, 'meta.json'), "w") as f:
+            json.dump(self.meta, f)
         with bz2.BZ2File(os.path.join(self.run_directory, file_name + '.pbz2'), 'w') as f: 
             cPickle.dump(self, f)
         print(f'analysis UID: {os.path.basename(self.run_directory)}')
 
     @classmethod
-    def load_from_timestamp(cls, directory: str, timestamp: str, file_name: str='tangram_mapping'):
-        path = os.path.join(directory, timestamp, file_name + '.pbz2')
-        if os.path.exists(path) is False:
+    def load_from_timestamp(cls, directory: str, timestamp: str, file_name: str='tangram_mapping', meta_only=False):
+        path = os.path.join(directory, timestamp)
+        meta_file = os.path.join(path, 'meta.json')
+        if meta_only and os.path.exists(meta_file):
+            with open(meta_file) as f:
+                meta = json.load(f)
+                return meta
+        data_file = os.path.join(path, file_name + '.pbz2')
+        if os.path.exists(data_file) is False:
             print(f'tangram analysis file {file_name} does not exist for timestamp {timestamp} in directory {directory}')
             return
-        tg_map = bz2.BZ2File(path, 'rb')
+        tg_map = bz2.BZ2File(data_file, 'rb')
         tg_map = cPickle.load(tg_map)
 
         return tg_map
