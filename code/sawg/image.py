@@ -4,8 +4,6 @@ import numpy as np
 from .optional_import import optional_import
 #import rasterio
 rasterio = optional_import('rasterio')
-# from rasterio.windows import Window
-Window = optional_import('rasterio', names='Window', package=__name__)
 
 
 class ImageBase:
@@ -112,6 +110,11 @@ class Image(ImageBase):
                 self._shape = (1, src.meta['height'], src.meta['width'], src.meta['count'])
         return self._shape
 
+    def _standard_image_shape(self, img_data):
+        if img_data.ndim == 2:
+            img_data = img_data[np.newaxis, :,:]
+        return img_data
+
     def get_data(self, channel=None):
         """Return array of image data.
 
@@ -119,7 +122,7 @@ class Image(ImageBase):
         """
         index = self._get_channel_index(channel)
         with rasterio.open(self.file) as src:
-            return src.read(index)
+            return self._standard_image_shape(src.read(index))
 
     def get_sub_data(self, frames: tuple, rows: tuple, cols: tuple, channel: str|None=None):
         """Get image data for a subregion
@@ -136,9 +139,9 @@ class Image(ImageBase):
             Name of channel to return data from
         """
         index = self._get_channel_index(channel)
-        win = Window(rows[0], cols[0], rows[1]-rows[0], cols[1]-cols[0])
+        win = rasterio.windows.Window(rows[0], cols[0], rows[1]-rows[0], cols[1]-cols[0])
         with rasterio.open(self.file) as src:
-            return src.read(index, window=win)
+            return self._standard_image_shape(src.read(index, window=win))
 
     def _get_channel_index(self, channel):
         # rasterio indexes channels starting at 1
