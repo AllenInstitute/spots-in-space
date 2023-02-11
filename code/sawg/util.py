@@ -77,3 +77,21 @@ def show_float_rgb(data, extent, ax):
         rgb[..., i] = map_to_ubyte(data[..., i])
 
     return ax.imshow(rgb, extent=extent, aspect='equal', origin='lower')
+
+
+def log_plus_1(x):
+    return np.log(x + 1)
+
+
+def poly_to_geojson(polygon):
+    """
+    turns a single shapely Polygon into a geojson polygon
+    Args:
+        polygon shapely.Polygon
+    Returns:
+        geojson polygon
+    """
+    import geojson
+    poly_array = np.array(polygon.exterior.coords)
+
+    return geojson.Polygon([[(poly_array[i,0], poly_array[i,1]) for i in range(poly_array.shape[0])]])

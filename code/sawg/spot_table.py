@@ -13,22 +13,7 @@ import pandas as pd
 
 from .image import ImageStack
 from . import util
-
-
-def log_plus_1(x):
-    return np.log(x + 1)
-
-def polyToGeoJson(polygon):
-    """
-    turns a single shapely Polygon into a geojson polygon 
-    Args:
-        polygon shapely.Polygon 
-    Returns:
-        geojson polygon
-    """
-    poly_array = np.array(polygon.exterior.coords)
-
-    return geojson.Polygon([[(poly_array[i,0], poly_array[i,1]) for i in range(poly_array.shape[0])]])
+from . import segmentation
 
 
 class SpotTable:
@@ -255,7 +240,7 @@ class SpotTable:
     def load_cell_ids(self, file_name: str):
         """Load cell IDs from a baysor segmentation and assign them to self.cell_ids.
         """
-        self._baysor_result = load_baysor_result(file_name, remove_noise=False, remove_no_cell=False)
+        self._baysor_result = segmentation.load_baysor_result(file_name, remove_noise=False, remove_no_cell=False)
         assert len(self._baysor_result) == len(self)
         self.cell_ids = self._baysor_result['cell']
 
@@ -519,7 +504,7 @@ class SpotTable:
         for poly_key in self.cell_polygons.keys():
             if self.cell_polygons[poly_key]:
                 if len(self.cell_polygons[poly_key].exterior.coords) > 2:
-                    geojsonROIs.append(polyToGeoJson(self.cell_polygons[poly_key])) 
+                    geojsonROIs.append(util.poly_to_geojson(self.cell_polygons[poly_key]))
         
         with open(geojson_save_path, 'w') as w:
             json.dump( geojson.GeometryCollection(geojsonROIs), w)
@@ -861,7 +846,7 @@ class SpotTable:
         return hist
     
 
-    def reduced_expression_map(self, binsize, umap_args=None, ax=None, umap_ax=None, norm=log_plus_1):
+    def reduced_expression_map(self, binsize, umap_args=None, ax=None, umap_ax=None, norm=util.log_plus_1):
         import seaborn
         import matplotlib.pyplot as plt
 
@@ -964,46 +949,3 @@ class SpotTable:
         
 
 
-
-def load_baysor_result(result_file, remove_noise=True, remove_no_cell=True, brl_output = False):
-    if brl_output:
-        dtype = [('x', 'float32'), ('y', 'float32'), ('z', 'float32'),('gene',str),('cluster', int), ('cell', int), ('is_noise', bool)]
-
-        converters = {
-            6: lambda x: x == 'true',
-        }
-        result_data = np.loadtxt(
-            result_file, 
-            skiprows=1, 
-            usecols=[0, 1, 2, 3,4, 5, 6], 
-            delimiter=',', 
-            dtype=dtype, 
-            converters=converters
-        )
-    else:
-        dtype = [('x', 'float32'), ('y', 'float32'), ('z', 'float32'),('cluster', int), ('cell', int), ('is_noise', bool)]
-
-        converters = {
-            9: lambda x: x == 'true',
-        }
-        result_data = np.loadtxt(
-            result_file, 
-            skiprows=1, 
-            usecols=[0, 1, 2, 6, 7, 9], 
-            delimiter=',', 
-            dtype=dtype, 
-            converters=converters
-        )
-
-    z_vals = np.unique(result_data['z'])
-    if remove_noise:
-        result_data = result_data[~result_data['is_noise']]
-    if remove_no_cell:
-        result_data = result_data[result_data['cell'] > 0]
-        
-    return result_data
-
-
-def run_baysor(baysor_bin, input_file, output_file, scale=5):
-    os.system(f'{baysor_bin} run {input_file} -o {output_file} -s {scale} --no-ncv-estimation')
-    
