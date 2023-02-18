@@ -1,14 +1,15 @@
+import os, tempfile
+import numpy as np
 from .spot_table import SpotTable
 from .image import Image, ImageBase, ImageTransform
-import numpy as np
 
 
 class SegmentationResult:
     """Represents a segmentation of SpotTable data--method, options, results
     """
-    def __init__(self, method, spot_table):
+    def __init__(self, method:'SegmentationMethod', input_spot_table:SpotTable):
         self.method = method
-        self.input_spot_table = spot_table
+        self.input_spot_table = input_spot_table
 
     @property
     def cell_ids(self):
@@ -16,23 +17,39 @@ class SegmentationResult:
         """
         raise NotImplementedError()        
 
-    @property
-    def spot_table(self):
-        return self.input_spot_table.copy(cell_ids=self.cell_ids)
+    def spot_table(self, min_spots=None):
+        """Return a new SpotTable with cell_ids determined by the segmentation.
+
+        if min_spots is given, then it specifies the threshold below which cells will be discarded
+        """
+        cell_ids = self.cell_ids
+
+        if min_spots is not None:
+            cell_ids = cell_ids.copy()
+            cids, counts = np.unique(cell_ids, return_counts=True)
+            for cid, count in zip(cids, counts):
+                if count < min_spots:
+                    mask = cell_ids == cid
+                    cell_ids[mask] = 0
+
+        return self.input_spot_table.copy(cell_ids=cell_ids)
 
 
 class SegmentationMethod:
-    """Base class defining segmentation methods
+    """Base class defining segmentation methods.
+
+    Subclasses should initialize with a dictionary of options, then calling
+    run(spot_table) will execute the segmentation method and return a SegmentationResult.
     """
-    def __init__(self, options):
+    def __init__(self, options:dict):
         self.options = options
         
-    def run(self, spot_table):
+    def run(self, spot_table:SpotTable):
         """Run segmentation on spot_table and return a Segmentation object.
         """
         raise NotImplementedError()
         
-    def get_spot_table(self, spot_table):
+    def _get_spot_table(self, spot_table:SpotTable):
         """Return the SpotTable instance to run segmentation on. 
         
         If spot_table is a string, load from npz file.
@@ -48,10 +65,13 @@ class SegmentationMethod:
             
         return spot_table
         
-        
+
 
 class CellposeSegmentationMethod(SegmentationMethod):
-    """Implements 3D cellpose segmentation on SpotTable
+    """Implements 2D or 3D cellpose segmentation on SpotTable
+
+    Will automatically segment from images attached to the SpotTable or
+    generate an image from total mRNA.
     
     options = {
         'region': ((xmin, xmax), (ymin, ymax)),  # or None for whole table
@@ -75,7 +95,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
         
     def run(self, spot_table):
         import cellpose
-        spot_table = self.get_spot_table(spot_table)
+        spot_table = self._get_spot_table(spot_table)
         
         # collect all cellpose options
         cp_opts = {
@@ -125,7 +145,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
         # return result object
         result = CellposeSegmentationResult(
             method=self, 
-            spot_table=spot_table,
+            input_spot_table=spot_table,
             cellpose_output={
                 'masks': masks, 
                 'flows': flows, 
@@ -202,8 +222,8 @@ class CellposeSegmentationMethod(SegmentationMethod):
 
 
 class CellposeSegmentationResult(SegmentationResult):
-    def __init__(self, method:SegmentationMethod, spot_table:SpotTable, cellpose_output:dict, image_transform:ImageTransform):
-        super().__init__(method, spot_table)
+    def __init__(self, method:SegmentationMethod, input_spot_table:SpotTable, cellpose_output:dict, image_transform:ImageTransform):
+        super().__init__(method, input_spot_table)
         self.cellpose_output = cellpose_output
         self.image_transform = image_transform
         self._cell_ids = None
@@ -248,6 +268,100 @@ class CellposeSegmentationResult(SegmentationResult):
         """
         
 
+class BaysorSegmentationMethod(SegmentationMethod):
+    """Implements 3D Baysor segmentation on SpotTable
+
+    options = {
+        'region': ((xmin, xmax), (ymin, ymax)),  # or None for whole table
+        'baysor_bin': '/path/to/Baysor',
+        'baysor_output_path': '/path/to/baysor/data',
+        'use_prior_segmentation': True,
+        'no_gene_names': False,          # if true, remove gene names
+        'cell_dia': 10,                  # um
+        'z_plane_thickness': 1.5,        # um
+        'baysor_options': {
+            'scale-std': '25%',
+            'prior-segmentation-confidence': None,
+            'n-clusters': None,
+            'no-ncv-estimation': True,
+        }
+    }
+    """
+
+    def __init__(self, options):
+        super().__init__(options)
+
+    def run(self, spot_table):
+        spot_table = self._get_spot_table(spot_table)
+
+        # collect all cellpose options
+        baysor_opts = {
+            'scale': self.options['cell_dia'],
+            'scale-std': '25%',
+            'prior-segmentation-confidence': None,
+            'n-clusters': None,
+            'no-ncv-estimation': True,
+        }
+        baysor_opts.update(self.options['baysor_options'])
+
+        # correct Z positions from layers to micrometers
+        # Note: ideally we shouldn't need to do this -- the merscope data should just have correct z coordinates to begin with.
+        baysor_spot_table = spot_table.copy(deep=True)
+        baysor_spot_table.pos[:,2] *= self.options['z_plane_thickness']
+
+        # remove gene IDs--only use spot position to perform segmentation
+        if self.options['no_gene_names']:
+            baysor_spot_table.gene_ids[:] = 0
+
+        # using --num-cells should increase convergence speed
+        if spot_table.cell_ids is not None:
+            num_cells = len(np.unique(spot_table.cell_ids))
+            baysor_opts.setdefault('num-cells-init', num_cells)
+        else:
+            num_cells = None
+
+        save_columns = ['x', 'y', 'z', 'gene_id']
+        if self.options['use_prior_segmentation']:
+            save_columns.append('cell_id')
+
+        # we communicate with baysor by writing files to disk, so pick a place to do that
+        output_path = self.options.get('baysor_output_path', None)
+        out_is_tmp = False
+        if output_path is None:
+            output_path = tempfile.mkdtemp(prefix='baysor_run_')
+            out_is_tmp = True
+
+        inp_file = os.path.join(output_path, 'input_spot_table.csv')
+        out_file = os.path.join(output_path, 'output_spot_table.csv')
+
+        # save csv to tmp
+        baysor_spot_table.save_csv(inp_file, columns=save_columns)
+
+        cmd = f"{self.options['baysor_bin']} run -o {out_file}"
+        for arg,val in baysor_opts.items():
+            if val is None:
+                continue
+            if val is True:
+                cmd += f" --{arg}"
+            else:
+                cmd += f" --{arg} {val}"
+        cmd += f" -x x -y y -z z -g gene_id {inp_file}"
+        if self.options['use_prior_segmentation']:
+            cmd += " :cell_id"
+        self.baysor_command = cmd
+
+        # run baysor
+        os.system(cmd)
+
+        # return result object
+        result = BaysorSegmentationResult(
+            method=self,
+            input_spot_table=spot_table,
+            baysor_command=cmd,
+            baysor_output=out_file,
+        )
+
+        return result
 
 
 def load_baysor_result(result_file, remove_noise=True, remove_no_cell=True, brl_output = False):
@@ -289,6 +403,22 @@ def load_baysor_result(result_file, remove_noise=True, remove_no_cell=True, brl_
     return result_data
 
 
-def run_baysor(baysor_bin, input_file, output_file, scale=5):
-    os.system(f'{baysor_bin} run {input_file} -o {output_file} -s {scale} --no-ncv-estimation')
+class BaysorSegmentationResult(SegmentationResult):
+    def __init__(self, method:SegmentationMethod, input_spot_table:SpotTable, baysor_command:str, baysor_output:str):
+        super().__init__(method, input_spot_table)
+        self.baysor_command = baysor_command
+        self.baysor_output = baysor_output
+        self._cell_ids = None
 
+    @property
+    def cell_ids(self):
+        """Array of segmented cell IDs for each spot in the table
+        """
+        # use segmented masks to assign each spot to a cell
+        if self._cell_ids is None:
+            spot_table = self.input_spot_table
+
+            self.result = load_baysor_result(self.baysor_output, remove_noise=False, remove_no_cell=False)
+            self._cell_ids = self.result['cell']
+
+        return self._cell_ids

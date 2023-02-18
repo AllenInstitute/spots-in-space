@@ -241,14 +241,6 @@ class SpotTable:
         sub_table.parent_region = json_data['parent_region']
         return sub_table
 
-    def load_cell_ids(self, file_name: str):
-        """Load cell IDs from a baysor segmentation and assign them to self.cell_ids.
-        """
-        from . import segmentation
-        self._baysor_result = segmentation.load_baysor_result(file_name, remove_noise=False, remove_no_cell=False)
-        assert len(self._baysor_result) == len(self)
-        self.cell_ids = self._baysor_result['cell']
-
     @classmethod
     def load_baysor(cls, file_name: str, **kwds):
         """Return a new SpotTable loaded from a baysor result file.
@@ -612,7 +604,7 @@ class SpotTable:
             if name not in init_kwargs:
                 val = getattr(self, name)
                 if deep:
-                    val = val.copy()
+                    val = None if val is None else val.copy()
                 init_kwargs[name] = val
             
         return SpotTable(**init_kwargs)
