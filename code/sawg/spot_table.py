@@ -13,7 +13,6 @@ import pandas as pd
 
 from .image import ImageStack
 from . import util
-from . import segmentation
 
 
 class SpotTable:
@@ -52,7 +51,8 @@ class SpotTable:
                  cell_ids: None|np.ndarray=None, 
                  parent_table: 'None|SpotTable'=None, 
                  parent_inds: None|np.ndarray=None, 
-                 parent_region: None|tuple=None):
+                 parent_region: None|tuple=None,
+                 images: None|list=None,):
         
         self.pos = pos
         self.parent_table = parent_table
@@ -78,7 +78,11 @@ class SpotTable:
         self._cell_index = None
         self._cell_bounds = None
         self.cell_polygons = {}
+        
         self.images = []
+        if images is not None:
+            for img in images:
+                self.add_image(img)
 
     def __len__(self):
         return len(self.pos)
@@ -240,6 +244,7 @@ class SpotTable:
     def load_cell_ids(self, file_name: str):
         """Load cell IDs from a baysor segmentation and assign them to self.cell_ids.
         """
+        from . import segmentation
         self._baysor_result = segmentation.load_baysor_result(file_name, remove_noise=False, remove_no_cell=False)
         assert len(self._baysor_result) == len(self)
         self.cell_ids = self._baysor_result['cell']
@@ -617,6 +622,8 @@ class SpotTable:
 
         This table will be split into rows of equal height, and each row will be split into
         columns with roughly the same number of spots (less than *max_spots_per_tile*).
+        
+        see also: grid_tiles
 
         Parameters
         ----------
@@ -686,6 +693,23 @@ class SpotTable:
                     break
             tiles.extend(cols)
         return tiles
+
+    def grid_tiles(self, max_size:float, overlap:float):
+        """Return a list of SpotTables that tile this one.
+
+        This table will be split into rows and columns of equal size, less than *max_size*.
+        
+        see also: split_tiles
+
+        Parameters
+        ----------
+        max_size : int
+            Maximum height or width of each tile.
+        overlap : float
+            Distance to overlap tiles
+        """
+        
+
 
     def cell_indices_within_padding(self, padding=5.0):
         """Return spot indices all cells that do not come within *padding* of the parent_region.
@@ -790,8 +814,12 @@ class SpotTable:
         palette[-5] = (1, 0, 0)
         return palette
 
-    def scatter_plot(self, ax, x='x', y='y', color='gene_ids', alpha=0.2, size=1.5, z_slice=None):
+    def scatter_plot(self, ax=None, x='x', y='y', color='gene_ids', alpha=0.2, size=1.5, z_slice=None):
         import seaborn
+        import matplotlib.pyplot as plt
+        if ax is None:
+            fig, ax = plt.subplots()
+        
         if z_slice is not None:
             zvals = np.unique(self.z)
             zval = zvals[int(z_slice * (len(zvals)-1))]

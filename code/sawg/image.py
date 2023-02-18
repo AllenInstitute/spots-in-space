@@ -1,11 +1,9 @@
 from __future__ import annotations
+import warnings
 import os, glob, re
 import numpy as np
 from .optional_import import optional_import
-#import rasterio
 rasterio = optional_import('rasterio')
-# from rasterio.windows import Window
-Window = optional_import('rasterio', names='Window', package=__name__)
 
 
 class ImageBase:
@@ -68,8 +66,60 @@ class ImageBase:
 
 
 class Image(ImageBase):
-    def __init__(self, file: str, transform: np.ndarray, axes: list, channels: list, name: str|None):
-        """Represents a single image, carrying metadata about:
+    """An Image defined by 4D numpy array (frames, rows, cols, channels).
+    
+    Carries metadata about pixel transform and channel identity.
+    
+    """
+    def __init__(self, data:np.ndarray, transform:ImageTransform, channels:list, name: str|None=None):
+        super().__init__()
+        assert data.ndim == 4
+        assert isinstance(transform, ImageTransform)
+        self.transform = transform
+        self.channels = channels
+        self.name = name
+        self._data = data
+
+    @property
+    def shape(self):
+        return self._data.shape
+        
+    def get_data(self, channel=None):
+        """Return array of image data.
+
+        If the image has multiple channels, then the name of the channel to return must be given.
+        """
+        index = self._get_channel_index(channel)
+        return self._data[..., index]
+
+    def get_sub_data(self, frames: tuple, rows: tuple, cols: tuple, channel: str|None=None):
+        """Get image data for a subregion
+
+        Parameters
+        ----------
+        frames : tuple
+            (first_frame, last_frame)
+        rows : tuple
+            (first_row, last_row+1)
+        cols : tuple
+            (first_col, last_col+1)
+        channel : str | None
+            Name of channel to return data from
+        """
+        chan = self.get_data(channel)
+        return chan[frames[0]:frames[1], rows[0]:rows[1], cols[0]:cols[1]]
+
+    def _get_channel_index(self, channel):
+        if channel is not None:
+            return self.channels.index(channel)
+        else:
+            assert self.shape[3] == 1, "Must specify channel to return"
+            return 0
+
+
+class ImageFile(ImageBase):
+    def __init__(self, file: str, transform:ImageTransform, axes: list|None, channels: list, name: str|None):
+        """Represents a single image stored on disk, carrying metadata about:
         - The file containing image data
         - The transform that maps from pixel coordinates to spot table coordinates
         - Which axes are which
@@ -82,7 +132,7 @@ class Image(ImageBase):
         file : str
             Path to image file
         transform : ndarray
-            2D transformation matrix relating (row, col) image pixel coordinates to (x, y) spot coordinates.
+            ImageTransform relating (row, col) image pixel coordinates to (x, y) spot coordinates.
         axes : list
             List of axis names giving order of axes in *file*; options are 'frame', 'row', 'col', 'channel'
         channels : list
@@ -101,15 +151,19 @@ class Image(ImageBase):
     @classmethod
     def load_merscope(cls, image_file, transform_file, channel, name=None):
         um_to_px = np.loadtxt(transform_file)[:2]
+        # transpose rows so we map to (row,col) instead of (col,row)
+        um_to_px = um_to_px[::-1]
         tr = ImageTransform(um_to_px)
-        return Image(file=image_file, transform=tr, axes=['frame', 'row', 'col', 'channel'], channels=[channel], name=name)
+        return ImageFile(file=image_file, transform=tr, axes=['frame', 'row', 'col', 'channel'], channels=[channel], name=name)
 
     @property
     def shape(self):
         if self._shape is None:
-            with rasterio.open(self.file) as src:
-                # todo: support for multiple planes per file?
-                self._shape = (1, src.meta['height'], src.meta['width'], src.meta['count'])
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                with rasterio.open(self.file) as src:
+                    # todo: support for multiple planes per file?
+                    self._shape = (1, src.meta['height'], src.meta['width'], src.meta['count'])
         return self._shape
 
     def get_data(self, channel=None):
@@ -118,8 +172,10 @@ class Image(ImageBase):
         If the image has multiple channels, then the name of the channel to return must be given.
         """
         index = self._get_channel_index(channel)
-        with rasterio.open(self.file) as src:
-            return src.read(index)
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            with rasterio.open(self.file) as src:
+                return src.read(index)
 
     def get_sub_data(self, frames: tuple, rows: tuple, cols: tuple, channel: str|None=None):
         """Get image data for a subregion
@@ -136,9 +192,11 @@ class Image(ImageBase):
             Name of channel to return data from
         """
         index = self._get_channel_index(channel)
-        win = Window(rows[0], cols[0], rows[1]-rows[0], cols[1]-cols[0])
-        with rasterio.open(self.file) as src:
-            return src.read(index, window=win)
+        win = rasterio.windows.Window(cols[0], rows[0], cols[1]-cols[0], rows[1]-rows[0])
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            with rasterio.open(self.file) as src:
+                return src.read(index, window=win)
 
     def _get_channel_index(self, channel):
         # rasterio indexes channels starting at 1
@@ -149,6 +207,10 @@ class Image(ImageBase):
 
 
 class ImageTransform:
+    """Transfomation mapping between (x, y) spot coordinates and (row, col) image pixels
+    
+    *matrix* is a numpy array of shape (2, 3) containing the affine transformation matrix
+    """
     def __init__(self, matrix):
         self.matrix = matrix
         assert matrix.shape == (2, 3)
@@ -225,7 +287,7 @@ class ImageStack(ImageBase):
             images = []
             for z_ind in z_inds:
                 img_file = image_meta[stain, z_ind]
-                img = Image.load_merscope(img_file, transform_file, channel=stain)
+                img = ImageFile.load_merscope(img_file, transform_file, channel=stain)
                 images.append(img)
             stacks.append(ImageStack(images))
 
