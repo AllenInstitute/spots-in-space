@@ -686,23 +686,6 @@ class SpotTable:
             tiles.extend(cols)
         return tiles
 
-    def grid_tiles(self, max_size:float, overlap:float):
-        """Return a list of SpotTables that tile this one.
-
-        This table will be split into rows and columns of equal size, less than *max_size*.
-        
-        see also: split_tiles
-
-        Parameters
-        ----------
-        max_size : int
-            Maximum height or width of each tile.
-        overlap : float
-            Distance to overlap tiles
-        """
-        
-
-
     def cell_indices_within_padding(self, padding=5.0):
         """Return spot indices all cells that do not come within *padding* of the parent_region.
 
@@ -719,9 +702,10 @@ class SpotTable:
         """Merge cell IDs from SpotTable *other* into self.
 
         Returns a structure describing merge conflicts.
-
-        Note: this method modifies the cell IDs in *other* in-place!
         """
+        # copy *other* because we will modify cell IDs
+        other = other.copy(cell_ids=other.cell_ids.copy())
+
         # increment cell IDs in new tile (leaving cell 0 unchanged)
         other.cell_ids[other.cell_ids > 0] += self.cell_ids.max()
         other.cell_ids_changed()
@@ -779,6 +763,22 @@ class SpotTable:
             })
 
         return conflicts
+
+    def set_cell_ids_from_tiles(self, tiles, padding=5):
+        """Overwrite all cell IDs by merging from *tiles*, which may be a list of SpotTable
+        or SegmentationResult instances.
+        """
+        from .segmentation import SegmentationResult
+        # create empty cell ID table (where -1 means nothing has been assigned yet)
+        self.cell_ids = np.empty(len(self), dtype=int)
+        self.cell_ids[:] = -1
+        merge_results = []
+        for tile in tqdm(tiles):
+            if isinstance(tile, SegmentationResult):
+                tile = tile.spot_table()            
+            result = self.merge_cells(tile.copy(), padding=5)
+            merge_results.append(result)
+        return merge_results
 
     def plot_rect(self, ax, color):
         import matplotlib.patches
