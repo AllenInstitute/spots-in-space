@@ -1,0 +1,22 @@
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3
+  - pip
+  - numpy
+  - scipy
+  - jupyter
+  - h5py
+  - pillow
+  - matplotlib
+  - seaborn
+  - numba
+  - pandas
+  - scikit-learn
+  - pip:
+    - tqdm
+    - rasterio
+    - shapely
+    - geojson
+    - anndata
