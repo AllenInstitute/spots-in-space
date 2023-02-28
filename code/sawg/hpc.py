@@ -1,7 +1,8 @@
-import subprocess, os, re, time, pickle, atexit
+from __future__ import annotations
+import subprocess, os, sys, re, time, pickle, atexit
 
 
-def run_slurm_func(func, args=None, kwargs=None, conda_env=None, **kwds):
+def run_slurm_func(func, fn_args=None, fn_kwargs=None, conda_env=None, **kwds):
     """Run a function on SLURM.
 
     Parameters
@@ -9,22 +10,38 @@ def run_slurm_func(func, args=None, kwargs=None, conda_env=None, **kwds):
     func : callable
         Function to be called in SLURM jobs. Must be picklable.
         Must accept at least one keyword argument "array_index" (this will be an int or None if there is no job array)
-    args : tuple
+    fn_args : tuple
         Positional arguments to pass to *func*
-    kwargs : dict
+    fn_kwargs : dict
         Keyword arguments to pass to *func*
     conda_env : str
         Conda envronment from which to run *func*
-
-    *func* .
-    All other keyword arguments are passed to run_slurm().
+    **kwds
+        All other keyword arguments are passed to run_slurm().
     """
     pkl_file = os.path.join(kwds['job_path'], kwds['job_name'] + '_func.pkl')
-    pickle.dump(func, open(pkl_file, 'wb'))
+    pickle.dump((func, fn_args, fn_kwargs), open(pkl_file, 'wb'))
 
-    kwds['command'] = f'conda run -p {conda_env} python -m sawg.hpc_worker --hpc-func={pkl_file}'
+    assert 'command' not in kwds
+    kwds['command'] = f'conda run -p {conda_env} python -m sawg.hpc {pkl_file} $SLURM_ARRAY_TASK_ID'
 
     return run_slurm(**kwds)
+
+
+def hpc_worker():
+    """Invoked when running `python -m sawg.hpc`
+    """
+    pkl_file = sys.argv[1]
+    array_id = sys.argv[2]
+    print(f"Started HPC worker {array_id} from {sys.executable}")
+    print(f"Call spec file: {pkl_file}")
+    func, args, kwargs = pickle.load(open(pkl_file, 'rb'))
+    print(f"Invoking callback: {func}")
+    print("-----------------------------")
+    ret = func(*args, **kwargs)
+    print("-----------------------------")
+    print("HPC worker complete. Callback returned:")
+    print(ret)
 
 
 def run_slurm(*,
@@ -198,7 +215,7 @@ class SlurmJobArray(SlurmJob):
 
     def __len__(self):
         return len(self.jobs)
-    
+
     def __getitem__(self, item):
         return self.jobs[item]
 
@@ -294,3 +311,8 @@ def close_ssh_connections():
     ssh_connections = {}
 
 atexit.register(close_ssh_connections)
+
+
+
+if __name__ == '__main__':
+    hpc_worker()

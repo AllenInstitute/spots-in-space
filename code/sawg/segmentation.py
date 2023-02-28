@@ -1,7 +1,19 @@
-import os, tempfile
+from __future__ import annotations
+import os, tempfile, pickle
 import numpy as np
 from .spot_table import SpotTable
 from .image import Image, ImageBase, ImageTransform
+
+
+def run_segmentation(load_func, load_args:dict, subregion:dict|None, method_class, method_args:dict, output_file:str):
+    """Load a spot table, run segmentation (possibly on a subregion), and save the SegmentationResult.
+    """
+    spot_table = load_func(**load_args)
+    if subregion is not None:
+        spot_table = spot_table.get_subregion(**subregion)
+    seg = method_class(**method_args)
+    result = seg.run(spot_table)
+    result.save(output_file)
 
 
 class SegmentationResult:
@@ -33,6 +45,9 @@ class SegmentationResult:
                     cell_ids[mask] = 0
 
         return self.input_spot_table.copy(cell_ids=cell_ids)
+
+    def save(self, filename):
+        pickle.dump(self, open(filename, 'wb'))
 
 
 class SegmentationMethod:
