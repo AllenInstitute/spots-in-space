@@ -519,6 +519,8 @@ class SpotTable:
         if isinstance(cell_ids, (int, np.integer)):
             return self._cell_index[cell_ids]
         else:
+            if len(cell_ids) == 0:
+                return np.array([], dtype=int)
             return np.concatenate([self._cell_index[cid] for cid in cell_ids])
 
     def cells_inside_region(self, xlim: tuple, ylim: tuple):
@@ -609,7 +611,7 @@ class SpotTable:
             
         return SpotTable(**init_kwargs)
 
-    def split_tiles(self, max_spots_per_tile: int, overlap: float):
+    def split_tiles(self, max_spots_per_tile: int=None, target_tile_width: float=None, overlap: float=30):
         """Return a list of SpotTables that tile this one.
 
         This table will be split into rows of equal height, and each row will be split into
@@ -619,12 +621,24 @@ class SpotTable:
 
         Parameters
         ----------
-        max_spots_per_tile : int
+        max_spots_per_tile : int | None
             Maximum number of spots to include in each tile.
+        target_tile_width : float | None
+            Automatically select max_spots_per_tile to get an approximate tile width
         overlap : float
             Distance to overlap tiles
 
         """
+        assert (max_spots_per_tile == None) != (target_tile_width == None), "Must specify either max_spots_per_tile or target_tile_width"
+
+        if max_spots_per_tile is None:
+            # convert target_tile_width to max_spots_per_tile
+            x_range = self.bounds()[0][1] - self.bounds()[0][0]
+            target_n_cols = x_range / target_tile_width
+            max_spots_per_tile = len(self) / target_n_cols**2
+            max_spots_per_tile *= 1.2 * (target_tile_width + overlap/2)**2 / target_tile_width**2
+
+        max_spots_per_tile = int(max_spots_per_tile)
         padding = overlap / 2
         est_n_tiles = len(self) // max_spots_per_tile
         bounds = self.bounds()
@@ -639,12 +653,14 @@ class SpotTable:
             # get a subregion for the entire row
             start_y = bounds[1][0] + row * tile_height
             stop_y = start_y + tile_height
-            row_table = self.get_subregion(xlim=bounds[0], ylim=(start_y - padding, stop_y + padding))
+            row_table = self.get_subregion(
+                xlim=bounds[0],
+                ylim=(max(bounds[1][0], start_y - padding), min(bounds[1][1], stop_y + padding)))
             row_bounds = row_table.bounds()
 
             # sort x values
-            order = np.argsort(row_table.data['x'])
-            xvals = row_table.data['x'][order]
+            order = np.argsort(row_table.x)
+            xvals = row_table.x[order]
 
             # split into columns
             n_cols = 1 + len(row_table) // max_spots_per_tile
@@ -659,8 +675,8 @@ class SpotTable:
                     stop = min(start + init_spots_per_col, len(row_table) - 1)
 
                     # adjust start / stop to account for padding
-                    padded_start_x = xvals[start] - padding
-                    padded_stop_x = xvals[stop] + padding
+                    padded_start_x = max(xvals[0], xvals[start] - padding)
+                    padded_stop_x = min(xvals[-1], xvals[stop] + padding)
                     start_adj = np.searchsorted(xvals, padded_start_x)
                     stop_adj = np.searchsorted(xvals, padded_stop_x)
 
@@ -704,7 +720,7 @@ class SpotTable:
         Returns a structure describing merge conflicts.
         """
         # copy *other* because we will modify cell IDs
-        other = other.copy(cell_ids=other.cell_ids.copy())
+        other = other.copy(cell_ids=other.cell_ids.astype(int, copy=True))
 
         # increment cell IDs in new tile (leaving cell 0 unchanged)
         other.cell_ids[other.cell_ids > 0] += self.cell_ids.max()
@@ -796,10 +812,10 @@ class SpotTable:
         """
         import seaborn
         cell_set = np.unique(cells)
-        colors = seaborn.color_palette('dark', 30)
+        colors = seaborn.color_palette('tab20', 30)
         palette = {cid: colors[i%len(colors)] for i, cid in enumerate(cell_set)}
-        palette[0] = (0, 1, 1)
-        palette[-1] = (1, 1, 0)
+        palette[0] = (0.5, 0.5, 0.5, 0.05)
+        palette[-1] = (0.5, 0.5, 0.5, 0.05)
         palette[-2] = (1, 0, 1)
         palette[-3] = (0, 1, 0)
         palette[-4] = (0, 0, 1)

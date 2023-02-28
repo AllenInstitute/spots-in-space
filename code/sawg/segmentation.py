@@ -271,6 +271,8 @@ class CellposeSegmentationResult(SegmentationResult):
 class BaysorSegmentationMethod(SegmentationMethod):
     """Implements 3D Baysor segmentation on SpotTable
 
+    Requires a Baysor binary to be executable on the system.
+
     options = {
         'region': ((xmin, xmax), (ymin, ymax)),  # or None for whole table
         'baysor_bin': '/path/to/Baysor',

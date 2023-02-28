@@ -39,7 +39,11 @@ class ImageBase:
         assert frame < z_len
         return ImageView(self, frames=(frame, frame+1))
 
-    def show(self, ax, frame=None, channel=None, **kwds):
+    def show(self, ax=None, frame=None, channel=None, **kwds):
+        if ax is None:
+            import matplotlib.pyplot as plt
+            fig, ax = plt.subplots()
+
         img = self
         if isinstance(frame, int):
             img = img.get_frame(frame)
