@@ -29,6 +29,13 @@ class ImageBase:
         tl, br = self.transform.map_to_pixels(corners).astype(int)
         return self.get_pixel_subregion([(tl[0],br[0]), (tl[1],br[1])])
 
+    def bounds(self):
+        """Return (xlim, ylim) bounds of the image in spot coordinates
+        """
+        o = self.transform.map_from_pixels([[0, 0]])[0]
+        c = self.transform.map_from_pixels([self.shape[1:3]])[0]
+        return ((o[0], c[0]), (o[1], c[1]))
+
     def get_pixel_subregion(self, region):
         """Return a view of this image limited to the region [:, rowmin:rowmax, colmin:colmax]
         """
@@ -226,6 +233,8 @@ class ImageTransform:
         Points must be an array of shape (N, 2).
         """
         points = np.asarray(points)
+        assert points.ndim == 2
+        assert points.shape[1] == 2
         return (self.matrix[:2, :2] @ points.T + self.matrix[:2, 2:]).T
 
     @property
@@ -242,6 +251,8 @@ class ImageTransform:
         Points must be an array of shape (N, 2).
         """
         pixels = np.asarray(pixels)
+        assert pixels.ndim == 2
+        assert pixels.shape[1] == 2
         return (self.inverse_matrix[:2, :2] @ pixels.T + self.inverse_matrix[:2, 2:]).T
 
     def translated(self, offset):

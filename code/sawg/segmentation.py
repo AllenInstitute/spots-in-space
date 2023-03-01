@@ -1,19 +1,26 @@
 from __future__ import annotations
-import os, tempfile, pickle
+import os, tempfile, pickle, traceback
 import numpy as np
 from .spot_table import SpotTable
 from .image import Image, ImageBase, ImageTransform
 
 
-def run_segmentation(load_func, load_args:dict, subregion:dict|None, method_class, method_args:dict, output_file:str):
+def run_segmentation(load_func, load_args:dict, subregion:dict|None, method_class, method_args:dict, result_file:str|None, cell_id_file:str|None):
     """Load a spot table, run segmentation (possibly on a subregion), and save the SegmentationResult.
     """
     spot_table = load_func(**load_args)
+    print(f"loaded spot table {len(spot_table)}")
     if subregion is not None:
-        spot_table = spot_table.get_subregion(**subregion)
+        spot_table = spot_table.get_subregion(*subregion)
+    print(f"subregion {subregion} {len(spot_table)}")
     seg = method_class(**method_args)
     result = seg.run(spot_table)
-    result.save(output_file)
+    print(f"cell_ids {len(result.cell_ids)}")
+
+    if result_file is not None:
+        result.save(result_file)
+    if cell_id_file is not None:
+        np.save(cell_id_file, result.cell_ids)
 
 
 class SegmentationResult:
@@ -109,7 +116,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
         super().__init__(options)
         
     def run(self, spot_table):
-        import cellpose
+        import cellpose.models
         spot_table = self._get_spot_table(spot_table)
         
         # collect all cellpose options
@@ -150,9 +157,25 @@ class CellposeSegmentationMethod(SegmentationMethod):
             image_data = first_image.get_data()
             channels = [0, 0]
             
+        # decide whether to use GPU
+        gpu = self.options.get('cellpose_gpu', False)
+        self.gpu_msg = None
+        if gpu == 'auto':
+            try:
+                import torch
+                if torch.cuda.device_count() > 0:
+                    gpu = True
+                    self.gpu_msg = "enabled GPU"
+                else:
+                    gpu = False
+                    self.gpu_msg = "no GPU found"
+            except Exception as exc:
+                gpu = False
+                self.gpu_msg = ''.join(traceback.format_exc())
+
         # initialize cellpose model
         cp_opts['channels'] = channels
-        model = cellpose.models.Cellpose(model_type=self.options['cellpose_model'], gpu=self.options.get('cellpose_gpu', False))
+        model = cellpose.models.Cellpose(model_type=self.options['cellpose_model'], gpu=gpu)
 
         # run segmentation
         masks, flows, styles, diams = model.eval(image_data, **cp_opts)

@@ -1,26 +1,23 @@
 from __future__ import annotations
 import subprocess, os, sys, re, time, pickle, atexit
+import numpy as np
 
 
-def run_slurm_func(func, fn_args=None, fn_kwargs=None, conda_env=None, **kwds):
+def run_slurm_func(run_spec, conda_env=None, **kwds):
     """Run a function on SLURM.
 
     Parameters
     ----------
-    func : callable
-        Function to be called in SLURM jobs. Must be picklable.
-        Must accept at least one keyword argument "array_index" (this will be an int or None if there is no job array)
-    fn_args : tuple
-        Positional arguments to pass to *func*
-    fn_kwargs : dict
-        Keyword arguments to pass to *func*
+    run_spec : tuple | dict
+        Either a tuple containing (func, args, kwargs) to be called in SLURM jobs, or a dict
+        where the keys are array job IDs and the values are (func, args, kwargs) tuples.
     conda_env : str
         Conda envronment from which to run *func*
     **kwds
         All other keyword arguments are passed to run_slurm().
     """
     pkl_file = os.path.join(kwds['job_path'], kwds['job_name'] + '_func.pkl')
-    pickle.dump((func, fn_args, fn_kwargs), open(pkl_file, 'wb'))
+    pickle.dump(run_spec, open(pkl_file, 'wb'))
 
     assert 'command' not in kwds
     kwds['command'] = f'conda run -p {conda_env} python -m sawg.hpc {pkl_file} $SLURM_ARRAY_TASK_ID'
@@ -32,10 +29,14 @@ def hpc_worker():
     """Invoked when running `python -m sawg.hpc`
     """
     pkl_file = sys.argv[1]
-    array_id = sys.argv[2]
+    array_id = int(sys.argv[2])
     print(f"Started HPC worker {array_id} from {sys.executable}")
     print(f"Call spec file: {pkl_file}")
-    func, args, kwargs = pickle.load(open(pkl_file, 'rb'))
+    run_specs = pickle.load(open(pkl_file, 'rb'))
+    if isinstance(run_specs, dict):
+        func, args, kwargs = run_specs[array_id]
+    else:
+        func, args, kwargs = run_specs
     print(f"Invoking callback: {func}")
     print("-----------------------------")
     ret = func(*args, **kwargs)
@@ -53,6 +54,7 @@ def run_slurm(*,
     ntasks:int=1,
     array:str|None=None,
     mincpus:int|None=1,
+    gpus_per_node:int|str|None=None,
     mem:str,
     time:str,
     command:str,
@@ -88,6 +90,8 @@ def run_slurm(*,
         array index, and the command may use $SLURM_ARRAY_TASK_ID.
     mincpus : int | None
         Minimum CPUs per node
+    gpus_per_node : int | str | None
+        GPUs per node
     mem : str
         Maximum memory to allocate per job (e.g. '100G')
     time : str
@@ -124,7 +128,7 @@ def run_slurm(*,
 
     arglist = [
         'partition', 'job_name', 'nodes', 'ntasks', 'array', 'mincpus', 'mem',
-        'time', 'mail_user', 'mail_type', 'output', 'error',
+        'gpus_per_node', 'time', 'mail_user', 'mail_type', 'output', 'error',
     ]
     args = {}
     script = "#!/bin/bash"
@@ -172,10 +176,10 @@ class SlurmJob:
         """Return the state code for this job, or a dictionary of state codes for array jobs.
         """
         table = squeue(host=self.host, job_id=self.base_job_id)
-        return JobState(table.get(self.job_id, {'ST': None})['ST'])
+        return JobState(table.get(self.job_id, {'ST': 'NO'})['ST'])
 
     def is_done(self):
-        return self.state().is_done
+        return self.state().is_done and os.path.exists(self.output_file)
 
     @property
     def output_file(self):
@@ -199,11 +203,22 @@ class SlurmJob:
         fn = fn.replace(r'%a', str(self.array_id))
         return fn
 
+    def cancel(self):
+        run(self.host, ['scancel', str(self.job_id)])
 
 
 class SlurmJobArray(SlurmJob):
     def __init__(self, args, sbatch_output, job_file, host):
+        self.args = args
+        self.sbatch_output = sbatch_output
+        self.job_fie = job_file
+        self.host = host
+
         start, _, stop = args['array'].partition('-')
+
+        m = re.match(r'Submitted batch job (\d+)', sbatch_output)
+        self.job_id = m.groups()[0]
+
         self.jobs = []
         for i in range(int(start), int(stop)+1):
             job = SlurmJob(args, sbatch_output, job_file, host, array_id=i, job_array=self)
@@ -224,6 +239,29 @@ class SlurmJobArray(SlurmJob):
 
     def is_done(self):
         return all([job.is_done() for job in self.jobs])
+
+    def cancel(self):
+        run(self.host, ['scancel', str(self.job_id)])
+
+    def finished_jobs(self):
+        return [job for job in self.jobs if job.is_done()]
+
+    def unfinished_jobs(self):
+        return [job for job in self.jobs if not job.is_done()]
+
+    def wait_iter(self):
+        """Iterator that returns jobs as they finish
+        """
+        jobs = self.jobs[:]
+        while len(jobs) > 0:
+            for j in jobs[:]:
+                if j.is_done():
+                    jobs.remove(j)
+                    yield(j)
+            time.sleep(3)
+
+    def state_counts(self):
+        return dict(zip(*np.unique([s.state_code for s in self.state().values()], return_counts=True)))
 
 
 class JobState:
@@ -253,12 +291,12 @@ class JobState:
         'ST':  ('STOPPED',         'Job has an allocation, but execution has been stopped with SIGSTOP signal.  CPUS have been retained by this job.'),
         'S':   ('SUSPENDED',       'Job has an allocation, but execution has been suspended and CPUs have been released for other jobs.'),
         'TO':  ('TIMEOUT',         'Job terminated upon reaching its time limit.'),
-        None:  ('NO_INFO',         'Squeue returned no information about the requested job ID'),
+        'NO':  ('NO_INFO',         'Squeue returned no information about the requested job ID'),
     }
     def __init__(self, state_code):
         self.state_code = state_code
         self.state, self.description = JobState.state_codes[state_code]
-        self.is_done = state_code in ('BF', 'CA', 'CD', 'DL', 'F', 'NF', 'OOM', 'PR', 'TO', None)
+        self.is_done = state_code in ('BF', 'CA', 'CD', 'DL', 'F', 'NF', 'OOM', 'PR', 'TO', 'NO')
 
     def __repr__(self):
         return f"<JobState {self.state}>"
@@ -269,7 +307,7 @@ def squeue(host, job_id, cache_duration=10):
     # 10-second cache to rate limit squeue calls
     last_time, last_state = _last_squeue.get(job_id, (None, None))
     now = time.time()
-    if last_time is None or now - last_time < cache_duration:
+    if last_time is None or now - last_time > cache_duration:
         stat = run(host, ['squeue', f'--job={job_id}'])
         lines = stat.split('\n')
         cols = re.split(r'\s+', lines[0].strip())

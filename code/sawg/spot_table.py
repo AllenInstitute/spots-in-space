@@ -9,7 +9,7 @@ import shapely
 from shapely.geometry import MultiLineString
 from shapely.ops import unary_union, polygonize
 
-import pandas as pd
+import pandas
 
 from .image import ImageStack
 from . import util
@@ -99,7 +99,7 @@ class SpotTable:
                 cols.remove('z')
             if self.cell_ids is not None:
                 cols.append('cell_ids')
-        return pd.DataFrame({col:getattr(self, col) for col in cols})
+        return pandas.DataFrame({col:getattr(self, col) for col in cols})
 
     @property
     def gene_names(self):
@@ -371,6 +371,36 @@ class SpotTable:
 
         return gene_ids, gene_to_id, id_to_gene
 
+    def filter_cells(self, real_cells=None, min_spot_count=None):
+        """Return a filtered spot table containing only cells matching the filter criteria.
+        """
+        cells, counts = np.unique(self.cell_ids, return_counts=True)
+
+        masks = []
+
+        # filter out spots not associated with cells
+        if real_cells is True:
+            masks.append(cells > 0)
+
+        # filter for min_count
+        if min_spot_count is not None:
+            masks.append(counts >= min_spot_count)
+
+        mask = masks[0]
+        for m in masks[1:]:
+            mask &= m
+
+        cells = cells[m]
+        return self[np.isin(self.cell_ids, cells)]
+
+    def cell_by_gene_dataframe(self):
+        """Return a pandas dataframe containing a cell-by-gene table derived from this spot table.
+        """
+        spot_df = pandas.DataFrame({'cell': self.cell_ids, 'gene': self.gene_ids})
+        cell_by_gene_df = pandas.pivot_table(spot_df, columns='gene', index='cell', aggfunc=len, fill_value=0)
+        cell_by_gene_df.columns = self.map_gene_ids_to_names(cell_by_gene_df.columns)
+        return cell_by_gene_df
+
     def cell_bounds(self, cell_id: int):
         """Return xmin, xmax, ymin, ymax for *cell_id*
         """
@@ -487,7 +517,7 @@ class SpotTable:
                 feature_info.update(dict(area=0., centroid = None))
             cell_features.append(feature_info)
 
-        return pd.DataFrame.from_records(cell_features)
+        return pandas.DataFrame.from_records(cell_features)
 
     def save_cell_polygons(self, geojson_save_path):
         """
@@ -579,6 +609,11 @@ class SpotTable:
         gene_ids = self.gene_ids[item]
         cell_ids = None if self.cell_ids is None else self.cell_ids[item]
 
+        if len(pos) > 0:
+            parent_region = ((pos[:,0].min(), pos[:,0].max()), (pos[:,1].min(), pos[:,1].max()))
+        else:
+            parent_region = None
+
         subset = type(self)(
             pos=pos,
             gene_ids=gene_ids,
@@ -586,7 +621,7 @@ class SpotTable:
             cell_ids=cell_ids, 
             parent_table=self, 
             parent_inds=np.arange(len(self))[item],
-            parent_region=((pos[:,0].min(), pos[:,0].max()), (pos[:,1].min(), pos[:,1].max())),
+            parent_region=parent_region,
         )
 
         subset.images = self.images[:]
@@ -702,6 +737,47 @@ class SpotTable:
             tiles.extend(cols)
         return tiles
 
+    def grid_tiles(self, max_tile_size:float, overlap: float=30):
+        """Return a grid of overlapping tiles with equal size, where the width and height
+        must be less than max_tile_size.
+
+        See also: split_tiles
+        """
+        assert max_tile_size > 2 * overlap
+        bounds = self.bounds()
+        width = bounds[0][1] - bounds[0][0]
+        height = bounds[1][1] - bounds[1][0]
+
+        n_cols = int(width / max_tile_size)
+        while True:
+            n_cols += 1
+            col_width = (width + (n_cols - 1) * overlap) / n_cols
+            if col_width <= max_tile_size:
+                break
+
+        n_rows = int(height / max_tile_size)
+        while True:
+            n_rows += 1
+            row_height = (height + (n_rows - 1) * overlap) / n_rows
+            if row_height <= max_tile_size:
+                break
+
+        tiles = []
+        for row in tqdm(range(n_rows)):
+            ystart = bounds[1][0] + row * (row_height - overlap)
+            ylim = (ystart, ystart + row_height)
+            row_tile = self.get_subregion(bounds[0], ylim)
+            for col in range(n_cols):
+                xstart = bounds[0][0] + col * (col_width - overlap)
+                xlim = (xstart, xstart + col_width)
+                tile = row_tile.get_subregion(xlim, ylim)
+                if len(tile) > 0:
+                    tiles.append(tile)
+                # re-parent tile to self rather than row_table
+                tile.parent_table = self
+                tile.parent_inds = row_tile.map_indices_to_parent(tile.parent_inds)
+        return tiles
+
     def cell_indices_within_padding(self, padding=5.0):
         """Return spot indices all cells that do not come within *padding* of the parent_region.
 
@@ -797,6 +873,8 @@ class SpotTable:
         return merge_results
 
     def plot_rect(self, ax, color):
+        """Plot the bounding region of this table as a rectangle.
+        """
         import matplotlib.patches
         xlim, ylim = self.parent_region
         pos = (xlim[0], ylim[0])
@@ -812,7 +890,7 @@ class SpotTable:
         """
         import seaborn
         cell_set = np.unique(cells)
-        colors = seaborn.color_palette('tab20', 30)
+        colors = seaborn.color_palette('tab20b', 30)
         palette = {cid: colors[i%len(colors)] for i, cid in enumerate(cell_set)}
         palette[0] = (0.5, 0.5, 0.5, 0.05)
         palette[-1] = (0.5, 0.5, 0.5, 0.05)
@@ -881,7 +959,6 @@ class SpotTable:
                     
         return hist
     
-
     def reduced_expression_map(self, binsize, umap_args=None, ax=None, umap_ax=None, norm=util.log_plus_1):
         import seaborn
         import matplotlib.pyplot as plt
