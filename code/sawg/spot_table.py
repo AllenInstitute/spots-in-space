@@ -311,15 +311,20 @@ class SpotTable:
         return table
 
     @classmethod
-    def load_stereoseq(cls, gem_file: str|None=None, cache_file: str|None=None, gem_cols: dict|tuple=(('gene', 0), ('x', 1), ('y', 2), ('MIDcounts', 3)), skiprows: int|None=1,  max_rows: int|None=None):
+    def load_stereoseq(cls, gem_file: str|None=None, cache_file: str|None=None, gem_cols: dict|tuple=(('gene', 0), ('x', 1), ('y', 2), ('MIDcounts', 3)), cell_cols: dict|tuple=None, skiprows: int|None=1,  max_rows: int|None=None):
         """
         Load StereoSeq data from gem file. This can be slow so optionally cache the result to a .npz file.
+        1/19/2023: New StereoSeq data has cell_ids, add optional cell_cols to add to SpotTable. Also has a flag
+        for whether the spot was in the main cell or the extended cell (in_cell)
         """
         if cache_file is None or not os.path.exists(cache_file):
             print('Loading gem...')
             dtype = [('gene', 'S20'), ('x', 'uint16'), ('y', 'uint16'), ('MIDcounts', 'int')]
             gem_cols = dict(gem_cols)
             usecols = [gem_cols[col] for col in ['gene', 'x', 'y', 'MIDcounts']]
+            if cell_cols is not None:
+                dtype.extend([('cell_ids', 'int'), ('in_cell', 'bool')])
+                usecols.extend([cell_cols[col] for col in ['cell_ids', 'in_cell']])
             raw_data = np.loadtxt(gem_file, skiprows=skiprows, usecols=usecols, delimiter='\t', dtype=dtype, max_rows=max_rows)
             counts = np.asarray(raw_data['MIDcounts'], dtype='uint8')
             pos = np.empty((sum(counts), 2), dtype='float32')
@@ -327,7 +332,13 @@ class SpotTable:
             pos[:, 1] = np.repeat(raw_data['y'], counts)
             genes = np.repeat(raw_data['gene'], counts)
             max_gene_len = max(map(len, genes))
-            table = SpotTable(pos=pos, gene_names=genes.astype(f'U{max_gene_len}'))
+            if cell_cols is not None:
+                cell_ids = np.repeat(raw_data['cell_ids'], counts).astype('uint16')
+                in_cell = np.invert(np.repeat(raw_data['in_cell'], counts).astype('bool'))
+                table = SpotTable(pos=pos, gene_names=genes.astype(f'U{max_gene_len}'), cell_ids=cell_ids)
+                table.in_cell = in_cell
+            else:
+                table = SpotTable(pos=pos, gene_names=genes.astype(f'U{max_gene_len}'))
 
             if cache_file is not None:                
                 print("Recompressing to npz..")

@@ -177,6 +177,11 @@ class ImageFile(ImageBase):
                     self._shape = (1, src.meta['height'], src.meta['width'], src.meta['count'])
         return self._shape
 
+    def _standard_image_shape(self, img_data):
+        if img_data.ndim == 2:
+            img_data = img_data[np.newaxis, :,:]
+        return img_data
+
     def get_data(self, channel=None):
         """Return array of image data.
 
@@ -186,7 +191,7 @@ class ImageFile(ImageBase):
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             with rasterio.open(self.file) as src:
-                return src.read(index)
+                return self._standard_image_shape(src.read(index))
 
     def get_sub_data(self, frames: tuple, rows: tuple, cols: tuple, channel: str|None=None):
         """Get image data for a subregion
@@ -207,7 +212,7 @@ class ImageFile(ImageBase):
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             with rasterio.open(self.file) as src:
-                return src.read(index, window=win)
+                return self._standard_image_shape(src.read(index, window=win))
 
     def _get_channel_index(self, channel):
         # rasterio indexes channels starting at 1
