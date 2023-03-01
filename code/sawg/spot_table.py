@@ -1,15 +1,15 @@
 from __future__ import annotations
 import os, json
 import numpy as np
-from tqdm.notebook import tqdm
-
-import geojson
 from scipy.spatial import Delaunay
-import shapely
-from shapely.geometry import MultiLineString
-from shapely.ops import unary_union, polygonize
-
 import pandas
+
+from .optional_import import optional_import
+tqdm = optional_import('tqdm.notebook', names=['tqdm'])
+geojson = optional_import('geojson')
+shapely = optional_import('shapely')
+MultiLineString = optional_import('shapely.geometry', names=['MultiLineString'])
+unary_union, polygonize = optional_import('shapely.ops', ['unary_union', 'polygonize'])
 
 from .image import ImageStack
 from . import util
@@ -401,7 +401,7 @@ class SpotTable:
         for m in masks[1:]:
             mask &= m
 
-        cells = cells[m]
+        cells = cells[mask]
         return self[np.isin(self.cell_ids, cells)]
 
     def cell_by_gene_dataframe(self):
