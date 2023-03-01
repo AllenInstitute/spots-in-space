@@ -9,25 +9,10 @@ import shapely
 from shapely.geometry import MultiLineString
 from shapely.ops import unary_union, polygonize
 
-import pandas as pd
+import pandas
 
 from .image import ImageStack
-
-
-def log_plus_1(x):
-    return np.log(x + 1)
-
-def polyToGeoJson(polygon):
-    """
-    turns a single shapely Polygon into a geojson polygon 
-    Args:
-        polygon shapely.Polygon 
-    Returns:
-        geojson polygon
-    """
-    poly_array = np.array(polygon.exterior.coords)
-
-    return geojson.Polygon([[(poly_array[i,0], poly_array[i,1]) for i in range(poly_array.shape[0])]])
+from . import util
 
 
 class SpotTable:
@@ -66,7 +51,8 @@ class SpotTable:
                  cell_ids: None|np.ndarray=None, 
                  parent_table: 'None|SpotTable'=None, 
                  parent_inds: None|np.ndarray=None, 
-                 parent_region: None|tuple=None):
+                 parent_region: None|tuple=None,
+                 images: None|list=None,):
         
         self.pos = pos
         self.parent_table = parent_table
@@ -92,7 +78,11 @@ class SpotTable:
         self._cell_index = None
         self._cell_bounds = None
         self.cell_polygons = {}
+        
         self.images = []
+        if images is not None:
+            for img in images:
+                self.add_image(img)
 
     def __len__(self):
         return len(self.pos)
@@ -109,7 +99,7 @@ class SpotTable:
                 cols.remove('z')
             if self.cell_ids is not None:
                 cols.append('cell_ids')
-        return pd.DataFrame({col:getattr(self, col) for col in cols})
+        return pandas.DataFrame({col:getattr(self, col) for col in cols})
 
     @property
     def gene_names(self):
@@ -250,13 +240,6 @@ class SpotTable:
         sub_table = self[json_data['parent_inds']]
         sub_table.parent_region = json_data['parent_region']
         return sub_table
-
-    def load_cell_ids(self, file_name: str):
-        """Load cell IDs from a baysor segmentation and assign them to self.cell_ids.
-        """
-        self._baysor_result = load_baysor_result(file_name, remove_noise=False, remove_no_cell=False)
-        assert len(self._baysor_result) == len(self)
-        self.cell_ids = self._baysor_result['cell']
 
     @classmethod
     def load_baysor(cls, file_name: str, **kwds):
@@ -399,6 +382,36 @@ class SpotTable:
 
         return gene_ids, gene_to_id, id_to_gene
 
+    def filter_cells(self, real_cells=None, min_spot_count=None):
+        """Return a filtered spot table containing only cells matching the filter criteria.
+        """
+        cells, counts = np.unique(self.cell_ids, return_counts=True)
+
+        masks = []
+
+        # filter out spots not associated with cells
+        if real_cells is True:
+            masks.append(cells > 0)
+
+        # filter for min_count
+        if min_spot_count is not None:
+            masks.append(counts >= min_spot_count)
+
+        mask = masks[0]
+        for m in masks[1:]:
+            mask &= m
+
+        cells = cells[m]
+        return self[np.isin(self.cell_ids, cells)]
+
+    def cell_by_gene_dataframe(self):
+        """Return a pandas dataframe containing a cell-by-gene table derived from this spot table.
+        """
+        spot_df = pandas.DataFrame({'cell': self.cell_ids, 'gene': self.gene_ids})
+        cell_by_gene_df = pandas.pivot_table(spot_df, columns='gene', index='cell', aggfunc=len, fill_value=0)
+        cell_by_gene_df.columns = self.map_gene_ids_to_names(cell_by_gene_df.columns)
+        return cell_by_gene_df
+
     def cell_bounds(self, cell_id: int):
         """Return xmin, xmax, ymin, ymax for *cell_id*
         """
@@ -515,7 +528,7 @@ class SpotTable:
                 feature_info.update(dict(area=0., centroid = None))
             cell_features.append(feature_info)
 
-        return pd.DataFrame.from_records(cell_features)
+        return pandas.DataFrame.from_records(cell_features)
 
     def save_cell_polygons(self, geojson_save_path):
         """
@@ -529,7 +542,7 @@ class SpotTable:
         for poly_key in self.cell_polygons.keys():
             if self.cell_polygons[poly_key]:
                 if len(self.cell_polygons[poly_key].exterior.coords) > 2:
-                    geojsonROIs.append(polyToGeoJson(self.cell_polygons[poly_key])) 
+                    geojsonROIs.append(util.poly_to_geojson(self.cell_polygons[poly_key]))
         
         with open(geojson_save_path, 'w') as w:
             json.dump( geojson.GeometryCollection(geojsonROIs), w)
@@ -547,6 +560,8 @@ class SpotTable:
         if isinstance(cell_ids, (int, np.integer)):
             return self._cell_index[cell_ids]
         else:
+            if len(cell_ids) == 0:
+                return np.array([], dtype=int)
             return np.concatenate([self._cell_index[cid] for cid in cell_ids])
 
     def cells_inside_region(self, xlim: tuple, ylim: tuple):
@@ -605,6 +620,11 @@ class SpotTable:
         gene_ids = self.gene_ids[item]
         cell_ids = None if self.cell_ids is None else self.cell_ids[item]
 
+        if len(pos) > 0:
+            parent_region = ((pos[:,0].min(), pos[:,0].max()), (pos[:,1].min(), pos[:,1].max()))
+        else:
+            parent_region = None
+
         subset = type(self)(
             pos=pos,
             gene_ids=gene_ids,
@@ -612,7 +632,7 @@ class SpotTable:
             cell_ids=cell_ids, 
             parent_table=self, 
             parent_inds=np.arange(len(self))[item],
-            parent_region=((pos[:,0].min(), pos[:,0].max()), (pos[:,1].min(), pos[:,1].max())),
+            parent_region=parent_region,
         )
 
         subset.images = self.images[:]
@@ -632,25 +652,39 @@ class SpotTable:
             if name not in init_kwargs:
                 val = getattr(self, name)
                 if deep:
-                    val = val.copy()
+                    val = None if val is None else val.copy()
                 init_kwargs[name] = val
             
         return SpotTable(**init_kwargs)
 
-    def split_tiles(self, max_spots_per_tile: int, overlap: float):
+    def split_tiles(self, max_spots_per_tile: int=None, target_tile_width: float=None, overlap: float=30):
         """Return a list of SpotTables that tile this one.
 
         This table will be split into rows of equal height, and each row will be split into
         columns with roughly the same number of spots (less than *max_spots_per_tile*).
+        
+        see also: grid_tiles
 
         Parameters
         ----------
-        max_spots_per_tile : int
+        max_spots_per_tile : int | None
             Maximum number of spots to include in each tile.
+        target_tile_width : float | None
+            Automatically select max_spots_per_tile to get an approximate tile width
         overlap : float
             Distance to overlap tiles
 
         """
+        assert (max_spots_per_tile == None) != (target_tile_width == None), "Must specify either max_spots_per_tile or target_tile_width"
+
+        if max_spots_per_tile is None:
+            # convert target_tile_width to max_spots_per_tile
+            x_range = self.bounds()[0][1] - self.bounds()[0][0]
+            target_n_cols = x_range / target_tile_width
+            max_spots_per_tile = len(self) / target_n_cols**2
+            max_spots_per_tile *= 1.2 * (target_tile_width + overlap/2)**2 / target_tile_width**2
+
+        max_spots_per_tile = int(max_spots_per_tile)
         padding = overlap / 2
         est_n_tiles = len(self) // max_spots_per_tile
         bounds = self.bounds()
@@ -665,12 +699,14 @@ class SpotTable:
             # get a subregion for the entire row
             start_y = bounds[1][0] + row * tile_height
             stop_y = start_y + tile_height
-            row_table = self.get_subregion(xlim=bounds[0], ylim=(start_y - padding, stop_y + padding))
+            row_table = self.get_subregion(
+                xlim=bounds[0],
+                ylim=(max(bounds[1][0], start_y - padding), min(bounds[1][1], stop_y + padding)))
             row_bounds = row_table.bounds()
 
             # sort x values
-            order = np.argsort(row_table.data['x'])
-            xvals = row_table.data['x'][order]
+            order = np.argsort(row_table.x)
+            xvals = row_table.x[order]
 
             # split into columns
             n_cols = 1 + len(row_table) // max_spots_per_tile
@@ -685,8 +721,8 @@ class SpotTable:
                     stop = min(start + init_spots_per_col, len(row_table) - 1)
 
                     # adjust start / stop to account for padding
-                    padded_start_x = xvals[start] - padding
-                    padded_stop_x = xvals[stop] + padding
+                    padded_start_x = max(xvals[0], xvals[start] - padding)
+                    padded_stop_x = min(xvals[-1], xvals[stop] + padding)
                     start_adj = np.searchsorted(xvals, padded_start_x)
                     stop_adj = np.searchsorted(xvals, padded_stop_x)
 
@@ -712,6 +748,47 @@ class SpotTable:
             tiles.extend(cols)
         return tiles
 
+    def grid_tiles(self, max_tile_size:float, overlap: float=30):
+        """Return a grid of overlapping tiles with equal size, where the width and height
+        must be less than max_tile_size.
+
+        See also: split_tiles
+        """
+        assert max_tile_size > 2 * overlap
+        bounds = self.bounds()
+        width = bounds[0][1] - bounds[0][0]
+        height = bounds[1][1] - bounds[1][0]
+
+        n_cols = int(width / max_tile_size)
+        while True:
+            n_cols += 1
+            col_width = (width + (n_cols - 1) * overlap) / n_cols
+            if col_width <= max_tile_size:
+                break
+
+        n_rows = int(height / max_tile_size)
+        while True:
+            n_rows += 1
+            row_height = (height + (n_rows - 1) * overlap) / n_rows
+            if row_height <= max_tile_size:
+                break
+
+        tiles = []
+        for row in tqdm(range(n_rows)):
+            ystart = bounds[1][0] + row * (row_height - overlap)
+            ylim = (ystart, ystart + row_height)
+            row_tile = self.get_subregion(bounds[0], ylim)
+            for col in range(n_cols):
+                xstart = bounds[0][0] + col * (col_width - overlap)
+                xlim = (xstart, xstart + col_width)
+                tile = row_tile.get_subregion(xlim, ylim)
+                if len(tile) > 0:
+                    tiles.append(tile)
+                # re-parent tile to self rather than row_table
+                tile.parent_table = self
+                tile.parent_inds = row_tile.map_indices_to_parent(tile.parent_inds)
+        return tiles
+
     def cell_indices_within_padding(self, padding=5.0):
         """Return spot indices all cells that do not come within *padding* of the parent_region.
 
@@ -728,9 +805,10 @@ class SpotTable:
         """Merge cell IDs from SpotTable *other* into self.
 
         Returns a structure describing merge conflicts.
-
-        Note: this method modifies the cell IDs in *other* in-place!
         """
+        # copy *other* because we will modify cell IDs
+        other = other.copy(cell_ids=other.cell_ids.astype(int, copy=True))
+
         # increment cell IDs in new tile (leaving cell 0 unchanged)
         other.cell_ids[other.cell_ids > 0] += self.cell_ids.max()
         other.cell_ids_changed()
@@ -789,7 +867,25 @@ class SpotTable:
 
         return conflicts
 
+    def set_cell_ids_from_tiles(self, tiles, padding=5):
+        """Overwrite all cell IDs by merging from *tiles*, which may be a list of SpotTable
+        or SegmentationResult instances.
+        """
+        from .segmentation import SegmentationResult
+        # create empty cell ID table (where -1 means nothing has been assigned yet)
+        self.cell_ids = np.empty(len(self), dtype=int)
+        self.cell_ids[:] = -1
+        merge_results = []
+        for tile in tqdm(tiles):
+            if isinstance(tile, SegmentationResult):
+                tile = tile.spot_table()            
+            result = self.merge_cells(tile.copy(), padding=5)
+            merge_results.append(result)
+        return merge_results
+
     def plot_rect(self, ax, color):
+        """Plot the bounding region of this table as a rectangle.
+        """
         import matplotlib.patches
         xlim, ylim = self.parent_region
         pos = (xlim[0], ylim[0])
@@ -805,18 +901,22 @@ class SpotTable:
         """
         import seaborn
         cell_set = np.unique(cells)
-        colors = seaborn.color_palette('dark', 30)
+        colors = seaborn.color_palette('tab20b', 30)
         palette = {cid: colors[i%len(colors)] for i, cid in enumerate(cell_set)}
-        palette[0] = (0, 1, 1)
-        palette[-1] = (1, 1, 0)
+        palette[0] = (0.5, 0.5, 0.5, 0.05)
+        palette[-1] = (0.5, 0.5, 0.5, 0.05)
         palette[-2] = (1, 0, 1)
         palette[-3] = (0, 1, 0)
         palette[-4] = (0, 0, 1)
         palette[-5] = (1, 0, 0)
         return palette
 
-    def scatter_plot(self, ax, x='x', y='y', color='gene_ids', alpha=0.2, size=1.5, z_slice=None):
+    def scatter_plot(self, ax=None, x='x', y='y', color='gene_ids', alpha=0.2, size=1.5, z_slice=None):
         import seaborn
+        import matplotlib.pyplot as plt
+        if ax is None:
+            fig, ax = plt.subplots()
+        
         if z_slice is not None:
             zvals = np.unique(self.z)
             zval = zvals[int(z_slice * (len(zvals)-1))]
@@ -870,8 +970,7 @@ class SpotTable:
                     
         return hist
     
-
-    def reduced_expression_map(self, binsize, umap_args=None, ax=None, umap_ax=None, norm=log_plus_1):
+    def reduced_expression_map(self, binsize, umap_args=None, ax=None, umap_ax=None, norm=util.log_plus_1):
         import seaborn
         import matplotlib.pyplot as plt
 
@@ -894,19 +993,19 @@ class SpotTable:
             norm_bec = norm(bec)
         else:
             norm_bec = bec
-        reduced = reduce_expression(norm_bec, umap_args=umap_args)
+        reduced = util.reduce_expression(norm_bec, umap_args=umap_args)
         
         norm = bec.sum(axis=2)
         norm = norm / norm.max()
-        color = rainbow_wheel(reduced) * np.sqrt(norm[:, :, None])
+        color = util.rainbow_wheel(reduced) * np.sqrt(norm[:, :, None])
         
         xrange = xbins[0], xbins[-1]
         yrange = ybins[0], ybins[-1]
-        show_float_rgb(color.transpose(1, 0, 2), extent=xrange + yrange, ax=ax)
+        util.show_float_rgb(color.transpose(1, 0, 2), extent=xrange + yrange, ax=ax)
 
         if umap_ax is not None:
             flat = reduced.reshape(reduced.shape[0] * reduced.shape[1], reduced.shape[2])
-            color = rainbow_wheel(flat)
+            color = util.rainbow_wheel(flat)
             seaborn.scatterplot(x=flat[:,0], y=flat[:,1], c=color, alpha=0.2, ax=umap_ax)
 
         return bec, (xbins, ybins, gbins), (reduced,)
@@ -974,123 +1073,3 @@ class SpotTable:
         
 
 
-
-def load_baysor_result(result_file, remove_noise=True, remove_no_cell=True, brl_output = False):
-    if brl_output:
-        dtype = [('x', 'float32'), ('y', 'float32'), ('z', 'float32'),('gene',str),('cluster', int), ('cell', int), ('is_noise', bool)]
-
-        converters = {
-            6: lambda x: x == 'true',
-        }
-        result_data = np.loadtxt(
-            result_file, 
-            skiprows=1, 
-            usecols=[0, 1, 2, 3,4, 5, 6], 
-            delimiter=',', 
-            dtype=dtype, 
-            converters=converters
-        )
-    else:
-        dtype = [('x', 'float32'), ('y', 'float32'), ('z', 'float32'),('cluster', int), ('cell', int), ('is_noise', bool)]
-
-        converters = {
-            9: lambda x: x == 'true',
-        }
-        result_data = np.loadtxt(
-            result_file, 
-            skiprows=1, 
-            usecols=[0, 1, 2, 6, 7, 9], 
-            delimiter=',', 
-            dtype=dtype, 
-            converters=converters
-        )
-
-    z_vals = np.unique(result_data['z'])
-    if remove_noise:
-        result_data = result_data[~result_data['is_noise']]
-    if remove_no_cell:
-        result_data = result_data[result_data['cell'] > 0]
-        
-    return result_data
-
-
-def run_baysor(baysor_bin, input_file, output_file, scale=5):
-    os.system(f'{baysor_bin} run {input_file} -o {output_file} -s {scale} --no-ncv-estimation')
-    
-
-def reduce_expression(data, umap_args):
-    import umap
-    from sklearn.preprocessing import StandardScaler
-    
-    default_umap_args = {'n_neighbors': 3, 'min_dist': 0.4, 'n_components': 3}
-    default_umap_args.update(umap_args)
-
-    flat_data = data.reshape(data.shape[0] * data.shape[1], data.shape[2])
-    
-    # randomize order (because umap has some order-dependent effects)
-    order = np.arange(flat_data.shape[0])
-    np.random.shuffle(order)
-    flat_data = flat_data[order]
-    
-    # remove rows with no transcripts
-    mask = flat_data.sum(axis=1) > 0
-    masked_data = flat_data[mask]
-    
-    # scale in prep for umap
-    scaler = StandardScaler()
-    scaled = scaler.fit_transform(masked_data)
-    
-    # reduce down to 3D
-    reducer = umap.UMAP(**default_umap_args)    
-    reduced = reducer.fit_transform(scaled)
-    
-    # re-insert rows with no transcripts (all 0)
-    final = np.zeros((len(flat_data), reduced.shape[1]), dtype=reduced.dtype)
-    final[mask] = reduced
-    
-    # un-shuffle order
-    reverse_order = np.argsort(order)
-    final = final[reverse_order]
-    
-    # return reshaped to original image
-    return final.reshape(data.shape[0], data.shape[1], final.shape[-1])
-    
-
-def map_to_ubyte(data):
-    mn, mx = data.min(), data.max()
-    return np.clip((data - mn) * 255 / (mx - mn), 0, 255).astype('ubyte')
-
-
-def rainbow_wheel(points, center=None, radius=None, center_color=None):
-    """Given an Nx2 array of point locations, return an Nx3 array of RGB
-    colors derived from a rainbow color wheel centered over the mean point location.
-    """
-    import matplotlib.pyplot as plt
-    import scipy.interpolate
-    flat = points.reshape(np.product(points.shape[:-1]), points.shape[-1])
-    if center is None:
-        center = flat.mean(axis=0)
-    if radius is None:
-        radius = 4 * flat.std(axis=0)
-    f = np.linspace(0, 1, 10)[:-1]
-    theta = f * 2 * np.pi
-    x = np.vstack([radius[0] * np.cos(theta) + center[0], radius[1] * np.sin(theta) + center[1]]).T
-    c = plt.cm.gist_rainbow(f)[:, :3]
-    
-    if center_color is not None:
-        x = np.concatenate([x, center[None, :]], axis=0)
-        c = np.concatenate([c, np.array(center_color)[None, :]], axis=0)
-    
-    color = scipy.interpolate.griddata(x, c, flat[:, :2], fill_value=0)
-    return color.reshape(points.shape[:-1] + (3,))
-
-
-def show_float_rgb(data, extent, ax):
-    """Show a color image given a WxHx3 array of floats. 
-    Each channel is normalized independently. 
-    """
-    rgb = np.empty(data.shape[:2] + (3,), dtype='ubyte')
-    for i in (0, 1, 2):
-        rgb[..., i] = map_to_ubyte(data[..., i])
-
-    return ax.imshow(rgb, extent=extent, aspect='equal', origin='lower')

@@ -111,7 +111,7 @@ class TangramMapping(CellTypeMapping):
             self.plot_discrete_mapping(level=level, groups=groups, args=args)
         else:
             self.plot_discrete_mapping_probability(level=level, args=args)
-            self.plot_discrete_mapping(level=level, args=args)
+            self.plot_discrete_mapping(args=args)
 
         print('4) predict spatial gene expression, plot canonical markers and histogram of scores')
         self.compare_spatial_gene_exp()
@@ -143,7 +143,7 @@ class TangramMapping(CellTypeMapping):
         for cls in ['exc', 'inh', 'glia']:
             for neighborhood, subclasses in self.ordered_labels[cls].items():
                 if mapping_level == 'cluster':
-                    for subclass, clusters in self.ordered_labels[cls].items():
+                    for subclass, clusters in subclasses.items():
                         discrete_mapping.loc[discrete_mapping['cluster'].isin(clusters), 'subclass'] = subclass
                 discrete_mapping.loc[discrete_mapping['subclass'].isin(subclasses), 'neighborhood'] = neighborhood
                 discrete_mapping.loc[discrete_mapping['subclass'].isin(subclasses), 'class'] = cls
@@ -296,12 +296,16 @@ def convert_to_anndata(sc_data: ExpressionDataset|None=None, sp_data: SpotTable|
         
         ad_sp = ad.AnnData(bin_by_gene, dtype=float)
         bin_names = [f'bin:{int(x)}_{int(y)}' for x, y in xys]
-        genes = sp_data.map_gene_ids_to_names(np.unique(sp_data.gene_ids))
+        genes = sp_data.gene_id_to_name
         
         ad_sp.obs_names = bin_names
         ad_sp.var_names = genes
         ad_sp.obs['x'] = xys[:, 0]
         ad_sp.obs['y'] = xys[:, 1]
+        ad_sp.obs['n_transcripts'] = ad_sp.X.sum(axis=1)
+        ad_sp.obs['n_genes'] = np.count_nonzero(ad_sp.X, axis=1)
+
+        ad_sp.uns = {'binsize':binsize}
         
     return ad_sc, ad_sp
 
