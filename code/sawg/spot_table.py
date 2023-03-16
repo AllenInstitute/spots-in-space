@@ -319,26 +319,66 @@ class SpotTable:
         """
         if cache_file is None or not os.path.exists(cache_file):
             print('Loading gem...')
-            dtype = [('gene', 'S20'), ('x', 'uint16'), ('y', 'uint16'), ('MIDcounts', 'int')]
+            dtype = [('gene', 'S20'), ('x', 'int32'), ('y', 'int32'), ('MIDcounts', 'int')]
             gem_cols = dict(gem_cols)
             usecols = [gem_cols[col] for col in ['gene', 'x', 'y', 'MIDcounts']]
             if cell_cols is not None:
                 dtype.extend([('cell_ids', 'int'), ('in_cell', 'bool')])
                 usecols.extend([cell_cols[col] for col in ['cell_ids', 'in_cell']])
-            raw_data = np.loadtxt(gem_file, skiprows=skiprows, usecols=usecols, delimiter='\t', dtype=dtype, max_rows=max_rows)
-            counts = np.asarray(raw_data['MIDcounts'], dtype='uint8')
-            pos = np.empty((sum(counts), 2), dtype='float32')
-            pos[:, 0] = np.repeat(raw_data['x'], counts)
-            pos[:, 1] = np.repeat(raw_data['y'], counts)
-            genes = np.repeat(raw_data['gene'], counts)
-            max_gene_len = max(map(len, genes))
-            if cell_cols is not None:
-                cell_ids = np.repeat(raw_data['cell_ids'], counts).astype('uint16')
-                in_cell = np.invert(np.repeat(raw_data['in_cell'], counts).astype('bool'))
-                table = SpotTable(pos=pos, gene_names=genes.astype(f'U{max_gene_len}'), cell_ids=cell_ids)
-                table.in_cell = in_cell
-            else:
-                table = SpotTable(pos=pos, gene_names=genes.astype(f'U{max_gene_len}'))
+            fh = open(gem_file, 'r+')
+            if skiprows is not None:
+                [fh.readline() for i in range(skiprows)]
+            pos = []
+            gene_ids = []
+            gene_name_to_id = {}
+            next_gene_id = 0
+            end = 0
+            file_size = os.stat(gem_file).st_size
+            n_rows = 0
+            bytes_read = 0
+            hit_max_rows = False
+            with tqdm(total=file_size) as pbar:
+                while end < file_size and not hit_max_rows:
+                    start = fh.tell()
+                    lines = []
+                    for i in range(1000000):
+                        if bytes_read >= file_size:
+                            break
+                        lines.append(fh.readline())
+                        n_rows += i  
+                        bytes_read += len(lines[-1])
+                        if max_rows is not None and max_rows <= n_rows:
+                            hit_max_rows = True
+                            break
+              
+                    raw_data = np.loadtxt(lines, usecols=usecols, delimiter='\t', dtype=dtype)
+                    end = fh.tell()
+                    counts = np.asarray(raw_data['MIDcounts'], dtype='uint8')
+                    pos2 = np.empty((sum(counts), 2), dtype='float64')
+                    pos2[:, 0] = np.repeat(raw_data['x'], counts)
+                    pos2[:, 1] = np.repeat(raw_data['y'], counts)
+                    pos.append(pos2)
+                    genes = np.repeat(raw_data['gene'], counts)
+                    for gene in np.unique(raw_data['gene']):
+                        if gene not in gene_name_to_id:
+                            gene_name_to_id[gene] = next_gene_id
+                            next_gene_id += 1
+                    gene_ids2 = np.array([gene_name_to_id[gene] for gene in genes], dtype='uint32')
+                    gene_ids.append(gene_ids2)
+                    pbar.update(end - start)
+                    # if cell_cols is not None:
+                    #     cell_ids = np.repeat(raw_data['cell_ids'], counts).astype('uint16')
+                    #     in_cell = np.invert(np.repeat(raw_data['in_cell'], counts).astype('bool'))
+                        # table = SpotTable(pos=pos, gene_names=genes.astype(f'U{max_gene_len}'), cell_ids=cell_ids)
+                        # table.in_cell = in_cell
+                    # else:
+            gene_ids = np.concatenate(gene_ids)
+            pos = np.vstack(pos)
+            max_len = max(map(len, gene_name_to_id.keys()))
+            gene_id_to_name = np.empty(len(gene_name_to_id), dtype=f'U{max_len}')
+            for gene, id in gene_name_to_id.items():
+                gene_id_to_name[id] = gene
+            table = SpotTable(pos=pos, gene_ids=gene_ids, gene_id_to_name=gene_id_to_name)
 
             if cache_file is not None:                
                 print("Recompressing to npz..")
