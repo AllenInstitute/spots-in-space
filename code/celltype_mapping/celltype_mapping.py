@@ -20,6 +20,42 @@ except ImportError:
 class CellTypeMapping():
     """Container class for cell type mapping methods
     """
+    @property
+    def ordered_labels(self, reload=False):
+        if hasattr(self, '_ordered_labels') is False or self._ordered_labels is None or reload is True:
+            with open('//allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/snRNAseq_data/ordered_celltype_labels.json') as file:
+                self._ordered_labels = json.load(file)
+        return self._ordered_labels
+
+    def save_mapping(self, save_path: str, file_name:str='mapping', meta:dict={}, replace=False):
+        self.meta.update(meta)
+        if self.run_directory is None or replace is False:
+            dir_ts = '{:0.3f}'.format(datetime.now().timestamp())
+            self.run_directory = os.path.join(save_path, dir_ts)
+            os.mkdir(self.run_directory)
+        with open(os.path.join(self.run_directory, 'meta.json'), "w") as f:
+            json.dump(self.meta, f)
+        with bz2.BZ2File(os.path.join(self.run_directory, file_name + '.pbz2'), 'w') as f: 
+            cPickle.dump(self, f)
+        print(f'analysis UID: {os.path.basename(self.run_directory)}')
+
+    @classmethod
+    def load_from_timestamp(cls, directory: str, timestamp: str, file_name: str='mapping', meta_only=False):
+        path = os.path.join(directory, timestamp)
+        meta_file = os.path.join(path, 'meta.json')
+        if meta_only and os.path.exists(meta_file):
+            with open(meta_file) as f:
+                meta = json.load(f)
+                return meta
+        data_file = os.path.join(path, file_name + '.pbz2')
+        if os.path.exists(data_file) is False:
+            print(f'analysis file {file_name} does not exist for timestamp {timestamp} in directory {directory}')
+            return
+        ct_map = bz2.BZ2File(data_file, 'rb')
+        ct_map = cPickle.load(ct_map)
+
+        return ct_map
+
     def mapping(self):
         raise NotImplementedError('mapping must be implementd in a subclass')
 
@@ -51,13 +87,6 @@ class TangramMapping(CellTypeMapping):
 
         self._ordered_labels = None
 
-    @property
-    def ordered_labels(self, reload=False):
-        if hasattr(self, '_ordered_labels') is False or self._ordered_labels is None or reload is True:
-            with open('//allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/snRNAseq_data/ordered_celltype_labels.json') as file:
-                self._ordered_labels = json.load(file)
-        return self._ordered_labels
-        
     def set_training_genes(self, training_genes: list, meta: dict={}):
        
         print(f'starting with {len(training_genes)} training genes..')
@@ -229,35 +258,212 @@ class TangramMapping(CellTypeMapping):
         fig, ax = plt.subplots()
         sns.histplot(spatial_score, x='score', hue='is_training', ax=ax)
 
-    def save_mapping(self, save_path: str, file_name:str='tangram_mapping', meta:dict={}, replace=False):
-        self.meta.update(meta)
-        if self.run_directory is None or replace is False:
-            dir_ts = '{:0.3f}'.format(datetime.now().timestamp())
-            self.run_directory = os.path.join(save_path, dir_ts)
-            os.mkdir(self.run_directory)
-        with open(os.path.join(self.run_directory, 'meta.json'), "w") as f:
-            json.dump(self.meta, f)
-        with bz2.BZ2File(os.path.join(self.run_directory, file_name + '.pbz2'), 'w') as f: 
-            cPickle.dump(self, f)
-        print(f'analysis UID: {os.path.basename(self.run_directory)}')
 
-    @classmethod
-    def load_from_timestamp(cls, directory: str, timestamp: str, file_name: str='tangram_mapping', meta_only=False):
-        path = os.path.join(directory, timestamp)
-        meta_file = os.path.join(path, 'meta.json')
-        if meta_only and os.path.exists(meta_file):
-            with open(meta_file) as f:
-                meta = json.load(f)
-                return meta
-        data_file = os.path.join(path, file_name + '.pbz2')
-        if os.path.exists(data_file) is False:
-            print(f'tangram analysis file {file_name} does not exist for timestamp {timestamp} in directory {directory}')
-            return
-        tg_map = bz2.BZ2File(data_file, 'rb')
-        tg_map = cPickle.load(tg_map)
+class CKMapping(CellTypeMapping):
+    """
+    Currently for CKmapping mapping occurs on HPC through a separate script. This class loads in results for analysis
+    """
+    def __init__(self, sp_data: 'AnnData'|str, mapping_result_path: str, meta: dict={}):
+        """
+        sp_data: AnnData object or filename of AnnData object representing spatial transcriptomics data or None
+        mapping_result_path: file path to CK mapping result which should be a .rda file
+        """
+        import anndata as ad
+        import rpy2.robjects as ro
+        from rpy2.robjects import pandas2ri
+        pandas2ri.activate()
 
-        return tg_map
+        self.run_directory = mapping_result_path
+       
+        if isinstance(sp_data, str):
+            print('loading spatial data...')
+            ad_sp = ad.read_h5ad(sp_data)
+        else:
+            ad_sp = sp_data
+
+        print('loading mapping...')
+        r_file = ro.r.load(mapping_result_path + '/mapped.rda')
+        map_results = ro.r['mapped']
+
+        # Extract mapping data from R-object. This returns a list of dataframes indexed as such:
+        # [0] map.freq (dataframe)
+            # cl     : all clusters a sample is mapped in N iterations of mapping with sub-sampled markers
+            # freq : frequencies a sample is mapped to each cluster, cl
+            # dist  : distance to cluster template centroid (mean marker gene count)
+            # path.cor : correlation of markers along the path of the hierarchy to the terminal node(cluster), in hierarchical mapping
+        # [1] best.map.df (dataframe)
+            # best.cl  : the cluster a sample is mapped with highest freq in map.freq
+            # prob     : probablity of a sample being mapped to best.cl cluster out of  N iterations
+            # avg.dist : distance to the template cluster mean
+            # avg.path.cor : correlation of markers along the path of the hierarchy to the terminal node(cluster), in hierarchical mapping
+            # avg.cor  : correlation to template cluster mean
+            # cor.zscore : z-normalized value of over avg.cor
+        # [2] cl.df : taxonomy cluster annotation matched by "cl" (mapped[["best.map.df"]]$best.cl) (dataframe)
+            # map_freq = pandas2ri.rpy2py(map_results[0])
+            # map_freq.set_index('sample_id', inplace=True)
+        # [3] all.markers: list of marker genes used for mapping (list)
+        # [4] meta: metadata about how mapping was done, created by me not in CK's code (list)
+            # Taxonomy = the taxonomy that was used for mapping
+            # method = Flat or Hierarchical mapping
+            # iterations = number of iterations of mapping
+
+        print('extracting mapping results...')
+        map_freq = pandas2ri.rpy2py(map_results[0])
+        map_freq.set_index('sample_id', inplace=True)
+            
+        best_mapping = pandas2ri.rpy2py(map_results[1])
+        best_mapping.set_index('sample_id', inplace=True)
+
+        clusters = pandas2ri.rpy2py(map_results[2])
+        clusters.set_index('cluster_id', inplace=True)
+
+        # add type labels across the hierarchy from clusters relationship
+        labels = [l for l in clusters.columns if l.endswith('label')]
+        for label in labels:
+            map_freq[label] = map_freq.apply(lambda x: clusters[clusters['cl']==x['cl']][label].iloc[0], axis=1)
+            best_mapping[label] = best_mapping.apply(lambda x: clusters[clusters['cl']==x['best.cl']][label].iloc[0], axis=1)
+
+        # make new anndata object with pivoted map_freq as X (cell x celltype prob)
+        # AnnData refuses to believe that map_freq.pivot and best_mapping have equal indexes even though
+        # they do so hack around to force it so that AnnData doesn't error
+        X_vals = map_freq.pivot(columns='cluster_label', values='freq').fillna(0)
+        X_index = pd.DataFrame(index=best_mapping.index)
+        X = X_index.merge(X_vals, left_index=True, right_index=True)
+        ad_map = ad.AnnData(
+            X = X,
+            obs = best_mapping.merge(ad_sp.obs, left_index=True, right_index=True),
+            uns = {
+                'map.freq': map_freq,
+                'cl.df': clusters,
+            }
+        )
+       
+        if len(map_results) == 5:
+            markers = list(map_results[3])
+            ad_map.uns['all.markers'] = markers
+            map_meta = list(map_results[4])
+            ad_map.uns['Taxonomy'] = map_meta[0]
+            ad_map.uns['method'] = map_meta[1]
+            ad_map.uns['iterations']  = map_meta[2] if len(map_meta)==3 else None
+        elif len(map_results) == 4:
+            map_meta = list(map_results[3])
+            ad_map.uns['Taxonomy'] = map_meta[0]
+            ad_map.uns['method'] = map_meta[1]
+            ad_map.uns['iterations']  = map_meta[2] if len(map_meta)==3 else None
+        else:
+            print("Length of mapping results doesn't match known structures")
+
+        meta.update({
+            'mapping_method': 'CK mapping',
+            'flat or heirarchical': ad_map.uns.get('method', 'unknown')
+        })
+        
+        self.ad_sp = ad_sp
+        self.ad_map = ad_map
+        self.meta = meta
+
+        self.save_mapping(save_path=self.run_directory, file_name='ck_mapping', replace=True)
     
+    def plot_mapping_performance(self):
+        fig = sns.jointplot(data = self.ad_map.obs, x='avg.cor', y='prob', hue='class_label', alpha=0.2)
+        
+        return fig
+
+    def qc_mapping(self, qc_params: dict):
+        # QC mapping results using thresholds for avg.cor and/or prob, assumes lower threshold
+
+        qc_mask = None
+        for param, thresh in qc_params.items():
+            if qc_mask is None:
+                qc_mask = (self.ad_map.obs[param] > thresh)
+            else:
+                qc_mask = qc_mask & (self.ad_map.obs[param] > thresh)
+            
+        filtered = self.ad_map[qc_mask]
+        self.ad_map.uns['qc_params'] = qc_params
+        self.ad_map = filtered
+
+    def plot_best_mapping_probability(self, level: str, groups: dict, args: dict={}):
+    
+        violin = {'cut': 0}
+        violin.update(args)
+
+        data = self.ad_map.obs
+
+        if groups is not None:
+            fig, ax = plt.subplots(len(groups), 1, figsize=(15, len(groups)*4))
+            for i, (group_name, group) in enumerate(groups.items()):
+                subdata = data[data[level].isin(group)]
+                
+                sns.violinplot(data=subdata, x=level, y='prob', ax=ax[i], order=group, **violin)
+                ax[i].set_ylabel('Probability')
+                ax[i].set_xticklabels(ax[i].get_xticklabels(), rotation = 45, ha='right')
+                ax[i].set_title(group_name)
+            
+            fig.set_tight_layout(True)
+        
+        else:
+            fig, ax = plt.subplots(figsize=(15, 3))
+            sns.violinplot(data=data, x=level, y= 'prob', ax=ax, sort=True, **violin)
+            ax.set_ylabel('Probability')
+            ax.set_xticklabels(ax.get_xticklabels(), rotation = 45, ha='right')
+            
+        return fig
+
+    def plot_best_mapping_corr(self, level: str, groups: dict, args: dict={}):
+
+        violin = {'cut': 0}
+        violin.update(args)
+
+        data = self.ad_map.obs
+
+        if groups is not None:
+            fig, ax = plt.subplots(len(groups), 1, figsize=(15, len(groups)*4))
+            for i, (group_name, group) in enumerate(groups.items()):
+                subdata = data[data[level].isin(group)]
+
+                sns.violinplot(data=subdata, x=level, y='avg.cor', ax=ax[i], order=group, **violin)
+                ax[i].set_ylabel('Avg Correlation')
+                ax[i].set_xticklabels(ax[i].get_xticklabels(), rotation = 45, ha='right')
+                ax[i].set_title(group_name)
+
+            fig.set_tight_layout(True)
+
+        else:
+            fig, ax = plt.subplots(figsize=(15, 3))
+            sns.violinplot(data=data, x=level, y= 'avg.cor', ax=ax, sort=True, **violin)
+            ax.set_ylabel('Avg Correlation')
+            ax.set_xticklabels(ax.get_xticklabels(), rotation = 45, ha='right')
+
+        return fig
+
+    def plot_best_mapping(self, level: str, groups: dict, args: dict={}):
+            """Plot the discrete mapping produced from get_discrete_cell_mapping at hierarchy level. Optionally provide a dictionary with keys specifying group
+            names and keys a list of labels to plot separately for easier visualization. If 'level' is None defaults to self.meta['cluster_label'] 
+            """
+            scatter = {'s': 10, 'alpha': 0.7, 'lw': 0}
+            scatter.update(args)
+
+            data = self.ad_map.obs
+
+            if groups is not None:
+                fig, ax = plt.subplots(len(groups), 1, figsize=(8, len(groups)*6))
+                for i, (group_name, group) in enumerate(groups.items()):
+                    sns.scatterplot(data=data, x='x', y='y', ax=ax[i], color='grey', s=3, alpha=0.1, lw=0)
+                    subdata = data[data[level].isin(group)]
+                    sns.scatterplot(data=subdata, x='x', y='y', hue=level, ax=ax[i], hue_order=group, **scatter)
+                    ax[i].set_title(group_name)
+                    ax[i].legend(bbox_to_anchor=(1,1))
+                
+                fig.set_tight_layout(True)
+            
+            
+            else:
+                fig, ax = plt.subplots(figsize=(8, 8))
+                sns.scatterplot(data=data, x='x', y='y', hue=level,ax=ax, **scatter)
+                ax.legend(bbox_to_anchor=(1,1))
+            
+            return fig
 
 def convert_to_anndata(sc_data: ExpressionDataset|None=None, sp_data: SpotTable|None=None, binsize:int|None=None, 
                        annotation_levels:dict={'cluster': 'cluster_label', 'subclass': 'subclass_label', 'class':'class_label'}):
