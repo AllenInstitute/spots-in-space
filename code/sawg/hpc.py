@@ -143,7 +143,7 @@ def run_slurm(*,
     if not os.path.exists(os.path.dirname(job_file)):
         os.makedirs(os.path.dirname(job_file))
 
-    with open(job_file, 'w') as fh:
+    with open(job_file, 'w', newline='\n') as fh:
         fh.write(script)
 
     sbatch_output = run(hpc_host, ['sbatch', job_file])
@@ -339,8 +339,11 @@ def run(host:str, cmd:list):
             conn = subprocess.Popen(['ssh', '-NM', host])
             ssh_connections[host] = conn
         cmd = ['ssh', host] + cmd
-    return subprocess.check_output(cmd).decode()
-
+    try:
+        return subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode()
+    except subprocess.CalledProcessError as exc:
+        print(exc.output)
+        raise
 
 def close_ssh_connections():
     global ssh_connections
