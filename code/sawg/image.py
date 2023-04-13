@@ -65,6 +65,11 @@ class ImageBase:
         self._show_image(data, ax, **kwds)
 
     def _show_image(self, data, ax, **kwds):
+        if len(data.shape)==3:
+            if data.shape[0] ==1:
+                data = data[0,:,:]
+            elif data.shape[0] != 3:
+                raise ValueError("show requires 2d image data or RGB data with shape [3,N,M]")
         y_inverted = ax.yaxis_inverted()
         shape = self.shape
         px_corners = np.array([[0, 0], shape[1:3]])
