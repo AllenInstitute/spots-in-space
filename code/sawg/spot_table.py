@@ -1091,7 +1091,7 @@ class SpotTable:
             raise Exception(f"An image named {image.name} is already attached")
         self.images.append(image)
 
-    def get_image(self, name=None, channel=None):
+    def get_image(self, name=None, channel=None, frame=None):
         """Return the image with the given name or channel name
         """
         if name is not None:
@@ -1109,9 +1109,12 @@ class SpotTable:
         selected_img = selected[0]
             
         if channel is not None:
-            return selected_img.get_channel(channel)
-        else:
-            return selected_img            
+            selected_img = selected_img.get_channel(channel)
+
+        if frame is not None:
+            selected_img = selected_img.get_frame(frame)
+
+        return selected_img            
         
     def show_image(self, ax, channel=None, z_index=None, z_pos=None, name=None):
         """Show a channel / z plane from an image
