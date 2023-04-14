@@ -5,13 +5,13 @@ from scipy.spatial import Delaunay
 import pandas
 
 from .optional_import import optional_import
-tqdm = optional_import('tqdm.notebook', names=['tqdm'])
+tqdm = optional_import('tqdm.notebook', names=['tqdm'])[0]
 geojson = optional_import('geojson')
 shapely = optional_import('shapely')
-MultiLineString = optional_import('shapely.geometry', names=['MultiLineString'])
+MultiLineString = optional_import('shapely.geometry', names=['MultiLineString'])[0]
 unary_union, polygonize = optional_import('shapely.ops', ['unary_union', 'polygonize'])
 
-from .image import ImageStack
+from .image import ImageFile, ImageStack, ImageTransform
 from . import util
 
 
@@ -311,12 +311,16 @@ class SpotTable:
         return table
 
     @classmethod
-    def load_stereoseq(cls, gem_file: str|None=None, cache_file: str|None=None, gem_cols: dict|tuple=(('gene', 0), ('x', 1), ('y', 2), ('MIDcounts', 3)), cell_cols: dict|tuple=None, skiprows: int|None=1,  max_rows: int|None=None):
+    def load_stereoseq(cls, gem_file: str|None=None, cache_file: str|None=None, gem_cols: dict|tuple=(('gene', 0), ('x', 1), ('y', 2), ('MIDcounts', 3)), 
+                       cell_cols: dict|tuple=None, skiprows: int|None=1,  max_rows: int|None=None, image_file: str|None=None, image_channel: str|None=None):
         """
         Load StereoSeq data from gem file. This can be slow so optionally cache the result to a .npz file.
         1/19/2023: New StereoSeq data has cell_ids, add optional cell_cols to add to SpotTable. Also has a flag
         for whether the spot was in the main cell or the extended cell (in_cell)
         """
+
+        xyscale = 0.5  # um per unit (stereoseq spots are separated by 500 nm)
+
         if cache_file is None or not os.path.exists(cache_file):
             print('Loading gem...')
             dtype = [('gene', 'S20'), ('x', 'int32'), ('y', 'int32'), ('MIDcounts', 'int')]
@@ -355,8 +359,8 @@ class SpotTable:
                     end = fh.tell()
                     counts = np.asarray(raw_data['MIDcounts'], dtype='uint8')
                     pos2 = np.empty((sum(counts), 2), dtype='float64')
-                    pos2[:, 0] = np.repeat(raw_data['x'], counts)
-                    pos2[:, 1] = np.repeat(raw_data['y'], counts)
+                    pos2[:, 0] = np.repeat(raw_data['x'] * xyscale, counts)
+                    pos2[:, 1] = np.repeat(raw_data['y'] * xyscale, counts)
                     pos.append(pos2)
                     genes = np.repeat(raw_data['gene'], counts)
                     for gene in np.unique(raw_data['gene']):
@@ -384,10 +388,19 @@ class SpotTable:
                 print("Recompressing to npz..")
                 table.save_npz(cache_file)
 
-            return table
         else:
             print("Loading from npz..")
-            return cls.load_npz(cache_file)
+            table = cls.load_npz(cache_file)
+
+        if image_file is not None:
+            transform = ImageTransform(matrix=np.array([
+                [0, 1/xyscale, 0],
+                [1/xyscale, 0, 0],
+            ], dtype=float))
+            img = ImageFile(file=image_file, transform=transform, axes=['frame', 'row', 'col', 'channel'], channels=[image_channel], name="mosaic")
+            table.add_image(img)
+
+        return table
 
     def save_npz(self, npz_file):
         fields = {
