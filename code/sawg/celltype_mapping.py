@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 import bz2
 import _pickle as cPickle
 import json
+import anndata as ad
+import umap
 
 try:
     import tangram as tg
@@ -27,12 +29,18 @@ class CellTypeMapping():
                 self._ordered_labels = json.load(file)
         return self._ordered_labels
 
-    def save_mapping(self, save_path: str, file_name:str='mapping', meta:dict={}, replace=False):
+    def _set_run_directory(self, save_path):
+        dir_ts = '{:0.3f}'.format(datetime.now().timestamp())
+        self.run_directory = os.path.join(save_path, dir_ts)
+        os.mkdir(self.run_directory)
+
+    def save_mapping(self, save_path: str|None=None, file_name:str='mapping', meta:dict={}, replace=False):
         self.meta.update(meta)
         if self.run_directory is None or replace is False:
-            dir_ts = '{:0.3f}'.format(datetime.now().timestamp())
-            self.run_directory = os.path.join(save_path, dir_ts)
-            os.mkdir(self.run_directory)
+            if save_path is None:
+                print('Must set a directory path')
+                return
+            self._set_run_directory(save_path)
         with open(os.path.join(self.run_directory, 'meta.json'), "w") as f:
             json.dump(self.meta, f)
         with bz2.BZ2File(os.path.join(self.run_directory, file_name + '.pbz2'), 'w') as f: 
@@ -55,6 +63,33 @@ class CellTypeMapping():
         ct_map = cPickle.load(ct_map)
 
         return ct_map
+    
+    def qc_mapping(self, qc_params: dict):
+        # QC mapping results using thresholds for various performance metrics in self.ad_map.obs
+
+        qc_mask = None
+        for param, thresh in qc_params.items():
+            if qc_mask is None:
+                qc_mask = (self.ad_map.obs[param] > thresh)
+            else:
+                qc_mask = qc_mask & (self.ad_map.obs[param] > thresh)
+            
+        filtered = self.ad_map[qc_mask]
+        self.ad_map.uns['qc_params'] = qc_params
+        self.ad_map = filtered
+    
+    def spatial_umap(self, attr: str='ad_sp', umap_args: dict|None=None):
+        # UMAP spatial gene expression. Assumes X of anndata object is a cell x gene
+        umap_attr = getattr(self, attr)
+
+        if umap_args is not None:
+            mapper = umap.UMAP(umap_args)
+        else:
+            mapper = umap.UMAP()
+        embedding = mapper.fit_transform(umap_attr.X)
+
+        umap_attr.obs['umap_x'] = embedding[:, 0]
+        umap_attr.obs['umap_y'] = embedding[:, 1]
 
     def mapping(self):
         raise NotImplementedError('mapping must be implementd in a subclass')
@@ -65,21 +100,21 @@ class TangramMapping(CellTypeMapping):
         sc_data: AnnData object or filename of AnnData object representing single-cell or singcle-nucleus data or None
         sp_data: AnnData object or filename of AnnData object representing spatial transcriptomics data or None
         """
-        import scanpy as sc
-
         self.run_directory = None
        
         if isinstance(sc_data, str):
-            ad_sc = sc.read_h5ad(sc_data)
+            ad_sc = ad.read_h5ad(sc_data)
         else:
             ad_sc = sc_data
         if isinstance(sp_data, str):
-            ad_sp = sc.read_h5ad(sp_data)
+            ad_sp = ad.read_h5ad(sp_data)
         else:
             ad_sp = sp_data
 
         # library size correction, normalize count within each cell to fixed number
         sc.pp.normalize_total(ad_sc)
+
+        meta.update({'mapping_method': 'Tangram'})
 
         self.ad_sc = ad_sc
         self.ad_sp = ad_sp
@@ -150,12 +185,17 @@ class TangramMapping(CellTypeMapping):
         nrows = int(np.ceil(len(self.ad_map.obs[annotation]) / ncols))
         tg.plot_cell_annotation(self.ad_map, self.ad_sp, annotation=annotation, nrows=nrows, ncols=ncols, invert_y=False, **args)
 
-    def get_discrete_cell_mapping(self, threshold: float=0):
+    def get_discrete_cell_mapping(self, threshold: float=0, levels: list=['class_label', 'neighborhood_label','subclass_label', 'supertype_label', 'cluster_label']):
         """Return mapped cell type that has the highest probability for each cell. Optionally set a lower probability threshold.
         """
         mapping_level = self.meta['cluster_label']
         if 'tangram_ct_pred' not in self.ad_sp.obsm.keys():
             tg.project_cell_annotations(self.ad_map, self.ad_sp, annotation=mapping_level)
+        
+        levels = [l for l in levels if l in self.ad_sc.obs.columns]
+
+        labels = self.ad_sc.obs[levels].drop_duplicates()
+        labels.set_index(mapping_level, inplace=True, drop=True)
         
         spatial_prob = self.ad_sp.obsm['tangram_ct_pred']
         spatial_prob_norm = (spatial_prob - spatial_prob.min()) / (spatial_prob.max() - spatial_prob.min())
@@ -169,13 +209,9 @@ class TangramMapping(CellTypeMapping):
         max_anno.name = mapping_level
 
         discrete_mapping = pd.DataFrame(max_anno)
-        for cls in ['exc', 'inh', 'glia']:
-            for neighborhood, subclasses in self.ordered_labels[cls].items():
-                if mapping_level == 'cluster':
-                    for subclass, clusters in subclasses.items():
-                        discrete_mapping.loc[discrete_mapping['cluster'].isin(clusters), 'subclass'] = subclass
-                discrete_mapping.loc[discrete_mapping['subclass'].isin(subclasses), 'neighborhood'] = neighborhood
-                discrete_mapping.loc[discrete_mapping['subclass'].isin(subclasses), 'class'] = cls
+        discrete_mapping = discrete_mapping.dropna()
+        
+
         discrete_mapping = discrete_mapping.merge(pd.DataFrame(max_prob), left_index=True, right_index=True)
         discrete_mapping = discrete_mapping.merge(self.ad_sp.obs[['x', 'y']], left_index=True, right_index=True)
         self.ad_sp.obsm['discrete_ct_pred'] = discrete_mapping
@@ -263,18 +299,21 @@ class CKMapping(CellTypeMapping):
     """
     Currently for CKmapping mapping occurs on HPC through a separate script. This class loads in results for analysis
     """
-    def __init__(self, sp_data: 'AnnData'|str, mapping_result_path: str, meta: dict={}):
+    def __init__(self, sp_data: 'AnnData'|str, sc_data: 'AnnData'|str, mapping_result_path: str, meta: dict={}):
         """
         sp_data: AnnData object or filename of AnnData object representing spatial transcriptomics data or None
         mapping_result_path: file path to CK mapping result which should be a .rda file
         """
-        import anndata as ad
         import rpy2.robjects as ro
         from rpy2.robjects import pandas2ri
         pandas2ri.activate()
 
         self.run_directory = mapping_result_path
        
+        if isinstance(sc_data, str):
+            ad_sc = sc.read_h5ad(sc_data)
+        else:
+            ad_sc = sc_data
         if isinstance(sp_data, str):
             print('loading spatial data...')
             ad_sp = ad.read_h5ad(sp_data)
@@ -323,19 +362,46 @@ class CKMapping(CellTypeMapping):
             map_freq[label] = map_freq.apply(lambda x: clusters[clusters['cl']==x['cl']][label].iloc[0], axis=1)
             best_mapping[label] = best_mapping.apply(lambda x: clusters[clusters['cl']==x['best.cl']][label].iloc[0], axis=1)
 
-        # make new anndata object with pivoted map_freq as X (cell x celltype prob)
+        uns = {}
+        if len(map_results) == 5:
+            markers = list(map_results[3])
+            uns['all.markers'] = markers
+            map_meta = list(map_results[4])
+            uns['Taxonomy'] = map_meta[0]
+            uns['method'] = map_meta[1]
+            uns['iterations']  = map_meta[2] if len(map_meta)==3 else None
+        elif len(map_results) == 4:
+            map_meta = list(map_results[3])
+            uns['Taxonomy'] = map_meta[0]
+            uns['method'] = map_meta[1]
+            uns['iterations']  = map_meta[2] if len(map_meta)==3 else None
+        else:
+            print("Length of mapping results doesn't match known structures")
+        
+        uns.update({
+                'map.freq': map_freq,
+                'cl.df': clusters,
+            })
+
+        # Set X to cell x gene reduced to genes used for mapping from all.markers if available otherwise use all genes
+        if 'all.markers' in uns.keys(): 
+            X = ad_sp[:, uns['all.markers']].X.to_df()
+        else:
+            X = ad_sp.X.to_df()
+
+        # make quasi confusion matrix (cell x celltype prob)
         # AnnData refuses to believe that map_freq.pivot and best_mapping have equal indexes even though
         # they do so hack around to force it so that AnnData doesn't error
-        X_vals = map_freq.pivot(columns='cluster_label', values='freq').fillna(0)
-        X_index = pd.DataFrame(index=best_mapping.index)
-        X = X_index.merge(X_vals, left_index=True, right_index=True)
+    
+        obsm_vals = map_freq.pivot(columns='cluster_label', values='freq').fillna(0)
+        obsm_index = pd.DataFrame(index=best_mapping.index)
+        obsm = X_index.merge(X_vals, left_index=True, right_index=True)
+
         ad_map = ad.AnnData(
             X = X,
             obs = best_mapping.merge(ad_sp.obs, left_index=True, right_index=True),
-            uns = {
-                'map.freq': map_freq,
-                'cl.df': clusters,
-            }
+            obsm = {'map_prob_matrix': obsm},
+            uns = uns
         )
        
         if len(map_results) == 5:
@@ -359,6 +425,7 @@ class CKMapping(CellTypeMapping):
         })
         
         self.ad_sp = ad_sp
+        self.ad_sc = ad_sc
         self.ad_map = ad_map
         self.meta = meta
 
@@ -369,21 +436,7 @@ class CKMapping(CellTypeMapping):
         
         return fig
 
-    def qc_mapping(self, qc_params: dict):
-        # QC mapping results using thresholds for avg.cor and/or prob, assumes lower threshold
-
-        qc_mask = None
-        for param, thresh in qc_params.items():
-            if qc_mask is None:
-                qc_mask = (self.ad_map.obs[param] > thresh)
-            else:
-                qc_mask = qc_mask & (self.ad_map.obs[param] > thresh)
-            
-        filtered = self.ad_map[qc_mask]
-        self.ad_map.uns['qc_params'] = qc_params
-        self.ad_map = filtered
-
-    def plot_best_mapping_probability(self, level: str, groups: dict, args: dict={}):
+    def plot_best_mapping_probability(self, level: str, groups: dict|None=None, args: dict={}):
     
         violin = {'cut': 0}
         violin.update(args)
@@ -410,7 +463,7 @@ class CKMapping(CellTypeMapping):
             
         return fig
 
-    def plot_best_mapping_corr(self, level: str, groups: dict, args: dict={}):
+    def plot_best_mapping_corr(self, level: str, groups: dict|None=None, args: dict={}):
 
         violin = {'cut': 0}
         violin.update(args)
@@ -437,11 +490,144 @@ class CKMapping(CellTypeMapping):
 
         return fig
 
-    def plot_best_mapping(self, level: str, groups: dict, args: dict={}):
-            """Plot the discrete mapping produced from get_discrete_cell_mapping at hierarchy level. Optionally provide a dictionary with keys specifying group
-            names and keys a list of labels to plot separately for easier visualization. If 'level' is None defaults to self.meta['cluster_label'] 
+    def plot_best_mapping(self, level: str, groups: dict|None=None, args: dict={}):
+            """Plot the best mapping at particular heirarchy level. Optionally provide a dictionary with keys specifying group
+            names and keys a list of labels to plot separately for easier visualization.  
             """
-            scatter = {'s': 10, 'alpha': 0.7, 'lw': 0}
+            scatter = {'s': 10, 'alpha': 0.7, 'linewidth': 0}
+            scatter.update(args)
+
+            data = self.ad_map.obs
+
+            if groups is not None:
+                fig, ax = plt.subplots(len(groups), 1, figsize=(8, len(groups)*6))
+                for i, (group_name, group) in enumerate(groups.items()):
+                    sns.scatterplot(data=data, x='x', y='y', ax=ax[i], color='grey', s=3, alpha=0.1, lw=0)
+                    subdata = data[data[level].isin(group)]
+                    sns.scatterplot(data=subdata, x='x', y='y', hue=level, ax=ax[i], hue_order=group, **scatter)
+                    ax[i].set_title(group_name)
+                    ax[i].legend(bbox_to_anchor=(1,1))
+                
+                fig.set_tight_layout(True)
+            
+            
+            else:
+                fig, ax = plt.subplots(figsize=(8, 8))
+                sns.scatterplot(data=data, x='x', y='y', hue=level,ax=ax, **scatter)
+                ax.legend(bbox_to_anchor=(1,1))
+            
+            return fig
+
+class ScrattchMapping(CellTypeMapping):
+    def __init__(self, sp_data: 'AnnData'|str, taxonomy_path: str, meta: dict={}):
+        """
+        sp_data: AnnData object or filename of AnnData object representing spatial transcriptomics data or None
+        taxonomy_path: file path to where taxonomy lives on isolon
+        sc_data: AnnData object or filename of AnnData object representing reference RNAseq data
+        """
+           
+        if isinstance(sp_data, str):
+            print('loading spatial data...')
+            ad_sp = ad.read_h5ad(sp_data)
+        else:
+            ad_sp = sp_data
+
+        meta.update({'mapping_method': 'scrattch mapping'})
+
+        self.ad_sp = ad_sp
+        self.taxonomy_path = taxonomy_path
+        self.run_directory = None
+        self.meta = meta
+
+    def make_mapping_anndata(self, save_path: str, ad_sp_layer: str|None=None, training_genes: list|None=None, meta: dict={}):
+        """
+        ad_sp_layer: scrattch_mapping requires log normalized data, identify where in the ad_sp object
+                    this data resides. If None it will be assumed the data is ad_sp.X otherwise identify
+                    key for ad_sp.layers
+        training_genes: list of genes to use for mapping, if None will use all genes in ad_sp.var_names
+        save_path: where to save out mapping anndata object to load into R script
+        """
+        if training_genes is not None:
+            genes = [tg for tg in training_genes if tg in self.ad_sp.var_names]
+            if len(genes) == 0:
+                print('No genes overlap between training_genes and ad_sp.var_names')
+                return
+            ad_map = self.ad_sp[:, genes].copy()
+        else:
+            # remove blanks if they exist
+            try:
+                ad_map = self.ad_sp[:, self.ad_sp.var[self.ad_sp.var['probe_type']=='gene'].index.to_list()].copy()
+            except KeyError:
+                print('probe type not set in ad_sp.var, moving on..')
+
+        # scrattch_map catches if the gene names are only listed in the index. Make them a column
+        if ad_map.var.shape[1]==0:
+            ad_map.var.reset_index(names='gene', inplace=True)
+
+        if ad_sp_layer is not None:
+            ad_map.layers['raw_counts'] = ad_map.X
+            ad_map.X = ad_map.layers[ad_sp_layer]
+
+        ad_map.uns.update({'taxonomy_path': self.taxonomy_path})
+        
+        self.meta.update(meta)
+        self._set_run_directory(save_path)
+        ad_map.write_h5ad(self.run_directory + '/scrattch_map_anndata.h5ad')
+        self.ad_map = ad_map
+        self.save_mapping(file_name='pre_map')
+
+    def load_scrattch_mapping_results(self):
+        # use to load scrattch mapping results back in for analysis
+        # results will be saved in obsm field of anndata in R script
+        
+        scrattch_map_results = ad.read_h5ad(self.run_directory + '\scrattch_map_results.h5ad')
+        self.ad_map.obs = self.ad_map.obs.merge(scrattch_map_results.obsm['mapping_results'], left_index=True, right_index=True)
+        self.ad_map.uns.update(scrattch_map_results.uns)
+        self.save_mapping(save_path=self.run_directory, replace=True)
+    
+    def load_taxonomy_anndata(self):
+        # the taxonomy anndatas are pretty big, only load if necessary. 
+        taxonomy_files = [os.path.join(dirpath,filename) for dirpath, _, filenames in os.walk(self.taxonomy_path) for filename in filenames if filename.endswith('taxonomy.h5ad')]
+        if len(taxonomy_files) == 1:
+            self.ad_sc = ad.read_h5ad(taxonomy_files[0])
+        elif len(taxonomy_files)==0:
+            print(f'No taxonomy.h5ad file found that ends in path: {self.taxonomy_path}')
+        else:
+            print(f'Multiple taxonomy.h5ad files found:')
+            _ = [print(f'{file}') for file in taxonomy_files]
+
+    def plot_best_mapping_corr(self, level: str, groups: dict|None=None, args: dict={}):
+
+        violin = {'cut': 0}
+        violin.update(args)
+
+        data = self.ad_map.obs
+
+        if groups is not None:
+            fig, ax = plt.subplots(len(groups), 1, figsize=(15, len(groups)*4))
+            for i, (group_name, group) in enumerate(groups.items()):
+                subdata = data[data[level].isin(group)]
+
+                sns.violinplot(data=subdata, x=level, y='score.Corr', ax=ax[i], order=group, **violin)
+                ax[i].set_ylabel('Avg Correlation')
+                ax[i].set_xticklabels(ax[i].get_xticklabels(), rotation = 45, ha='right')
+                ax[i].set_title(group_name)
+
+            fig.set_tight_layout(True)
+
+        else:
+            fig, ax = plt.subplots(figsize=(15, 3))
+            sns.violinplot(data=data, x=level, y= 'score.Corr', ax=ax, sort=True, **violin)
+            ax.set_ylabel('Avg Correlation')
+            ax.set_xticklabels(ax.get_xticklabels(), rotation = 45, ha='right')
+
+        return fig
+
+    def plot_best_mapping(self, level: str, groups: dict|None=None, args: dict={}):
+            """Plot the best mapping at particular heirarchy level. Optionally provide a dictionary with keys specifying group
+            names and keys a list of labels to plot separately for easier visualization.  
+            """
+            scatter = {'s': 10, 'alpha': 0.7, 'linewidth': 0}
             scatter.update(args)
 
             data = self.ad_map.obs
