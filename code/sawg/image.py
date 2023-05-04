@@ -230,7 +230,7 @@ class ImageFile(ImageBase):
 class ImageTransform:
     """Transfomation mapping between (x, y) spot coordinates and (row, col) image pixels
     
-    *matrix* is a numpy array of shape (2, 3) containing the affine transformation matrix
+    *matrix* is a numpy array of shape (2, 3) containing the affine transformation matrix that maps from spots to pixels
     """
     def __init__(self, matrix):
         self.matrix = matrix

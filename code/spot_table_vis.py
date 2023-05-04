@@ -17,10 +17,11 @@ import matplotlib.pyplot as plt
 
 
 table_file = sys.argv[1]
-segmentation_file = sys.argv[2]
-
 table = sawg.SpotTable.load_merscope(csv_file=None, cache_file=table_file)
-table.cell_ids = np.load(segmentation_file)
+
+if len(sys.argv) > 2:
+    segmentation_file = sys.argv[2]
+    table.cell_ids = np.load(segmentation_file)
 
 # filter for cells with a minimum spot count
 # everything else will be visible as a dim cyan

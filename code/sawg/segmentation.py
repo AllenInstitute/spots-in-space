@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os, tempfile, pickle, traceback
+import scipy.ndimage, scipy.interpolate
 import numpy as np
 from .spot_table import SpotTable
 from .image import Image, ImageBase, ImageTransform
@@ -108,7 +109,8 @@ class CellposeSegmentationMethod(SegmentationMethod):
         'cellpose_options': {
             'gpu': True,
             'batch_size': 8,
-        }
+        },
+        'dilate': 0,  # um - dilate segmentation after cellpose has finished
     }
     """
     
@@ -179,7 +181,11 @@ class CellposeSegmentationMethod(SegmentationMethod):
 
         # run segmentation
         masks, flows, styles, diams = model.eval(image_data, **cp_opts)
-        
+
+        dilate = self.options.get('dilate', 0)
+        if dilate != 0:
+            masks = dilate_labels(masks, radius=dilate/self.options['px_size'])
+
         # return result object
         result = CellposeSegmentationResult(
             method=self, 
@@ -201,6 +207,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
         - An Image instance is returned as-is
         - "total_mrna" returns an image generated from spot density
         - Any other string returns an image channel attached to the spot table
+        - {'channel': channel, 'frame': int} can be used to select a single frame
         """
         # optionally, cyto image may be generated from spot table total mrna
         if img_spec == 'total_mrna':
@@ -209,6 +216,8 @@ class CellposeSegmentationMethod(SegmentationMethod):
             return spot_table.get_image(channel=img_spec)
         elif isinstance(img_spec, ImageBase):
             return img_spec
+        elif isinstance(img_spec, dict):
+            return spot_table.get_image(channel=img_spec['channel'], frame=img_spec['frame'])
         else:
             raise TypeError("Bad image spec:", img_spec)
 
@@ -243,13 +252,16 @@ class CellposeSegmentationMethod(SegmentationMethod):
         return Image(density_img[..., np.newaxis], transform=nuclei_img.transform, channels=['Total mRNA'], name=None)
 
     def map_spots_to_img_px(self, spot_table:SpotTable, image:Image):
-        """Map spot table (x, y) positions to image (row, col)
+        """Map spot table (x, y, z) positions to image (frame, row, col)
         """
         spot_xy = spot_table.pos[:, :2]
         spot_px_rc = np.floor(image.transform.map_to_pixels(spot_xy)).astype(int)
 
         # for this dataset, z values are already integer index instead of um
-        spot_px_z = spot_table.z.astype(int)
+        if spot_table.z is None:
+            spot_px_z = np.zeros(len(spot_table), dtype=int)
+        else:
+            spot_px_z = spot_table.z.astype(int)
 
         # some spots may be a little past the edge of the image; 
         # just clip these as they'll be discarded when tiles are merged anyway
@@ -462,3 +474,33 @@ class BaysorSegmentationResult(SegmentationResult):
             self._cell_ids = self.result['cell']
 
         return self._cell_ids
+
+
+
+def dilate_labels(img, radius):
+    """Dilate labeled regions of an image.
+
+    Given an image with 0 in the background and objects labeled with different integer values (such
+    as a cell segmentation mask), return a new image with objects expanded by *radius*.
+
+    (Credit: https://stackoverflow.com/a/70261747)
+    """
+    mask = img > 0
+
+    # fill in all pixels with nearest non-zero value
+    inds = np.where(mask)
+    interpolator = scipy.interpolate.NearestNDInterpolator(np.transpose(inds), img[inds])
+    interpolated = interpolator(*np.indices(img.shape))
+
+    # make a dilated mask to return background pixels to 0
+    ri = int(np.ceil(radius))
+    if img.ndim == 2:
+        circle = np.fromfunction(lambda i,j: (((i-ri)**2 + (j-ri)**2) ** 0.5) < radius, (ri*2+1, ri*2+1)).astype(int)
+    elif img.ndim == 3:
+        circle = np.fromfunction(lambda i,j,k: (((i-ri)**2 + (j-ri)**2 + (k-ri)**2) ** 0.5) < radius, (ri*2+1, ri*2+1, ri*2+1)).astype(int)
+    else:
+        raise TypeError(f"Not implemented for {img.ndim}D images")
+    dilated_mask = scipy.ndimage.grey_dilation(mask, footprint=circle)
+    interpolated[~dilated_mask] = 0
+
+    return interpolated
