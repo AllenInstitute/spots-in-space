@@ -5,10 +5,10 @@ from scipy.spatial import Delaunay
 import pandas
 
 from .optional_import import optional_import
-tqdm = optional_import('tqdm.notebook', names=['tqdm'])
+tqdm = optional_import('tqdm.notebook', names='tqdm')
 geojson = optional_import('geojson')
 shapely = optional_import('shapely')
-MultiLineString = optional_import('shapely.geometry', names=['MultiLineString'])
+MultiLineString = optional_import('shapely.geometry', names='MultiLineString')
 unary_union, polygonize = optional_import('shapely.ops', ['unary_union', 'polygonize'])
 
 from .image import ImageStack
