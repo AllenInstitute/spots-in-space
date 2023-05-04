@@ -437,6 +437,13 @@ class SpotTable:
 
     def filter_cells(self, real_cells=None, min_spot_count=None):
         """Return a filtered spot table containing only cells matching the filter criteria.
+
+        Parameters
+        ----------
+        real_cells : bool|None
+            If True, include only spots that are segmented to a cell (cell IDs > 0)
+        min_spot_count : int|None
+            Include only spots that are segmented to cells with a minimum number of spots
         """
         cells, counts = np.unique(self.cell_ids, return_counts=True)
 

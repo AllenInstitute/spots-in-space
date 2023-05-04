@@ -20,8 +20,10 @@ def run_segmentation(load_func, load_args:dict, subregion:dict|None, method_clas
 
     if result_file is not None:
         result.save(result_file)
+        print(f"saved segmentation result to {result_file}")
     if cell_id_file is not None:
         np.save(cell_id_file, result.cell_ids)
+        print(f"saved segmentated cell IDs to {cell_id_file}")
 
 
 class SegmentationResult:
@@ -137,10 +139,10 @@ class CellposeSegmentationMethod(SegmentationMethod):
         images = {}
         if 'nuclei' in self.options['images']:
             img_spec = self.options['images']['nuclei']
-            images['nuclei'] = self._read_image_spec(img_spec, spot_table)
+            images['nuclei'] = self._read_image_spec(img_spec, spot_table, px_size=self.options['px_size'], images=images)
         if 'cyto' in self.options['images']:
             img_spec = self.options['images']['cyto']
-            img = self._read_image_spec(img_spec, spot_table, nuclei_img=images.get('nuclei', None))
+            img = self._read_image_spec(img_spec, spot_table, px_size=self.options['px_size'], images=images)
             images['cyto'] = img
         self.images = images
 
@@ -201,33 +203,55 @@ class CellposeSegmentationMethod(SegmentationMethod):
             
         return result
 
-    def _read_image_spec(self, img_spec, spot_table, nuclei_img=None):
+    def _read_image_spec(self, img_spec, spot_table, px_size, images):
         """Return an Image to be used in segmentation based on img_spec:
         
         - An Image instance is returned as-is
         - "total_mrna" returns an image generated from spot density
         - Any other string returns an image channel attached to the spot table
         - {'channel': channel, 'frame': int} can be used to select a single frame
+        - {'channel': 'total_mrna', 'gauss_kernel': (1, 3, 3), 'median_kernel': (2, 10, 10)} can be ued to configure total mrna image generation
         """
-        # optionally, cyto image may be generated from spot table total mrna
-        if img_spec == 'total_mrna':
-            return self.get_total_mrna_image(spot_table, nuclei_img=nuclei_img)
-        elif isinstance(img_spec, str):
-            return spot_table.get_image(channel=img_spec)
-        elif isinstance(img_spec, ImageBase):
+        # optionally, cyto image may be generated from spot table total mrna        
+        if img_spec is None or isinstance(img_spec, ImageBase):
             return img_spec
-        elif isinstance(img_spec, dict):
-            return spot_table.get_image(channel=img_spec['channel'], frame=img_spec['frame'])
+        if isinstance(img_spec, str):
+            img_spec = {'channel': img_spec}
+        if not isinstance(img_spec, dict):
+            raise TypeError(f"Bad image spec: {img_spec}")
+
+        if img_spec['channel'] == 'total_mrna':
+            opts = img_spec.copy()
+            opts.pop('channel')
+            opts.update(self._suggest_image_spec(spot_table, px_size, images))
+            return self.get_total_mrna_image(spot_table, **opts)
         else:
-            raise TypeError("Bad image spec:", img_spec)
+            return spot_table.get_image(channel=img_spec['channel'], frame=img_spec['frame'])
 
-    def get_total_mrna_image(self, spot_table, nuclei_img, gauss_kernel=(1, 3, 3), median_kernel=(2, 10, 10)):
-        if nuclei_img is None:
-            raise NotImplementedError()  # we just need to make up a reasonable image resolution instead
+    def _suggest_image_spec(self, spot_table, px_size, images):
+        """Given a pixel size, return {'image_shape': shape, 'image_transform': tr} covering the entire area of spot_table.
+        If any images are already present, use those as templates instead.
+        """
+        if len(images) > 0:
+            img = list(images.values())[0]
+            return {'image_shape': img.shape[:3], 'image_transform': img.transform}
+
+        bounds = np.array(spot_table.bounds())
+        scale = 1 / px_size
+        shape = np.ceil((bounds[:, 1] - bounds[:, 0]) * scale).astype(int)
+        
+        tr_matrix = np.zeros((2, 3))
+        tr_matrix[0, 0] = tr_matrix[1, 1] = scale
+        tr_matrix[:, 2] = -scale * bounds[:, 0]
+        image_tr = ImageTransform(tr_matrix)
+        
+        return {'image_shape': (1, shape[0], shape[1]), 'image_transform': image_tr}
+
+    def get_total_mrna_image(self, spot_table, image_shape:tuple, image_transform:ImageTransform, gauss_kernel=(1, 3, 3), median_kernel=(2, 10, 10)):
             
-        density_img = np.zeros(nuclei_img.shape[:3], dtype='float32')
+        density_img = np.zeros(image_shape[:3], dtype='float32')
 
-        spot_px = self.map_spots_to_img_px(spot_table, nuclei_img)
+        spot_px = self.map_spots_to_img_px(spot_table, image_transform=image_transform, image_shape=image_shape)
         n_planes = density_img.shape[0]
         for i in range(n_planes):
             z_mask = spot_px[..., 0] == i
@@ -235,8 +259,8 @@ class CellposeSegmentationMethod(SegmentationMethod):
             y = spot_px[z_mask, 2]
             bins = [
                 # is this correct? test on rectangular tile
-                np.arange(nuclei_img.shape[1]+1),
-                np.arange(nuclei_img.shape[2]+1),
+                np.arange(image_shape[1]+1),
+                np.arange(image_shape[2]+1),
             ]
             density_img[i] = np.histogram2d(x, y, bins=bins)[0]
 
@@ -245,17 +269,20 @@ class CellposeSegmentationMethod(SegmentationMethod):
         density_img = scipy.ndimage.gaussian_filter(density_img, gauss_kernel)
         density_img = scipy.ndimage.median_filter(density_img, median_kernel)
         
-        # todo: use a global normalization range
-        
-        density_img = density_img * (nuclei_img.get_data().max() / density_img.max())
-        
-        return Image(density_img[..., np.newaxis], transform=nuclei_img.transform, channels=['Total mRNA'], name=None)
+        return Image(density_img[..., np.newaxis], transform=image_transform, channels=['Total mRNA'], name=None)
 
-    def map_spots_to_img_px(self, spot_table:SpotTable, image:Image):
-        """Map spot table (x, y, z) positions to image (frame, row, col)
+    def map_spots_to_img_px(self, spot_table:SpotTable, image:Image|None=None, image_transform:ImageTransform|None=None, image_shape:tuple|None=None):
+        """Map spot table (x, y, z) positions to image (frame, row, col). 
+
+        Optionally, provide the *image_transform* and *image_shape* instead of *image*.
         """
+        if image is not None:
+            assert image_transform is None and image_shape is None
+            image_shape = image.shape
+            image_transform = image.transform
+
         spot_xy = spot_table.pos[:, :2]
-        spot_px_rc = np.floor(image.transform.map_to_pixels(spot_xy)).astype(int)
+        spot_px_rc = np.floor(image_transform.map_to_pixels(spot_xy)).astype(int)
 
         # for this dataset, z values are already integer index instead of um
         if spot_table.z is None:
@@ -265,8 +292,8 @@ class CellposeSegmentationMethod(SegmentationMethod):
 
         # some spots may be a little past the edge of the image; 
         # just clip these as they'll be discarded when tiles are merged anyway
-        spot_px_rc[:, 0] = np.clip(spot_px_rc[:, 0], 0, image.shape[1]-1)
-        spot_px_rc[:, 1] = np.clip(spot_px_rc[:, 1], 0, image.shape[2]-1)
+        spot_px_rc[:, 0] = np.clip(spot_px_rc[:, 0], 0, image_shape[1]-1)
+        spot_px_rc[:, 1] = np.clip(spot_px_rc[:, 1], 0, image_shape[2]-1)
         
         return np.hstack([spot_px_z[:, np.newaxis], spot_px_rc])
 
