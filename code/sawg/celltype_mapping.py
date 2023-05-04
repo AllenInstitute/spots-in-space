@@ -100,6 +100,8 @@ class TangramMapping(CellTypeMapping):
         sc_data: AnnData object or filename of AnnData object representing single-cell or singcle-nucleus data or None
         sp_data: AnnData object or filename of AnnData object representing spatial transcriptomics data or None
         """
+        import scanpy as sc
+
         self.run_directory = None
        
         if isinstance(sc_data, str):
@@ -192,11 +194,6 @@ class TangramMapping(CellTypeMapping):
         if 'tangram_ct_pred' not in self.ad_sp.obsm.keys():
             tg.project_cell_annotations(self.ad_map, self.ad_sp, annotation=mapping_level)
         
-        levels = [l for l in levels if l in self.ad_sc.obs.columns]
-
-        labels = self.ad_sc.obs[levels].drop_duplicates()
-        labels.set_index(mapping_level, inplace=True, drop=True)
-        
         spatial_prob = self.ad_sp.obsm['tangram_ct_pred']
         spatial_prob_norm = (spatial_prob - spatial_prob.min()) / (spatial_prob.max() - spatial_prob.min())
         self.ad_sp.obsm['tangram_ct_pred_norm'] = spatial_prob_norm
@@ -214,6 +211,17 @@ class TangramMapping(CellTypeMapping):
 
         discrete_mapping = discrete_mapping.merge(pd.DataFrame(max_prob), left_index=True, right_index=True)
         discrete_mapping = discrete_mapping.merge(self.ad_sp.obs[['x', 'y']], left_index=True, right_index=True)
+        
+        # fill in other levels of the hierarchy from known mappings in refence data.
+        levels = [l for l in levels if l in self.ad_sc.obs.columns]
+        if len(levels)==0:
+            print('No other heirarchy levels match reference data. Check self.ad_sc.obs.columns and set levels accordingly')
+        else:
+            labels = self.ad_sc.obs[levels].drop_duplicates()
+            labels.set_index(mapping_level, inplace=True, drop=True)
+            discrete_mapping = discrete_mapping.merge(labels, left_on=mapping_level, right_index=True)
+
+        discrete_mapping = discrete_mapping.reindex(self.ad_sp.obs.index)
         self.ad_sp.obsm['discrete_ct_pred'] = discrete_mapping
     
     def plot_discrete_mapping(self, level: str|None=None, groups: dict|None=None, args: dict={}):
@@ -227,7 +235,7 @@ class TangramMapping(CellTypeMapping):
         if level is None:
             level = self.meta['cluster_label']
         
-        scatter = {'s': 10, 'alpha': 0.7, 'lw': 0}
+        scatter = {'s': 10, 'alpha': 0.7, 'linewidth': 0}
         scatter.update(args)
 
         data = self.ad_sp.obsm['discrete_ct_pred']
@@ -250,12 +258,13 @@ class TangramMapping(CellTypeMapping):
         
         return fig
 
-    def plot_discrete_mapping_probability(self, groups: dict|None=None, args: dict={}):
+    def plot_discrete_mapping_probability(self, groups: dict|None=None, level: str|None=None, args: dict={}):
         # checking for tangram_ct_pred_norm for backwards compatability 
         if 'discrete_ct_pred' not in self.ad_sp.obsm.keys() or 'tangram_ct_pred_norm' not in self.ad_sp.obsm.keys(): 
             self.get_discrete_cell_mapping()
         
-        level = self.meta['cluster_label']
+        if level is None:
+            level = self.meta['cluster_label']
 
         violin = {'cut': 0}
         violin.update(args)
@@ -266,7 +275,7 @@ class TangramMapping(CellTypeMapping):
             for i, (group_name, group) in enumerate(groups.items()):
                 subdata = data[data[level].isin(group)]
                 
-                sns.violinplot(data=subdata, x=level, y=level + '_prob', ax=ax[i], order=group, **violin)
+                sns.violinplot(data=subdata, x=level, y=self.meta['cluster_label'] + '_prob', ax=ax[i], order=group, **violin)
                 ax[i].set_ylabel('Max probability')
                 ax[i].set_xticklabels(ax[i].get_xticklabels(), rotation = 45, ha='right')
                 ax[i].set_title(group_name)
@@ -275,7 +284,7 @@ class TangramMapping(CellTypeMapping):
         
         else:
             fig, ax = plt.subplots(figsize=(15, 3))
-            sns.violinplot(data=data, x=level, y=level + '_prob', ax=ax, sort=True, **violin)
+            sns.violinplot(data=data, x=level, y=self.meta['cluster_label'] + '_prob', ax=ax, sort=True, **violin)
             ax.set_ylabel('Max probability')
             ax.set_xticklabels(ax.get_xticklabels(), rotation = 45, ha='right')
             
@@ -299,7 +308,7 @@ class CKMapping(CellTypeMapping):
     """
     Currently for CKmapping mapping occurs on HPC through a separate script. This class loads in results for analysis
     """
-    def __init__(self, sp_data: 'AnnData'|str, sc_data: 'AnnData'|str, mapping_result_path: str, meta: dict={}):
+    def __init__(self, sp_data: 'AnnData'|str, mapping_result_path: str, meta: dict={}):
         """
         sp_data: AnnData object or filename of AnnData object representing spatial transcriptomics data or None
         mapping_result_path: file path to CK mapping result which should be a .rda file
@@ -310,10 +319,6 @@ class CKMapping(CellTypeMapping):
 
         self.run_directory = mapping_result_path
        
-        if isinstance(sc_data, str):
-            ad_sc = sc.read_h5ad(sc_data)
-        else:
-            ad_sc = sc_data
         if isinstance(sp_data, str):
             print('loading spatial data...')
             ad_sp = ad.read_h5ad(sp_data)
@@ -385,21 +390,21 @@ class CKMapping(CellTypeMapping):
 
         # Set X to cell x gene reduced to genes used for mapping from all.markers if available otherwise use all genes
         if 'all.markers' in uns.keys(): 
-            X = ad_sp[:, uns['all.markers']].X.to_df()
+            X = ad_sp[:, uns['all.markers']].to_df()
         else:
-            X = ad_sp.X.to_df()
+            X = ad_sp.to_df()
 
         # make quasi confusion matrix (cell x celltype prob)
         # AnnData refuses to believe that map_freq.pivot and best_mapping have equal indexes even though
         # they do so hack around to force it so that AnnData doesn't error
     
         obsm_vals = map_freq.pivot(columns='cluster_label', values='freq').fillna(0)
-        obsm_index = pd.DataFrame(index=best_mapping.index)
-        obsm = X_index.merge(X_vals, left_index=True, right_index=True)
+        obsm_index = pd.DataFrame(index=ad_sp.obs.index)
+        obsm = obsm_index.merge(obsm_vals, left_index=True, right_index=True)
 
         ad_map = ad.AnnData(
             X = X,
-            obs = best_mapping.merge(ad_sp.obs, left_index=True, right_index=True),
+            obs = ad_sp.obs.merge(best_mapping, left_index=True, right_index=True),
             obsm = {'map_prob_matrix': obsm},
             uns = uns
         )
@@ -425,7 +430,6 @@ class CKMapping(CellTypeMapping):
         })
         
         self.ad_sp = ad_sp
-        self.ad_sc = ad_sc
         self.ad_map = ad_map
         self.meta = meta
 
@@ -527,7 +531,7 @@ class ScrattchMapping(CellTypeMapping):
         """
            
         if isinstance(sp_data, str):
-            print('loading spatial data...')
+            print(f'loading spatial data from {sp_data}...')
             ad_sp = ad.read_h5ad(sp_data)
         else:
             ad_sp = sp_data
@@ -562,7 +566,7 @@ class ScrattchMapping(CellTypeMapping):
 
         # scrattch_map catches if the gene names are only listed in the index. Make them a column
         if ad_map.var.shape[1]==0:
-            ad_map.var.reset_index(names='gene', inplace=True)
+            ad_map.var['gene'] = ad_map.var_names
 
         if ad_sp_layer is not None:
             ad_map.layers['raw_counts'] = ad_map.X
@@ -571,17 +575,17 @@ class ScrattchMapping(CellTypeMapping):
         ad_map.uns.update({'taxonomy_path': self.taxonomy_path})
         
         self.meta.update(meta)
-        self._set_run_directory(save_path)
-        ad_map.write_h5ad(self.run_directory + '/scrattch_map_anndata.h5ad')
         self.ad_map = ad_map
-        self.save_mapping(file_name='pre_map')
+        self.save_mapping(save_path=save_path, file_name='pre_map')
+        ad_map.write_h5ad(self.run_directory + '/scrattch_map_anndata.h5ad')
 
     def load_scrattch_mapping_results(self):
         # use to load scrattch mapping results back in for analysis
         # results will be saved in obsm field of anndata in R script
         
         scrattch_map_results = ad.read_h5ad(self.run_directory + '\scrattch_map_results.h5ad')
-        self.ad_map.obs = self.ad_map.obs.merge(scrattch_map_results.obsm['mapping_results'], left_index=True, right_index=True)
+        self.ad_map.obs = self.ad_map.obs.merge(scrattch_map_results.obsm['mapping_results'], left_index=True, right_index=True, suffixes=('_drop', ''))
+        self.ad_map.obs.drop([col for col in self.ad_map.obs.columns if 'drop' in col], axis=1, inplace=True)
         self.ad_map.uns.update(scrattch_map_results.uns)
         self.save_mapping(save_path=self.run_directory, replace=True)
     
