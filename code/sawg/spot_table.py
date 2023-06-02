@@ -353,6 +353,8 @@ class SpotTable:
                         bytes_read += len(lines[-1])
                         if max_rows is not None and max_rows <= n_rows:
                             hit_max_rows = True
+                            extra_rows = n_rows - max_rows
+                            lines = lines[:-extra_rows]
                             break
               
                     raw_data = np.loadtxt(lines, usecols=usecols, delimiter='\t', dtype=dtype)
