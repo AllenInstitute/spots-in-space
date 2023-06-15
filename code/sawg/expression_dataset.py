@@ -9,11 +9,14 @@ import numpy as np
 import pickle as pkl
 from datetime import datetime
 import inspect
+import anndata as ad
+from sawg.celltype_mapping import CellTypeMapping
 
 _r_init_done = False
 rinterface = None
 def importr(lib):
     # os.environ['R_HOME'] = 'C:\\Users\stephanies\AppData\Local\Continuum\miniconda3\envs\r_env\lib\R'
+    # os.environ['R_HOME'] = "C:/PROGRA~1/R/R-43~1.0"
     global _r_init_done, rinterface, ro
     import rpy2.robjects as ro
     from rpy2.robjects.packages import importr as rpy2_importr
@@ -21,7 +24,7 @@ def importr(lib):
     from rpy2.robjects import pandas2ri
     if not _r_init_done:
         pandas2ri.activate()
-        # print('pandas2ri activated')
+        print('pandas2ri activated')
         readr = rpy2_importr('readr')
     return rpy2_importr(lib)
 
@@ -31,25 +34,21 @@ class ExpressionDataset:
 
     Parameters
     ----------
-    expression_data : pandas dataframe
-        Dataframe containing count of genes detected per cell. Columns are genes, with gene names contained in the column names.
-        Rows are samples (cells), with the sample IDs contained in the index.
+    expression_data : AnnData 
+        AnnData with following attributes:
+            X: cell x gene count
+            obs: cell annotations with at least 'class', 'subclass', 'cluster' annotations
+            var: gene names
     expression_type : str
-        Indicates the kind of data in *expression_data*. Options are "raw" (raw expression counts), "cpm", "logcpm", "binary"
-    annotation_data : pandas dataframe | None
-        Dataframe containing per-cell annotations. Each row is one cell, with sample name contained in the index.
-        Columns should include 'cluster', 'subclass', and 'class'.
+        Indicates the kind of data in *expression_data.X*. Options are "raw" (raw expression counts), "cpm", "logcpm", "binary"
     region : string
         Region of the brain this data comes from
     save_path : string
         Directory to save date for later recall
-    logcounts : bool
-        Whether the gene counts are log normalized or not
     """
-    def __init__(self, expression_data: pandas.DataFrame, expression_type, annotation_data: pandas.DataFrame=None, region: str=None, save_path: str=None):
+    def __init__(self, expression_data: ad.AnnData, expression_type,  region: str=None, save_path: str=None):
         self.expression_data = expression_data
         self.expression_type = expression_type
-        self.annotation_data = annotation_data
         self.region = region
 
         if save_path is not None:
@@ -69,6 +68,7 @@ class ExpressionDataset:
         return self.expression_data.columns
 
     def normalize(self, expression_type: str):
+        ## Needs updating to be compatible with expression_dataset = AnnData
         """Return a normalized copy of this dataset.
 
         Parameters
@@ -117,10 +117,15 @@ class ExpressionDataset:
         if max_n_samples is None:
             max_n_samples = len(expression)
 
+        anndata = ad.AnnData(
+            X = expression.iloc[:max_n_samples],
+            obs = annotations.iloc[:max_n_samples],
+            var = pandas.DataFrame(index=expression.columns)
+        )
+
         exp_data = ExpressionDataset(
-            expression_data=expression.iloc[:max_n_samples],
+            expression_data=anndata,
             expression_type=expression_type,
-            annotation_data=annotations.iloc[:max_n_samples],
         )
 
         return exp_data
@@ -139,7 +144,7 @@ class ExpressionDataset:
         return exp_data
     
     def select_genes(self, genes: list) -> 'ExpressionDataset':
-        exp_data = self.copy(expression_data=self.expression_data[genes])
+        exp_data = self.copy(expression_data=self.expression_data[:, genes])
         if hasattr(self, 'run_directory'):
             exp_data.run_directory = self.run_directory
         
@@ -150,7 +155,6 @@ class ExpressionDataset:
         """
         default_kwds = dict(
             expression_data=self.expression_data,
-            annotation_data=self.annotation_data,
             expression_type=self.expression_type,
         )
         default_kwds.update(kwds)
@@ -162,7 +166,7 @@ class ExpressionDataset:
 class GenePanelSelection:
     """Contains a gene panel selection as well as information about how the selection was performed.
     """
-    def __init__(self, exp_data: ExpressionDataset, gene_panel: list, method: 'GenePanelMethod', args: dict):
+    def __init__(self, exp_data: ExpressionDataset, gene_panel: list, method: 'GenePanelMethod', args: dict={}):
         self.exp_data = exp_data
         self.gene_panel = gene_panel
         self.method = method
@@ -198,8 +202,31 @@ class GenePanelSelection:
         
         return selection
 
-    def evaluate_panel(self, method: 'GenePanelMethod'):
-        raise NotImplementedError()
+    def eval_method(self, method: CellTypeMapping):
+        self.eval = method
+        self.eval._set_run_directory(save_path=self.run_directory)
+    
+    def get_confusion_matrix(self, **args):
+        # instantiate in evaluation method of CellTypeMapping class
+        if self.eval is not None:
+            self.confusion_matrix = self.eval.get_confusion_matrix(self.eval, **args)
+        else:
+            raise NotImplementedError('No GenePanelSelection evaluation method is defined')
+    
+    def get_fraction_mapped(self, **args):
+        # pull fraction mapped from diagonal of confusion matrix
+        if self.confusion_matrix is None:
+            if self.eval is None:
+                raise NotImplementedError('No GenePanelSelection evaluation method is defined to generate confusion matrix')
+            try:
+                self.confusion_matrix = self.eval.get_confusion_matrix(self.eval, **args)
+            except:
+                raise("Tried generating confusion matrix but don't have appropriate arguments")
+                
+            self.fraction_mapped = self.eval.get_fraction_mapped(self.eval, self.confusion_matrix, **args)
+        else:
+            raise NotImplementedError('No GenePanelSelection evaluation method is defined')
+        
 
 class GenePanelMethod():
     def select_gene_panel(self, size: int, data: ExpressionDataset, args: dict={}) -> GenePanelSelection:
@@ -244,10 +271,8 @@ class ScranMethod(GenePanelMethod):
 class GeneBasisMethod(GenePanelMethod):
 
     def __init__(self, exp_data: ExpressionDataset):
+        exp_data.expression_data.obs.index.rename('cell', inplace=True) # <- renaming sample_id to 'cell' is important for geneBasis ability to read the file and align with the expression data
         self.exp_data = exp_data
-        anno = exp_data.annotation_data.copy()
-        anno.index.rename('cell', inplace=True) # <- renaming sample_id to 'cell' is important for geneBasis ability to read the file and align with the expression data
-        self.exp_data = exp_data.copy(annotation_data=anno)
         self.sce = None
         self.gB = importr('geneBasisR')
         self.SummarizedExperiment = importr('SummarizedExperiment')
@@ -264,14 +289,14 @@ class GeneBasisMethod(GenePanelMethod):
         if os.path.exists(expression_data_filename):
             print(f'{expression_data_filename} already exists')
         else: 
-            expression_data = self.exp_data.expression_data.T  
+            expression_data = self.exp_data.expression_data.to_df().T  
             expression_data.to_csv(expression_data_filename, index_label=False) # having an index label throws off the matchup between the expression and anno files
         self.expression_data_file = expression_data_filename    
         annotation_data_filename = os.path.join(path, 'annotation_data.csv')
         if os.path.exists(annotation_data_filename):
             print(f'{annotation_data_filename} already exists')
         else:
-            self.exp_data.annotation_data.to_csv(annotation_data_filename)
+            self.exp_data.expression_data.obs.to_csv(annotation_data_filename)
         self.annotation_data_file = annotation_data_filename
     
     def raw_to_sce(self, args: dict):
@@ -469,6 +494,55 @@ class PROPOSEMethod(GenePanelMethod):
 
         return gps
 
+class mFISHtoolsMethod(GenePanelMethod):
+    def __init__(self, exp_data: ExpressionDataset):
+        self.exp_data = exp_data
+        self.run_directory = self.exp_data.run_directory
+        self.filter_genes_params = None
+
+    def filter_genes(self, starting_genes: list, num_binary_genes: int=3000, **args):
+        filter_genes_params = {
+            'startingGenes': starting_genes,
+            'numBinaryGenes': num_binary_genes,
+        }
+
+        filter_genes_params.update(**args)
+        
+        self.filter_genes_params = filter_genes_params
+
+    def select_gene_panel(self, size: int, cluster_label: str, **args):
+        output_ad = self.exp_data.expression_data.copy()
+        output_ad.obs.rename(columns={cluster_label: 'cluster_label'}, inplace=True) # controlled strings for mFISHtools
+        build_panel_params = {
+            'panelSize': size,
+            'currentPanel': self.filter_genes_params['startingGenes'] if self.filter_genes_params is not None else []
+        }
+        build_panel_params.update(**args)
+        self.build_panel_params = build_panel_params
+
+        output_ad.uns['build_panel'] = build_panel_params
+        if self.filter_genes_params is not None:
+            output_ad.uns['filter_panel'] = self.filter_genes_params
+
+        output_ad.write_h5ad(self.run_directory + '/mfishtools_ad.h5ad')
+
+    def load_gene_panel(self, args: dict={}):
+        gene_list = pandas.read_csv(self.run_directory + '/gene_list.csv', names=['gene'], header=0)
+        
+        args.update({
+                'n_genes_selected': len(gene_list),
+                'expression_data_type': self.exp_data.expression_type,
+                'file_name': 'gene_panel_selection',
+                })
+
+        gps = GenePanelSelection(
+            exp_data = self.exp_data,
+            gene_panel = gene_list['gene'].to_list(),
+            method = self,
+            args=args,
+        )
+
+        return gps
 
 class SeuratMethod(GenePanelMethod):
     def select_gene_panel(self, size: int, data: ExpressionDataset, flavor='seurat_v3') -> GenePanelSelection:
@@ -527,7 +601,7 @@ def gene_basis_panel_eval(gene_panel: GenePanelSelection, levels: list=['class',
 
     return panel_eval
 
-def marker_gene_eval(gene_panel: GenePanelSelection, marker_gene_files: dict):
+def marker_gene_eval(gene_panel: GenePanelSelection, marker_gene_files: dict, cluster_col='cluster', gene_col='gene'):
     """Evaluates how many known marker genes are present in the gene panel
 
     Parameters
@@ -536,15 +610,15 @@ def marker_gene_eval(gene_panel: GenePanelSelection, marker_gene_files: dict):
         GenePanelSelection with list of genes to perform evaluation on
     marker_gene_files: dictionary
         Dictionary where keys are the level (cluster, subclass, class) of the marker genes
-        and values are csv files with at least one column called 'cluster' that specifies the
-        cell group and 'gene' specifying a marker gene for that group
+        and values are csv files with at one column designating the cell group (cluster_col)  
+        and another column specifying a marker gene for that group (gene_col)
     """
 
     marker_gene_dict = {}
     for level, marker_gene_file in marker_gene_files.items():
         marker_genes = pandas.read_csv(marker_gene_file)
-        marker_genes = marker_genes[['cluster', 'gene']]
-        marker_genes['in_gene_panel'] = marker_genes.apply(lambda x: x['gene'] in gene_panel.gene_panel, axis=1)
+        marker_genes = marker_genes[[cluster_col, gene_col]]
+        marker_genes['in_gene_panel'] = marker_genes.apply(lambda x: x[gene_col] in gene_panel.gene_panel, axis=1)
         marker_gene_dict[level] = marker_genes
     
     marker_genes_df = pandas.concat(marker_gene_dict, axis=1)
@@ -566,6 +640,8 @@ def norm_confusion_matrix(confusion_matrix: pandas.DataFrame):
         norm_matrix = {}
         for level in confusion_matrix.columns.levels[0].to_list():
             table = confusion_matrix[level].dropna(how='all')
+            if 'All' not in table.T.columns:
+                table.loc['All'] = table.sum(axis=0)
             norm_table = table.apply(lambda x: x/table.loc['All'], axis=1)
             norm_table.drop(columns='All', inplace=True)
             norm_table.drop(labels='All', inplace=True)
@@ -573,10 +649,11 @@ def norm_confusion_matrix(confusion_matrix: pandas.DataFrame):
         return pandas.concat(norm_matrix, axis=1)
     else:
         table = confusion_matrix
-        norm_matrix = table.apply(lambda x: x/table.iloc['All'], axis=1)
+        if 'All' not in table.T.columns:
+            table.loc['All'] = table.sum(axis=0)
+        norm_matrix = table.apply(lambda x: x/table.loc['All'], axis=1)
         norm_matrix.drop(columns='All', inplace=True)
         norm_matrix.drop(labels='All', inplace=True)
-
         return norm_matrix
 
 def load_panel_eval(path: str):
