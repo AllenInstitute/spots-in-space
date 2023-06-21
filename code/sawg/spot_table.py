@@ -474,6 +474,61 @@ class SpotTable:
         cell_by_gene_df.columns = self.map_gene_ids_to_names(cell_by_gene_df.columns)
         return cell_by_gene_df
 
+    def cell_by_gene_sparse_matrix(self, dtype='uint16'):
+        """Return cell-by-gene data in a CSR sparse matrix. 
+
+        Also return cell_ids and gene_ids used to construct the matrix
+        """
+        import scipy.sparse
+
+        # collect cell and gene data
+        gene_ids = np.unique(self.gene_ids)
+        cell_ids = np.unique(self.cell_ids)
+        cell_id_inds = {cid:i for i,cid in enumerate(cell_ids)}
+        gene_id_inds = {gid:i for i,gid in enumerate(gene_ids)}
+
+        # count genes per cell into a dict format 
+        #   {cell_index: {gene_index1: count1, ...}, ...}
+        print("Counting genes...")
+        cellxgene_dict = {}
+        for i in tqdm(range(len(self))):
+            cind = cell_id_inds[self.cell_ids[i]]
+            gind = gene_id_inds[self.gene_ids[i]]
+            cellrow = cellxgene_dict.setdefault(cind, {})
+            cellrow.setdefault(gind, 0)
+            cellrow[gind] += 1
+
+        # convert to sparse matrix
+        data = []
+        rowind = []
+        colind = []
+        print("Generating sparse matrix...")
+        for cindex, cellrow in tqdm(cellxgene_dict.items()):
+            for gindex, count in cellrow.items():
+                data.append(count)
+                rowind.append(cindex)
+                colind.append(gindex)
+
+        cellxgene = scipy.sparse.csr_matrix((data, (rowind, colind)), dtype=dtype)
+        return cellxgene, cell_ids, gene_ids
+
+    def cell_by_gene_anndata(self, x_dtype='uint16'):
+        """Return a cell x gene table in AnnData format with cell centroids in x,y obs columns.
+        """
+        import anndata
+        print("Generating cell x gene table...")
+        cellxgene, cell_ids, gene_ids = self.cell_by_gene_sparse_matrix()
+        gene_names = self.map_gene_ids_to_names(gene_ids)
+        print("Calculating cell centroids...")
+        centroids = self.cell_centroids()
+
+        adata = anndata.AnnData(cellxgene)
+        adata.obs_names = cell_ids
+        adata.var_names = gene_names
+        adata.obs['x'] = centroids[:, 0]
+        adata.obs['y'] = centroids[:, 1]
+        return adata
+
     def cell_bounds(self, cell_id: int):
         """Return xmin, xmax, ymin, ymax for *cell_id*
         """
@@ -489,6 +544,13 @@ class SpotTable:
                     rows[:,1].max(),
                 )
         return self._cell_bounds[cell_id]
+
+    def cell_centroids(self):
+        """Return an array of cell centroids calculated as the center of the bounding box for each cell."""
+        cells = np.unique(self.cell_ids)
+        cell_bounds = np.array([self.cell_bounds(cid) for cid in cells])
+        centroids = 0.5 * (cell_bounds[:, 1::2] + cell_bounds[:, ::2])
+        return centroids
 
     @staticmethod
     def cell_polygon(cell_points_array, alpha_inv):
