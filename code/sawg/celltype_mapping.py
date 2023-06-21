@@ -29,10 +29,13 @@ class CellTypeMapping():
                 self._ordered_labels = json.load(file)
         return self._ordered_labels
 
-    def _set_run_directory(self, save_path):
+    def _create_run_directory(self, save_path):
         dir_ts = '{:0.3f}'.format(datetime.now().timestamp())
         self.run_directory = os.path.join(save_path, dir_ts)
         os.mkdir(self.run_directory)
+
+    def _set_run_directory(self, save_path):
+        self.run_directory = save_path
 
     def save_mapping(self, save_path: str|None=None, file_name:str='mapping', meta:dict={}, replace=False):
         self.meta.update(meta)
@@ -40,7 +43,7 @@ class CellTypeMapping():
             if save_path is None:
                 print('Must set a directory path')
                 return
-            self._set_run_directory(save_path)
+            self._create_run_directory(save_path)
         with open(os.path.join(self.run_directory, 'meta.json'), "w") as f:
             json.dump(self.meta, f)
         with bz2.BZ2File(os.path.join(self.run_directory, file_name + '.pbz2'), 'w') as f: 
@@ -83,7 +86,7 @@ class CellTypeMapping():
         umap_attr = getattr(self, attr)
 
         if umap_args is not None:
-            mapper = umap.UMAP(umap_args)
+            mapper = umap.UMAP(**umap_args)
         else:
             mapper = umap.UMAP()
         embedding = mapper.fit_transform(umap_attr.X)
@@ -536,7 +539,10 @@ class ScrattchMapping(CellTypeMapping):
         else:
             ad_sp = sp_data
 
-        meta.update({'mapping_method': 'scrattch mapping'})
+        meta.update({'mapping_method': 'scrattch mapping',
+                     'taxonomy': taxonomy_path,
+                      'sp_data_uns': str(dict(ad_sp.uns)),
+                    })
 
         self.ad_sp = ad_sp
         self.taxonomy_path = taxonomy_path
@@ -562,7 +568,8 @@ class ScrattchMapping(CellTypeMapping):
             try:
                 ad_map = self.ad_sp[:, self.ad_sp.var[self.ad_sp.var['probe_type']=='gene'].index.to_list()].copy()
             except KeyError:
-                print('probe type not set in ad_sp.var, moving on..')
+                print('probe type not set in ad_sp.var, assuming only genes in ad_sp.var...')
+                ad_map = self.ad_sp.copy()
 
         # scrattch_map catches if the gene names are only listed in the index. Make them a column
         if ad_map.var.shape[1]==0:
@@ -576,7 +583,8 @@ class ScrattchMapping(CellTypeMapping):
         
         self.meta.update(meta)
         self.ad_map = ad_map
-        self.save_mapping(save_path=save_path, file_name='pre_map')
+        replace = True if self.run_directory is not None else False
+        self.save_mapping(save_path=save_path, file_name='pre_map', replace=replace)
         ad_map.write_h5ad(self.run_directory + '/scrattch_map_anndata.h5ad')
 
     def load_scrattch_mapping_results(self):
@@ -654,6 +662,30 @@ class ScrattchMapping(CellTypeMapping):
                 ax.legend(bbox_to_anchor=(1,1))
             
             return fig
+    
+    def get_confusion_matrix(self, pivot_cols, norm=True):
+        from sawg.expression_dataset import norm_confusion_matrix
+        if type(pivot_cols)==dict:
+            conf_dict = {}
+            for level, pivot in pivot_cols.items():
+                conf_matrix_level = self.ad_map.obs[pivot].pivot_table(columns=pivot[0], index=pivot[1], aggfunc=len, margins=True)
+                conf_matrix_level = conf_matrix_level.loc[conf_matrix_level.columns]
+                conf_matrix_level.index.rename('Mapped', inplace=True)
+                conf_matrix_level.columns.name = 'Annotated'
+                conf_dict[level] = conf_matrix_level
+            conf_matrix = pd.concat(conf_dict, axis=1)
+        else:
+                conf_matrix = self.ad_map.obs[pivot_cols].pivot_table(columns=pivot_cols[0], index=pivot_cols[1], aggfunc=len, margins=True)
+                conf_matrix = conf_matrix.loc[conf_matrix.columns]
+                conf_matrix.index.rename('Mapped', inplace=True)
+                conf_matrix.columns.name = 'Annotated'
+        
+        if norm is True:
+            norm_conf_matrix = norm_confusion_matrix(conf_matrix)
+            return norm_conf_matrix
+        else:
+            return conf_matrix
+    
 
 def convert_to_anndata(sc_data: ExpressionDataset|None=None, sp_data: SpotTable|None=None, binsize:int|None=None, 
                        annotation_levels:dict={'cluster': 'cluster_label', 'subclass': 'subclass_label', 'class':'class_label'}):
