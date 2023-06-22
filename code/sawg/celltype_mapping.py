@@ -13,6 +13,7 @@ import _pickle as cPickle
 import json
 import anndata as ad
 import umap
+from sawg.hpc import run_slurm
 
 try:
     import tangram as tg
@@ -549,13 +550,47 @@ class ScrattchMapping(CellTypeMapping):
         self.run_directory = None
         self.meta = meta
 
+    def run_on_hpc(self, ad_map_args:dict={}, hpc_args:dict={}, docker: str='singularity exec --cleanenv docker://bicore/scrattch_mapping:latest', r_script: str='scrattch_mapping.R'):
+
+        self.make_mapping_anndata(**ad_map_args)
+
+        print('building HPC job')
+        job_path = hpc_args.get('job_path', '//allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/mapping/')
+        hpc_default = {
+            'hpc_host': 'hpc-login',
+            'job_path': job_path,
+            'partition': 'celltypes',
+            'job_name': 'scrattch-mapping',
+            'nodes': 1,
+            'mincpus': 10,
+            'mem': '300G',
+            'time':'1:00:00',
+            'mail_user': None,
+            'output': job_path + 'hpc_logs/%j.out',
+            'error': job_path + 'hpc_logs/%j.err',
+        }
+
+        hpc_default.update(hpc_args)
+        
+        command = f"""
+                cd {job_path}
+
+                {docker} Rscript {r_script} --dat_path {self.run_directory}
+        """
+        
+        assert 'command' not in hpc_args
+        hpc_default['command'] = command
+        job = run_slurm(**hpc_default)
+        print(job.state(), job.job_id)
+        return job
+    
     def make_mapping_anndata(self, save_path: str, ad_sp_layer: str|None=None, training_genes: list|None=None, meta: dict={}):
         """
+        save_path: where to save out mapping anndata object to load into R script
         ad_sp_layer: scrattch_mapping requires log normalized data, identify where in the ad_sp object
                     this data resides. If None it will be assumed the data is ad_sp.X otherwise identify
                     key for ad_sp.layers
         training_genes: list of genes to use for mapping, if None will use all genes in ad_sp.var_names
-        save_path: where to save out mapping anndata object to load into R script
         """
         if training_genes is not None:
             genes = [tg for tg in training_genes if tg in self.ad_sp.var_names]
@@ -583,19 +618,22 @@ class ScrattchMapping(CellTypeMapping):
         
         self.meta.update(meta)
         self.ad_map = ad_map
-        replace = True if self.run_directory is not None else False
-        self.save_mapping(save_path=save_path, file_name='pre_map', replace=replace)
-        ad_map.write_h5ad(self.run_directory + '/scrattch_map_anndata.h5ad')
+        if self.run_directory is None:
+            self._create_run_directory(save_path)
+        ad_map.write_h5ad(self.run_directory + '/scrattch_map_temp.h5ad')
 
     def load_scrattch_mapping_results(self):
         # use to load scrattch mapping results back in for analysis
         # results will be saved in obsm field of anndata in R script
-        
-        scrattch_map_results = ad.read_h5ad(self.run_directory + '\scrattch_map_results.h5ad')
+        print('loading results...')
+        scrattch_map_results = ad.read_h5ad(self.run_directory + '\scrattch_map_temp.h5ad')
         self.ad_map.obs = self.ad_map.obs.merge(scrattch_map_results.obsm['mapping_results'], left_index=True, right_index=True, suffixes=('_drop', ''))
         self.ad_map.obs.drop([col for col in self.ad_map.obs.columns if 'drop' in col], axis=1, inplace=True)
         self.ad_map.uns.update(scrattch_map_results.uns)
         self.save_mapping(save_path=self.run_directory, replace=True)
+        # delete saved out anndata file
+        print('deleting scrattch-mapping temp file...')
+        os.remove(self.run_directory + '\scrattch_map_temp.h5ad')
     
     def load_taxonomy_anndata(self):
         # the taxonomy anndatas are pretty big, only load if necessary. 

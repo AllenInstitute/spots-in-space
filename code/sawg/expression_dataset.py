@@ -11,6 +11,7 @@ from datetime import datetime
 import inspect
 import anndata as ad
 from sawg.celltype_mapping import CellTypeMapping
+from sawg.hpc import run_slurm
 
 _r_init_done = False
 rinterface = None
@@ -172,11 +173,8 @@ class GenePanelSelection:
         self.method = method
         self.args = args
         self.run_directory = self.exp_data.run_directory
-        if self.run_directory is not None:
-            file_name = self.args.get('file_name', 'gene_panel_selection')
-            file = open(os.path.join(self.run_directory, file_name), 'wb')
-            pkl.dump(self, file)
-            file.close()
+        file_name = self.args.get('file_name', 'gene_panel_selection')
+        self.save_selection(file_name = file_name)
 
     def __getstate__(self):
         return {k:v for (k, v) in self.__dict__.items() if not inspect.ismethod(getattr(self, k))}
@@ -189,9 +187,19 @@ class GenePanelSelection:
     def report(self):
         print(self.args)
 
+    def save_selection(self, save_path:str=None, file_name:str='gene_panel_selection', meta:dict={}):
+        self.args.update(meta)
+        if self.run_directory is None and save_path is None:
+            print('Must specify save path or set GenePanelSelection.run_directory to path')
+            return
+
+        path = save_path if save_path is not None else self.run_directory
+        file = open(os.path.join(path, file_name), 'wb')
+        pkl.dump(self, file)
+        file.close()
 
     @classmethod
-    def load_gene_panel_selection(cls, directory='str', timestamp='str', filename='str'):
+    def load_from_timestamp(cls, directory:str, timestamp:str, filename:str='gene_panel_selection'):
         path = os.path.join(directory, timestamp, filename)
         if os.path.exists(path) is False:
             print(f'{filename} file does not exist for timestamp {timestamp} in directory {directory}')
@@ -500,7 +508,7 @@ class mFISHtoolsMethod(GenePanelMethod):
         self.run_directory = self.exp_data.run_directory
         self.filter_genes_params = None
 
-    def filter_genes(self, starting_genes: list, num_binary_genes: int=3000, **args):
+    def filter_genes(self, starting_genes: list=[], num_binary_genes: int=3000, **args):
         filter_genes_params = {
             'startingGenes': starting_genes,
             'numBinaryGenes': num_binary_genes,
@@ -510,21 +518,58 @@ class mFISHtoolsMethod(GenePanelMethod):
         
         self.filter_genes_params = filter_genes_params
 
-    def select_gene_panel(self, size: int, cluster_label: str, **args):
+    def select_gene_panel(self, size: int, cluster_label: str, panel_args:dict={}, hpc_args:dict={}, 
+                          docker: str='singularity exec --cleanenv docker://bicore/scrattch_mapping:latest', r_script: str='mFISHTools.R'):
+        
+        print('building temp ad_h5ad')
+        self.build_panel_ad(size, cluster_label, panel_args)
+
+        job_path = hpc_args.get('job_path', '//allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/gene_panel_runs/')
+
+        print('building HPC job')
+        hpc_default = {
+            'hpc_host': 'hpc-login',
+            'job_path': job_path,
+            'partition': 'celltypes',
+            'job_name': 'mfishtools',
+            'nodes': 1,
+            'mincpus': 10,
+            'mem': '500G',
+            'time':'3-0:00:00',
+            'mail_user': None,
+            'output': job_path + 'hpc_logs/%j.out',
+            'error': job_path + 'hpc_logs/%j.err',
+        }
+
+        hpc_default.update(hpc_args)
+        
+        command = f"""
+                cd {job_path}
+
+                {docker} Rscript {r_script} --dat_path {self.run_directory}
+            """
+        
+        assert 'command' not in hpc_args
+        hpc_default['command'] = command
+        job = run_slurm(**hpc_default)
+        print(job.state(), job.job_id)
+        return job
+        
+    def build_panel_ad(self, size: int, cluster_label: str, panel_args:dict={}):
         output_ad = self.exp_data.expression_data.copy()
         output_ad.obs.rename(columns={cluster_label: 'cluster_label'}, inplace=True) # controlled strings for mFISHtools
         build_panel_params = {
             'panelSize': size,
             'currentPanel': self.filter_genes_params['startingGenes'] if self.filter_genes_params is not None else []
         }
-        build_panel_params.update(**args)
+        build_panel_params.update(**panel_args)
         self.build_panel_params = build_panel_params
 
         output_ad.uns['build_panel'] = build_panel_params
         if self.filter_genes_params is not None:
             output_ad.uns['filter_panel'] = self.filter_genes_params
 
-        output_ad.write_h5ad(self.run_directory + '/mfishtools_ad.h5ad')
+        output_ad.write_h5ad(self.run_directory + '/mfishtools_ad_temp.h5ad')
 
     def load_gene_panel(self, args: dict={}):
         gene_list = pandas.read_csv(self.run_directory + '/gene_list.csv', names=['gene'], header=0)
@@ -541,6 +586,9 @@ class mFISHtoolsMethod(GenePanelMethod):
             method = self,
             args=args,
         )
+
+        print('deleting mfishtools temp file...')
+        os.remove(self.run_directory + '\mfishtools_ad_temp.h5ad')
 
         return gps
 
