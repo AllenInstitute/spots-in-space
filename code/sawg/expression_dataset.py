@@ -10,6 +10,7 @@ import pickle as pkl
 from datetime import datetime
 import inspect
 import anndata as ad
+import json
 from sawg.celltype_mapping import CellTypeMapping
 from sawg.hpc import run_slurm
 
@@ -304,7 +305,7 @@ class GeneBasisMethod(GenePanelMethod):
         if os.path.exists(annotation_data_filename):
             print(f'{annotation_data_filename} already exists')
         else:
-            self.exp_data.expression_data.obs.to_csv(annotation_data_filename)
+            self.exp_data.expression_data.obs['cell'].to_csv(annotation_data_filename)
         self.annotation_data_file = annotation_data_filename
     
     def raw_to_sce(self, args: dict):
@@ -327,7 +328,7 @@ class GeneBasisMethod(GenePanelMethod):
         args.update(default_args)
         self.sce = self.gB.raw_to_sce(counts_dir=self.expression_data_file, meta_dir=self.annotation_data_file, verbose=True, **args)
     
-    def select_gene_panel(self, size: int, file_name: str='gene_panel_selection', args:dict={}):
+    def select_gene_panel(self, size: int, file_name: str='gene_panel_selection', args:dict={}, run_on_hpc=False, hpc_args={}):
         """
         Paramters
         ---------
@@ -338,26 +339,87 @@ class GeneBasisMethod(GenePanelMethod):
         args : dict | {}
             Optional arguments to pass to geneBasis.gene_search
         """
-        
+
         # check some R conversions to optional arguments
         if bool(args):
-            for k, v in args.items():
-                if v is None:
-                    args[k] = rinterface.NULL
-                if type(v) is list and all(isinstance(element, str) for element in v):
-                    args[k] = ro.vectors.StrVector(v)
+                for k, v in args.items():
+                    if v is None:
+                        args[k] = rinterface.NULL
+                    if type(v) is list and all(isinstance(element, str) for element in v):
+                        args[k] = ro.vectors.StrVector(v)
+
+        if run_on_hpc is True:
+            job = self.run_on_hpc(size=size, hpc_args=hpc_args, geneBasis_args=args)
+            return job
         
-        gene_panel = self.gB.gene_search(self.sce, n_genes_total = size, **args, verbose = True)
+        else:
+            # run locally
+            gene_panel = self.gB.gene_search(self.sce, n_genes_total = size, **args, verbose = True)
+
+            gps = GenePanelSelection(
+                exp_data = self.exp_data,
+                gene_panel = gene_panel['gene'].to_list(),
+                method = GeneBasisMethod,
+                args = {
+                    'n_genes_selected': len(gene_panel),
+                    'expression_data_type': self.exp_data.expression_type,
+                    'file_name': file_name,
+                }
+            )
+
+            return gps
+        
+    def run_on_hpc(self, size, hpc_args:dict={}, geneBasis_args:dict={}):
+        with open(self.exp_data.run_directory + '/geneBasis_args.json', 'w') as file:
+            json.dump(geneBasis_args, file)
+
+        job_path = hpc_args.get('job_path', '//allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/gene_panel_runs/')
+        docker = hpc_args.get('docker', 'singularity exec /allen/programs/celltypes/workgroups/rnaseqanalysis/bicore/singularity/genebasis.sif')
+        r_script = hpc_args.get('r_script', 'geneBasis.R')
+
+        print('building HPC job')
+        hpc_default = {
+            'hpc_host': 'hpc-login',
+            'job_path': job_path,
+            'partition': 'celltypes',
+            'job_name': 'geneBasis',
+            'nodes': 1,
+            'mincpus': 10,
+            'mem': '500G',
+            'time':'24:00:00',
+            'mail_user': None,
+            'output': job_path + 'hpc_logs/%j.out',
+            'error': job_path + 'hpc_logs/%j.err',
+        }
+
+        hpc_default.update(hpc_args)
+        
+        command = f"""
+                cd {job_path}
+
+                {docker} Rscript {r_script} --dat_path {self.exp_data.run_directory} --size {size}
+            """
+        
+        assert 'command' not in hpc_args
+        hpc_default['command'] = command
+        job = run_slurm(**hpc_default)
+        print(job.state(), job.job_id)
+        return job
+    
+    def load_gene_panel(self, args: dict={}):
+        gene_list = pandas.read_csv(self.run_directory + '/gene_list.csv', names=['gene'], header=0)
+        
+        args.update({
+                'n_genes_selected': len(gene_list),
+                'expression_data_type': self.exp_data.expression_type,
+                'file_name': 'gene_panel_selection',
+                })
 
         gps = GenePanelSelection(
             exp_data = self.exp_data,
-            gene_panel = gene_panel['gene'].to_list(),
-            method = GeneBasisMethod,
-            args = {
-                'n_genes_selected': len(gene_panel),
-                'expression_data_type': self.exp_data.expression_type,
-                'file_name': file_name,
-            }
+            gene_panel = gene_list['gene'].to_list(),
+            method = self,
+            args=args,
         )
 
         return gps
@@ -572,12 +634,13 @@ class mFISHtoolsMethod(GenePanelMethod):
         output_ad.write_h5ad(self.run_directory + '/mfishtools_ad_temp.h5ad')
 
     def load_gene_panel(self, args: dict={}):
-        gene_list = pandas.read_csv(self.run_directory + '/gene_list.csv', names=['gene'], header=0)
+        gene_list = pandas.read_csv(self.run_directory + '/gene_list.csv', names=['gene', 'frac_mapped'], header=0)
         
         args.update({
                 'n_genes_selected': len(gene_list),
                 'expression_data_type': self.exp_data.expression_type,
                 'file_name': 'gene_panel_selection',
+                'frac_mapped': gene_list
                 })
 
         gps = GenePanelSelection(
