@@ -305,6 +305,7 @@ class GeneBasisMethod(GenePanelMethod):
         if os.path.exists(annotation_data_filename):
             print(f'{annotation_data_filename} already exists')
         else:
+            self.exp_data.expression_data.obs.reset_index(inplace=True)
             self.exp_data.expression_data.obs['cell'].to_csv(annotation_data_filename)
         self.annotation_data_file = annotation_data_filename
     
@@ -339,21 +340,21 @@ class GeneBasisMethod(GenePanelMethod):
         args : dict | {}
             Optional arguments to pass to geneBasis.gene_search
         """
-
-        # check some R conversions to optional arguments
-        if bool(args):
-                for k, v in args.items():
-                    if v is None:
-                        args[k] = rinterface.NULL
-                    if type(v) is list and all(isinstance(element, str) for element in v):
-                        args[k] = ro.vectors.StrVector(v)
-
+        
         if run_on_hpc is True:
             job = self.run_on_hpc(size=size, hpc_args=hpc_args, geneBasis_args=args)
             return job
         
         else:
             # run locally
+            # check some R conversions to optional arguments
+            if bool(args):
+                    for k, v in args.items():
+                        if v is None:
+                            args[k] = rinterface.NULL
+                        if type(v) is list and all(isinstance(element, str) for element in v):
+                            args[k] = ro.vectors.StrVector(v)
+
             gene_panel = self.gB.gene_search(self.sce, n_genes_total = size, **args, verbose = True)
 
             gps = GenePanelSelection(
@@ -393,6 +394,8 @@ class GeneBasisMethod(GenePanelMethod):
         }
 
         hpc_default.update(hpc_args)
+        hpc_default.pop('docker', None)
+        hpc_default.pop('r_script', None)
         
         command = f"""
                 cd {job_path}
@@ -409,17 +412,19 @@ class GeneBasisMethod(GenePanelMethod):
     def load_gene_panel(self, args: dict={}):
         gene_list = pandas.read_csv(self.run_directory + '/gene_list.csv', names=['gene'], header=0)
         
-        args.update({
+        default_args = {
                 'n_genes_selected': len(gene_list),
                 'expression_data_type': self.exp_data.expression_type,
                 'file_name': 'gene_panel_selection',
-                })
+                }
+        
+        default_args.update(args)
 
         gps = GenePanelSelection(
             exp_data = self.exp_data,
             gene_panel = gene_list['gene'].to_list(),
             method = self,
-            args=args,
+            args=default_args,
         )
 
         return gps
@@ -585,7 +590,11 @@ class mFISHtoolsMethod(GenePanelMethod):
         
         print('building temp ad_h5ad')
         self.build_panel_ad(size, cluster_label, panel_args)
+        
+        job = self.run_on_hpc(hpc_args)
+        return job
 
+    def run_on_hpc(self, docker:str='singularity exec --cleanenv docker://bicore/scrattch_mapping:latest', r_script: str='mFISHTools.R', hpc_args:dict={}):
         job_path = hpc_args.get('job_path', '//allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/gene_panel_runs/')
 
         print('building HPC job')
@@ -597,7 +606,7 @@ class mFISHtoolsMethod(GenePanelMethod):
             'nodes': 1,
             'mincpus': 10,
             'mem': '500G',
-            'time':'3-0:00:00',
+            'time':'24:00:00',
             'mail_user': None,
             'output': job_path + 'hpc_logs/%j.out',
             'error': job_path + 'hpc_logs/%j.err',
@@ -636,24 +645,28 @@ class mFISHtoolsMethod(GenePanelMethod):
     def load_gene_panel(self, args: dict={}):
         gene_list = pandas.read_csv(self.run_directory + '/gene_list.csv', names=['gene', 'frac_mapped'], header=0)
         
-        args.update({
+        default_args = {
                 'n_genes_selected': len(gene_list),
                 'expression_data_type': self.exp_data.expression_type,
                 'file_name': 'gene_panel_selection',
                 'frac_mapped': gene_list
-                })
+                }
+        
+        default_args.update(args)
 
         gps = GenePanelSelection(
             exp_data = self.exp_data,
             gene_panel = gene_list['gene'].to_list(),
             method = self,
-            args=args,
+            args=default_args,
         )
 
-        print('deleting mfishtools temp file...')
-        os.remove(self.run_directory + '\mfishtools_ad_temp.h5ad')
+        if os.path.exists(self.run_directory + '\mfishtools_ad_temp.h5ad'):
+            print('deleting mfishtools temp file...')
+            os.remove(self.run_directory + '\mfishtools_ad_temp.h5ad')
 
         return gps
+
 
 class SeuratMethod(GenePanelMethod):
     def select_gene_panel(self, size: int, data: ExpressionDataset, flavor='seurat_v3') -> GenePanelSelection:
@@ -773,3 +786,17 @@ def load_panel_eval(path: str):
         file.close()
     
     return eval
+
+def mfishtools_fraction_mapped(gps: GenePanelSelection, cluster_label: str='Cluster', hpc_args:dict={}):
+        exp_data = gps.expression_dataset()
+        mft = mFISHtoolsMethod(exp_data=exp_data)
+
+        output_ad = exp_data.expression_data
+        output_ad.obs.rename(columns={cluster_label: 'cluster_label'}, inplace=True) # controlled strings for mFISHtools
+        output_ad.write_h5ad(mft.run_directory + '/mfishtools_ad_temp.h5ad')
+        
+        docker = hpc_args.get('docker', 'singularity exec --cleanenv docker://bicore/scrattch_mapping:latest')
+        r_script = hpc_args.get('r_script', 'mFISHtools_frac_mapped.R')
+        
+        job = mft.run_on_hpc(docker=docker, r_script=r_script, hpc_args=hpc_args)
+        return job
