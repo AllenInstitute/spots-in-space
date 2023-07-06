@@ -48,10 +48,13 @@ class ExpressionDataset:
     save_path : string
         Directory to save date for later recall
     """
-    def __init__(self, expression_data: ad.AnnData, expression_type,  region: str=None, save_path: str=None):
+    def __init__(self, expression_data: ad.AnnData, expression_type,  region: str=None, save_path: str=None, target_cells: int=None, target_label: str=None):
         self.expression_data = expression_data
         self.expression_type = expression_type
         self.region = region
+
+        if target_cells is not None and target_label is not None:
+            self.expression_data = self.subsamble_by_type(target_cells, target_label) 
 
         if save_path is not None:
             #initiate save directory and dump ExpressionDataset
@@ -163,6 +166,19 @@ class ExpressionDataset:
         exp_data =  ExpressionDataset(**default_kwds)
         exp_data.run_directory = self.run_directory
         return exp_data
+
+    def subsamble_by_type(self, target_cells, label):
+        import scanpy as sc
+        exp_data = self.copy(expression_data=self.expression_data)
+        adatas = [exp_data.expression_data[exp_data.expression_data.obs[label]==clust] for clust in exp_data.expression_data.obs[label].unique()]
+
+        for dat in adatas:
+            if dat.n_obs > target_cells:
+                sc.pp.subsample(dat, n_obs=target_cells)
+
+        exp_data_subsampled = adatas[0].concatenate(*adatas[1:])
+
+        return exp_data_subsampled
 
 
 class GenePanelSelection:
@@ -371,7 +387,7 @@ class GeneBasisMethod(GenePanelMethod):
             return gps
         
     def run_on_hpc(self, size, hpc_args:dict={}, geneBasis_args:dict={}):
-        with open(self.exp_data.run_directory + '/geneBasis_args.json', 'w') as file:
+        with open(os.path.join(self.exp_data.run_directory, 'geneBasis_args.json'), 'w') as file:
             json.dump(geneBasis_args, file)
 
         job_path = hpc_args.get('job_path', '//allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/gene_panel_runs/')
@@ -410,7 +426,7 @@ class GeneBasisMethod(GenePanelMethod):
         return job
     
     def load_gene_panel(self, args: dict={}):
-        gene_list = pandas.read_csv(self.run_directory + '/gene_list.csv', names=['gene'], header=0)
+        gene_list = pandas.read_csv(os.path.join(self.exp_data.run_directory, 'gene_list.csv'), names=['gene'], header=0)
         
         default_args = {
                 'n_genes_selected': len(gene_list),
@@ -591,7 +607,7 @@ class mFISHtoolsMethod(GenePanelMethod):
         print('building temp ad_h5ad')
         self.build_panel_ad(size, cluster_label, panel_args)
         
-        job = self.run_on_hpc(hpc_args)
+        job = self.run_on_hpc(docker=docker, r_script=r_script, hpc_args=hpc_args)
         return job
 
     def run_on_hpc(self, docker:str='singularity exec --cleanenv docker://bicore/scrattch_mapping:latest', r_script: str='mFISHTools.R', hpc_args:dict={}):
@@ -643,7 +659,7 @@ class mFISHtoolsMethod(GenePanelMethod):
         output_ad.write_h5ad(self.run_directory + '/mfishtools_ad_temp.h5ad')
 
     def load_gene_panel(self, args: dict={}):
-        gene_list = pandas.read_csv(self.run_directory + '/gene_list.csv', names=['gene', 'frac_mapped'], header=0)
+        gene_list = pandas.read_csv(os.path.join(self.run_directory, 'gene_list.csv'), names=['gene', 'frac_mapped'], header=0)
         
         default_args = {
                 'n_genes_selected': len(gene_list),
@@ -661,9 +677,9 @@ class mFISHtoolsMethod(GenePanelMethod):
             args=default_args,
         )
 
-        if os.path.exists(self.run_directory + '\mfishtools_ad_temp.h5ad'):
+        if os.path.exists(os.path.join(self.run_directory, 'mfishtools_ad_temp.h5ad')):
             print('deleting mfishtools temp file...')
-            os.remove(self.run_directory + '\mfishtools_ad_temp.h5ad')
+            os.remove(os.path.join(self.run_directory, 'mfishtools_ad_temp.h5ad'))
 
         return gps
 
@@ -793,7 +809,7 @@ def mfishtools_fraction_mapped(gps: GenePanelSelection, cluster_label: str='Clus
 
         output_ad = exp_data.expression_data
         output_ad.obs.rename(columns={cluster_label: 'cluster_label'}, inplace=True) # controlled strings for mFISHtools
-        output_ad.write_h5ad(mft.run_directory + '/mfishtools_ad_temp.h5ad')
+        output_ad.write_h5ad(os.path.join(mft.run_directory, 'mfishtools_ad_temp.h5ad'))
         
         docker = hpc_args.get('docker', 'singularity exec --cleanenv docker://bicore/scrattch_mapping:latest')
         r_script = hpc_args.get('r_script', 'mFISHtools_frac_mapped.R')
