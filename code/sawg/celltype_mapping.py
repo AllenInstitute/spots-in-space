@@ -330,7 +330,7 @@ class CKMapping(CellTypeMapping):
             ad_sp = sp_data
 
         print('loading mapping...')
-        r_file = ro.r.load(mapping_result_path + '/mapped.rda')
+        r_file = ro.r.load(os.path.join(mapping_result_path, 'mapped.rda'))
         map_results = ro.r['mapped']
 
         # Extract mapping data from R-object. This returns a list of dataframes indexed as such:
@@ -620,20 +620,20 @@ class ScrattchMapping(CellTypeMapping):
         self.ad_map = ad_map
         if self.run_directory is None:
             self._create_run_directory(save_path)
-        ad_map.write_h5ad(self.run_directory + '/scrattch_map_temp.h5ad')
+        ad_map.write_h5ad(os.path.join(self.run_directory, 'scrattch_map_temp.h5ad'))
 
     def load_scrattch_mapping_results(self):
         # use to load scrattch mapping results back in for analysis
         # results will be saved in obsm field of anndata in R script
         print('loading results...')
-        scrattch_map_results = ad.read_h5ad(self.run_directory + '\scrattch_map_temp.h5ad')
+        scrattch_map_results = ad.read_h5ad(os.path.join(self.run_directory, 'scrattch_map_temp.h5ad'))
         self.ad_map.obs = self.ad_map.obs.merge(scrattch_map_results.obsm['mapping_results'], left_index=True, right_index=True, suffixes=('_drop', ''))
         self.ad_map.obs.drop([col for col in self.ad_map.obs.columns if 'drop' in col], axis=1, inplace=True)
         self.ad_map.uns.update(scrattch_map_results.uns)
         self.save_mapping(save_path=self.run_directory, replace=True)
         # delete saved out anndata file
         print('deleting scrattch-mapping temp file...')
-        os.remove(self.run_directory + '\scrattch_map_temp.h5ad')
+        os.remove(os.path.join(self.run_directory, 'scrattch_map_temp.h5ad'))
     
     def load_taxonomy_anndata(self):
         # the taxonomy anndatas are pretty big, only load if necessary. 
