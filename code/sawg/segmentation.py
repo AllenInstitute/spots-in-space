@@ -226,7 +226,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
             opts.update(self._suggest_image_spec(spot_table, px_size, images))
             return self.get_total_mrna_image(spot_table, **opts)
         else:
-            return spot_table.get_image(channel=img_spec['channel'], frame=img_spec['frame'])
+            return spot_table.get_image(channel=img_spec['channel'], frame=img_spec.get('frame', None))
 
     def _suggest_image_spec(self, spot_table, px_size, images):
         """Given a pixel size, return {'image_shape': shape, 'image_transform': tr} covering the entire area of spot_table.
