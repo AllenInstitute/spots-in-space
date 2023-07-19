@@ -53,9 +53,6 @@ class ExpressionDataset:
         self.expression_type = expression_type
         self.region = region
 
-        if target_cells is not None and target_label is not None:
-            self.expression_data = self.subsamble_by_type(target_cells, target_label) 
-
         if save_path is not None:
             #initiate save directory and dump ExpressionDataset
             dir_ts = '{:0.3f}'.format(datetime.now().timestamp())
@@ -67,6 +64,10 @@ class ExpressionDataset:
             print(f'gene panel UID: {dir_ts}')
         else:
             self.run_directory = None
+
+        if target_cells is not None and target_label is not None:
+            self.expression_data = self.subsamble_by_type(target_cells, target_label) 
+
 
     @property
     def genes(self):
@@ -439,7 +440,7 @@ class GeneBasisMethod(GenePanelMethod):
         gps = GenePanelSelection(
             exp_data = self.exp_data,
             gene_panel = gene_list['gene'].to_list(),
-            method = self,
+            method = GeneBasisMethod,
             args=default_args,
         )
 
@@ -459,12 +460,16 @@ class GeneBasisMethod(GenePanelMethod):
             )
         neigh_df = neighbor_score.rx2['cell_score_stat']
         if not isinstance(neigh_df, pandas.DataFrame):
-            try:
-                neigh_df = pandas2ri.rpy2py(neigh_df)
-            except AttributeError:
-                neigh_df = pandas2ri.ri2py(neigh_df)
+            # this is highly dependent on the rpy2 package version
+            if 'pandas2ri' not in locals():
+                neigh_df = ro.conversion.rpy2py(neigh_df)
+            else:
+                try:
+                    neigh_df = pandas2ri.rpy2py(neigh_df)
+                except AttributeError:
+                    neigh_df = pandas2ri.ri2py(neigh_df)
         neigh_df = neigh_df.set_index('cell').rename(columns={'cell_score': f'neighborhood_cell_score'})
-        neigh_df = neigh_df.merge(gene_panel.exp_data.annotation_data, left_index=True, right_index=True)
+        neigh_df = neigh_df.merge(gene_panel.exp_data.expression_data.obs, left_index=True, right_index=True)
         return neigh_df
     
     def celltype_mapping(self, gene_panel: GenePanelSelection, levels: list=['class', 'subclass', 'cluster']):
@@ -813,6 +818,9 @@ def mfishtools_fraction_mapped(gps: GenePanelSelection, cluster_label: str='Clus
         
         docker = hpc_args.get('docker', 'singularity exec --cleanenv docker://bicore/scrattch_mapping:latest')
         r_script = hpc_args.get('r_script', 'mFISHtools_frac_mapped.R')
+
+        hpc_args.pop('docker', None)
+        hpc_args.pop('r_script', None)
         
         job = mft.run_on_hpc(docker=docker, r_script=r_script, hpc_args=hpc_args)
         return job
