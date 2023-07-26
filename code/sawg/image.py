@@ -347,12 +347,12 @@ class ImageStack(ImageBase):
     def _load_data(self, gen, n_frames):
         # load data to a 3D array one frame at a time
         # (avoiding np.stack() to reduce memory usage)
-        first = next(gen)
+        first = next(gen)[0]
         full = np.empty((n_frames,) + first.shape, dtype=first.dtype)
         full[0] = first
         del first
         for i, img in enumerate(gen):
-            full[i+1] = img
+            full[i+1] = img[0]
         return full
 
 
