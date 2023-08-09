@@ -52,6 +52,10 @@ class ExpressionDataset:
         self.expression_data = expression_data
         self.expression_type = expression_type
         self.region = region
+        self.run_directory = None
+
+        if target_cells is not None and target_label is not None:
+            self.expression_data = self.subsamble_by_type(target_cells, target_label) 
 
         if save_path is not None:
             #initiate save directory and dump ExpressionDataset
@@ -62,12 +66,7 @@ class ExpressionDataset:
             pkl.dump(self, file)
             file.close()
             print(f'gene panel UID: {dir_ts}')
-        else:
-            self.run_directory = None
-
-        if target_cells is not None and target_label is not None:
-            self.expression_data = self.subsamble_by_type(target_cells, target_label) 
-
+            
 
     @property
     def genes(self):
@@ -296,20 +295,21 @@ class ScranMethod(GenePanelMethod):
 
 class GeneBasisMethod(GenePanelMethod):
 
-    def __init__(self, exp_data: ExpressionDataset):
+    def __init__(self, exp_data: ExpressionDataset, run_local=False):
         exp_data.expression_data.obs.index.rename('cell', inplace=True) # <- renaming sample_id to 'cell' is important for geneBasis ability to read the file and align with the expression data
         self.exp_data = exp_data
         self.sce = None
-        self.gB = importr('geneBasisR')
-        self.SummarizedExperiment = importr('SummarizedExperiment')
+        self.run_local = run_local
+        if run_local:
+            self.gB = importr('geneBasisR')
+            self.SummarizedExperiment = importr('SummarizedExperiment')
 
     def df_to_sce(self, args:dict={}):
-        print('saving expression and annotation data to csv...')
         self.save_to_csv()
-        print('converting data to SCE format...')
         self.raw_to_sce(args=args)
 
     def save_to_csv(self):
+        print('saving expression and annotation data to csv...')
         path = self.exp_data.run_directory
         expression_data_filename = os.path.join(path, 'expression_data.csv')
         if os.path.exists(expression_data_filename):
@@ -335,6 +335,8 @@ class GeneBasisMethod(GenePanelMethod):
         args : dict
             Optional arguments to pass to geneBasis.raw_to_sce
         """
+        
+        print('converting data to SCE format...')
         default_args = {
             'counts_type': 'logcounts',
             'transform_to_logcounts': False,
@@ -346,7 +348,13 @@ class GeneBasisMethod(GenePanelMethod):
         args.update(default_args)
         self.sce = self.gB.raw_to_sce(counts_dir=self.expression_data_file, meta_dir=self.annotation_data_file, verbose=True, **args)
     
-    def select_gene_panel(self, size: int, file_name: str='gene_panel_selection', args:dict={}, run_on_hpc=False, hpc_args={}):
+    def filter_genes(self, starting_genes: list=[], hvgs: list=[]):
+        if len(starting_genes) != 0:
+            genes = list(set(hvgs + starting_genes))
+            self.exp_data = self.exp_data.select_genes(genes=genes)
+
+    def select_gene_panel(self, size: int, file_name: str='gene_panel_selection', panel_args:dict={}, hpc_args:dict={}, 
+                          docker: str='/allen/programs/celltypes/workgroups/rnaseqanalysis/bicore/singularity/genebasis.sif', r_script: str='geneBasis.R'):
         """
         Paramters
         ---------
@@ -354,25 +362,25 @@ class GeneBasisMethod(GenePanelMethod):
             Size of gene panel to select
         data : ExpressionDataset
             Gene expression dataset from which to derive panel
-        args : dict | {}
+        panel_args : dict | {}
             Optional arguments to pass to geneBasis.gene_search
+        hpc_args : dict | {}
+            Optionally run on HPC, must at least specify `job_path`
         """
-        
-        if run_on_hpc is True:
-            job = self.run_on_hpc(size=size, hpc_args=hpc_args, geneBasis_args=args)
-            return job
-        
-        else:
+
+        if self.run_local:
             # run locally
             # check some R conversions to optional arguments
-            if bool(args):
-                    for k, v in args.items():
+            if bool(panel_args):
+                    for k, v in panel_args.items():
                         if v is None:
-                            args[k] = rinterface.NULL
+                            panel_args[k] = rinterface.NULL
                         if type(v) is list and all(isinstance(element, str) for element in v):
-                            args[k] = ro.vectors.StrVector(v)
+                            panel_args[k] = ro.vectors.StrVector(v)
 
-            gene_panel = self.gB.gene_search(self.sce, n_genes_total = size, **args, verbose = True)
+            if self.sce is None:
+                self.df_to_sce(args=panel_args)
+            gene_panel = self.gB.gene_search(self.sce, n_genes_total = size, **panel_args, verbose = True)
 
             gps = GenePanelSelection(
                 exp_data = self.exp_data,
@@ -386,14 +394,22 @@ class GeneBasisMethod(GenePanelMethod):
             )
 
             return gps
+        else:
+            self.save_to_csv()
+            job = self.run_on_hpc(size=size, docker=docker, r_script=r_script, hpc_args=hpc_args, panel_args=panel_args)
+            return job
         
-    def run_on_hpc(self, size, hpc_args:dict={}, geneBasis_args:dict={}):
+        
+    def run_on_hpc(self, size, docker:str='/allen/programs/celltypes/workgroups/rnaseqanalysis/bicore/singularity/genebasis.sif', r_script: str='geneBasis.R', 
+                   hpc_args:dict={}, panel_args:dict={}):
+        
+        job_path = hpc_args.get('job_path', None)
+        if job_path is None:
+            print('must specify a job path')
+            return
+        
         with open(os.path.join(self.exp_data.run_directory, 'geneBasis_args.json'), 'w') as file:
-            json.dump(geneBasis_args, file)
-
-        job_path = hpc_args.get('job_path', '//allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/gene_panel_runs/')
-        docker = hpc_args.get('docker', 'singularity exec /allen/programs/celltypes/workgroups/rnaseqanalysis/bicore/singularity/genebasis.sif')
-        r_script = hpc_args.get('r_script', 'geneBasis.R')
+            json.dump(panel_args, file)
 
         print('building HPC job')
         hpc_default = {
@@ -411,8 +427,6 @@ class GeneBasisMethod(GenePanelMethod):
         }
 
         hpc_default.update(hpc_args)
-        hpc_default.pop('docker', None)
-        hpc_default.pop('r_script', None)
         
         command = f"""
                 cd {job_path}
@@ -602,6 +616,12 @@ class mFISHtoolsMethod(GenePanelMethod):
             'numBinaryGenes': num_binary_genes,
         }
 
+        genes_not_in_exp_data = [s for s in starting_genes if s not in self.exp_data.expression_data.var_names]
+        if len(genes_not_in_exp_data) > 0:
+            print(f'gene list not in exp_data: {genes_not_in_exp_data}')
+            print('reducing starting list to available genes')
+            starting_genes = [s for s in starting_genes if s in self.exp_data.expression_data.var_names]
+
         filter_genes_params.update(**args)
         
         self.filter_genes_params = filter_genes_params
@@ -616,7 +636,10 @@ class mFISHtoolsMethod(GenePanelMethod):
         return job
 
     def run_on_hpc(self, docker:str='singularity exec --cleanenv docker://bicore/scrattch_mapping:latest', r_script: str='mFISHTools.R', hpc_args:dict={}):
-        job_path = hpc_args.get('job_path', '//allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/gene_panel_runs/')
+        job_path = hpc_args.get('job_path', None)
+        if job_path is None:
+            print('must specify a job path')
+            return
 
         print('building HPC job')
         hpc_default = {
@@ -808,7 +831,7 @@ def load_panel_eval(path: str):
     
     return eval
 
-def mfishtools_fraction_mapped(gps: GenePanelSelection, cluster_label: str='Cluster', hpc_args:dict={}):
+def run_mfishtools_fraction_mapped(gps: GenePanelSelection, cluster_label: str='Cluster', hpc_args:dict={}):
         exp_data = gps.expression_dataset()
         mft = mFISHtoolsMethod(exp_data=exp_data)
 
@@ -824,3 +847,8 @@ def mfishtools_fraction_mapped(gps: GenePanelSelection, cluster_label: str='Clus
         
         job = mft.run_on_hpc(docker=docker, r_script=r_script, hpc_args=hpc_args)
         return job
+
+def load_mfishtools_fraction_mapped(gps: GenePanelSelection):
+    frac_mapped = pandas.read_csv(os.path.join(gps.run_directory, 'frac_mapped.csv'))[['gene', 'frac_mapped']]
+    gps.args['frac_mapped'] = frac_mapped
+    gps.save_selection()

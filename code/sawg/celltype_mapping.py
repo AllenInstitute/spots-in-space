@@ -555,7 +555,10 @@ class ScrattchMapping(CellTypeMapping):
         self.make_mapping_anndata(**ad_map_args)
 
         print('building HPC job')
-        job_path = hpc_args.get('job_path', '//allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/mapping/')
+        job_path = hpc_args.get('job_path', None)
+        if job_path is None:
+            print('must specify a job path')
+            return
         hpc_default = {
             'hpc_host': 'hpc-login',
             'job_path': job_path,
