@@ -179,10 +179,19 @@ class CellposeSegmentationMethod(SegmentationMethod):
 
         # initialize cellpose model
         cp_opts['channels'] = channels
-        model = cellpose.models.Cellpose(model_type=self.options['cellpose_model'], gpu=gpu)
 
-        # run segmentation
-        masks, flows, styles, diams = model.eval(image_data, **cp_opts)
+        if self.options['cellpose_model'] in ['cyto', 'cyto2', 'nuclei']:
+            # use a default cellpose 1.0 model
+            model = cellpose.models.Cellpose(model_type=self.options['cellpose_model'], gpu=gpu)
+            # run segmentation
+            masks, flows, styles, diams = model.eval(image_data, **cp_opts)
+
+        else:
+            # use a path to a custom model
+            assert os.path.exists(self.options['cellpose_model'])
+            model = cellpose.models.CellposeModel(pretrained_model=self.options['cellpose_model'], gpu=gpu)
+            # run segmentation
+            masks, flows, styles = model.eval(image_data, **cp_opts)
 
         dilate = self.options.get('dilate', 0)
         if dilate != 0:
