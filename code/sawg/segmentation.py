@@ -130,10 +130,13 @@ class CellposeSegmentationMethod(SegmentationMethod):
             'batch_size': 8,   # more if memory allows
             'normalize': True,
             'tile': False,
+            'diameter': None # if None, cellpose will estimate diameter or use from pretrained model file
         }
         cp_opts.update(self.options['cellpose_options'])
         cp_opts.setdefault('anisotropy', self.options['z_plane_thickness'] / self.options['px_size'])
-        cp_opts.setdefault('diameter', self.options['cell_dia'] / self.options['px_size'])
+        if self.options['cell_dia'] is not None:
+            manual_diam = self.options['cell_dia'] / self.options['px_size']
+            cp_opts.update({'diameter': manual_diam})
         
         # collect images
         images = {}
@@ -205,7 +208,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
                 'masks': masks, 
                 'flows': flows, 
                 'styles': styles, 
-                'diams': diams,
+                #'diams': diams, # TODO: fix this
             },
             image_transform=first_image.transform,
         )
