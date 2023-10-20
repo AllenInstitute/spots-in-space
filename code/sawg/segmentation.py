@@ -259,12 +259,21 @@ class CellposeSegmentationMethod(SegmentationMethod):
         
         return {'image_shape': (1, shape[0], shape[1]), 'image_transform': image_tr}
 
-    def get_total_mrna_image(self, spot_table, image_shape:tuple, image_transform:ImageTransform, gauss_kernel=(1, 3, 3), median_kernel=(2, 10, 10)):
-            
-        density_img = np.zeros(image_shape[:3], dtype='float32')
+    def get_total_mrna_image(self, spot_table, image_shape:tuple, image_transform:ImageTransform, frame:int|None=None, gauss_kernel=(1, 3, 3), median_kernel=(2, 10, 10)):
+        
+        if spot_table.pos.shape[1] == 2:
+            n_planes = 1
 
-        spot_px = self.map_spots_to_img_px(spot_table, image_transform=image_transform, image_shape=image_shape)
-        n_planes = density_img.shape[0]
+        elif spot_table.pos.shape[1] == 3:
+            n_planes = int(np.max(spot_table.pos[..., 2])) + 1
+
+        else:
+            raise ValueError(f'Invalid shape of spot table coordinates {spot_table.pos.shape}')
+
+        image_shape_full = (n_planes, *image_shape[1:3])
+        density_img = np.zeros(image_shape_full, dtype='float32')
+
+        spot_px = self.map_spots_to_img_px(spot_table, image_transform=image_transform, image_shape=image_shape_full)
         for i in range(n_planes):
             z_mask = spot_px[..., 0] == i
             x = spot_px[z_mask, 1]
@@ -280,6 +289,10 @@ class CellposeSegmentationMethod(SegmentationMethod):
         # very sensitive to these parameters :/
         density_img = scipy.ndimage.gaussian_filter(density_img, gauss_kernel)
         density_img = scipy.ndimage.median_filter(density_img, median_kernel)
+
+        if frame is not None:
+            density_img = density_img[frame, ...]
+            density_img = density_img[np.newaxis, ...]
         
         return Image(density_img[..., np.newaxis], transform=image_transform, channels=['Total mRNA'], name=None)
 
