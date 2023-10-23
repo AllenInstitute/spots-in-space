@@ -188,6 +188,12 @@ class CellposeSegmentationMethod(SegmentationMethod):
             model = cellpose.models.Cellpose(model_type=self.options['cellpose_model'], gpu=gpu)
             # run segmentation
             masks, flows, styles, diams = model.eval(image_data, **cp_opts)
+            cellpose_output = {
+                'masks': masks, 
+                'flows': flows, 
+                'styles': styles, 
+                'diams': diams,
+            }
 
         else:
             # use a path to a custom model
@@ -195,6 +201,11 @@ class CellposeSegmentationMethod(SegmentationMethod):
             model = cellpose.models.CellposeModel(pretrained_model=self.options['cellpose_model'], gpu=gpu)
             # run segmentation
             masks, flows, styles = model.eval(image_data, **cp_opts)
+            cellpose_output = {
+                'masks': masks, 
+                'flows': flows, 
+                'styles': styles, 
+            }
 
         dilate = self.options.get('dilate', 0)
         if dilate != 0:
@@ -204,12 +215,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
         result = CellposeSegmentationResult(
             method=self, 
             input_spot_table=spot_table,
-            cellpose_output={
-                'masks': masks, 
-                'flows': flows, 
-                'styles': styles, 
-                #'diams': diams, # TODO: fix this
-            },
+            cellpose_output=cellpose_output,
             image_transform=first_image.transform,
         )
             
