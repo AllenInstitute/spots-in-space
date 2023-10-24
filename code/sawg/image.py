@@ -22,11 +22,13 @@ class ImageBase:
             return self
         return ImageView(self, channels=[channel])
         
-    def get_subregion(self, region):
+    def get_subregion(self, region, incl_end=False):
         """Return a view of this image limited to the region [(xmin, xmax), (ymin, ymax)]
         """
         corners = np.array(region).T
-        tl, br = self.transform.map_to_pixels(corners).astype(int)
+        tl, br = self.transform.map_to_pixels(corners)
+        tl = tl.astype(int)
+        br = np.ceil(br).astype(int) if incl_end else br.astype(int)
         return self.get_pixel_subregion([(tl[0],br[0]), (tl[1],br[1])])
 
     def bounds(self):

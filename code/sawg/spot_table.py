@@ -159,7 +159,7 @@ class SpotTable:
         self._cell_index = None
         self._cell_bounds = None
         
-    def get_subregion(self, xlim: tuple, ylim: tuple):
+    def get_subregion(self, xlim: tuple, ylim: tuple, incl_end: bool=False):
         """Return a SpotTable including the subset of this table inside the region xlim, ylim
         """
         mask = (
@@ -170,7 +170,7 @@ class SpotTable:
         )
         sub = self[mask]
         sub.parent_region = (xlim, ylim)
-        sub.images = [img.get_subregion(sub.parent_region) for img in sub.images]
+        sub.images = [img.get_subregion(sub.parent_region, incl_end=incl_end) for img in sub.images]
         return sub
 
     def get_genes(self, gene_names=None, gene_ids=None):
@@ -781,7 +781,7 @@ class SpotTable:
             
         return SpotTable(**init_kwargs)
 
-    def split_tiles(self, max_spots_per_tile: int=None, target_tile_width: float=None, overlap: float=30):
+    def split_tiles(self, max_spots_per_tile: int=None, target_tile_width: float=None, overlap: float=30, incl_end: bool=False):
         """Return a list of SpotTables that tile this one.
 
         This table will be split into rows of equal height, and each row will be split into
@@ -825,7 +825,8 @@ class SpotTable:
             stop_y = start_y + tile_height
             row_table = self.get_subregion(
                 xlim=bounds[0],
-                ylim=(max(bounds[1][0], start_y - padding), min(bounds[1][1], stop_y + padding)))
+                ylim=(max(bounds[1][0], start_y - padding), min(bounds[1][1], stop_y + padding)),
+                incl_end=incl_end)
             row_bounds = row_table.bounds()
 
             # sort x values
@@ -872,7 +873,7 @@ class SpotTable:
             tiles.extend(cols)
         return tiles
 
-    def grid_tiles(self, max_tile_size:float, overlap: float=30):
+    def grid_tiles(self, max_tile_size:float, overlap: float=30, incl_end: bool=False):
         """Return a grid of overlapping tiles with equal size, where the width and height
         must be less than max_tile_size.
 
@@ -901,11 +902,11 @@ class SpotTable:
         for row in tqdm(range(n_rows)):
             ystart = bounds[1][0] + row * (row_height - overlap)
             ylim = (ystart, ystart + row_height)
-            row_tile = self.get_subregion(bounds[0], ylim)
+            row_tile = self.get_subregion(bounds[0], ylim, incl_end=incl_end)
             for col in range(n_cols):
                 xstart = bounds[0][0] + col * (col_width - overlap)
                 xlim = (xstart, xstart + col_width)
-                tile = row_tile.get_subregion(xlim, ylim)
+                tile = row_tile.get_subregion(xlim, ylim, incl_end=incl_end)
                 if len(tile) > 0:
                     tiles.append(tile)
                 # re-parent tile to self rather than row_table
