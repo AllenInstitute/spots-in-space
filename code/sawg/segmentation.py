@@ -210,6 +210,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
         dilate = self.options.get('dilate', 0)
         if dilate != 0:
             masks = dilate_labels(masks, radius=dilate/self.options['px_size'])
+            cellpose_output.update({'masks': masks})
 
         # return result object
         result = CellposeSegmentationResult(
@@ -228,7 +229,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
         - "total_mrna" returns an image generated from spot density
         - Any other string returns an image channel attached to the spot table
         - {'channel': channel, 'frame': int} can be used to select a single frame
-        - {'channel': 'total_mrna', 'gauss_kernel': (1, 3, 3), 'median_kernel': (2, 10, 10)} can be ued to configure total mrna image generation
+        - {'channel': 'total_mrna', 'n_planes': int, 'frame': int, 'gauss_kernel': (1, 3, 3), 'median_kernel': (2, 10, 10)} can be ued to configure total mrna image generation
         """
         # optionally, cyto image may be generated from spot table total mrna        
         if img_spec is None or isinstance(img_spec, ImageBase):
@@ -265,16 +266,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
         
         return {'image_shape': (1, shape[0], shape[1]), 'image_transform': image_tr}
 
-    def get_total_mrna_image(self, spot_table, image_shape:tuple, image_transform:ImageTransform, frame:int|None=None, gauss_kernel=(1, 3, 3), median_kernel=(2, 10, 10)):
-        
-        if spot_table.pos.shape[1] == 2:
-            n_planes = 1
-
-        elif spot_table.pos.shape[1] == 3:
-            n_planes = int(np.max(spot_table.pos[..., 2])) + 1
-
-        else:
-            raise ValueError(f'Invalid shape of spot table coordinates {spot_table.pos.shape}')
+    def get_total_mrna_image(self, spot_table, image_shape:tuple, image_transform:ImageTransform, n_planes:int, frame:int|None=None, gauss_kernel=(1, 3, 3), median_kernel=(2, 10, 10)):
 
         image_shape_full = (n_planes, *image_shape[1:3])
         density_img = np.zeros(image_shape_full, dtype='float32')
@@ -297,10 +289,10 @@ class CellposeSegmentationMethod(SegmentationMethod):
         density_img = scipy.ndimage.median_filter(density_img, median_kernel)
 
         if frame is not None:
-            density_img = density_img[frame, ...]
-            density_img = density_img[np.newaxis, ...]
-        
-        return Image(density_img[..., np.newaxis], transform=image_transform, channels=['Total mRNA'], name=None)
+            return Image(density_img[..., np.newaxis], transform=image_transform, channels=['Total mRNA'], name=None).get_frame(frame)
+
+        else:
+            return Image(density_img[..., np.newaxis], transform=image_transform, channels=['Total mRNA'], name=None)
 
     def map_spots_to_img_px(self, spot_table:SpotTable, image:Image|None=None, image_transform:ImageTransform|None=None, image_shape:tuple|None=None):
         """Map spot table (x, y, z) positions to image (frame, row, col). 
