@@ -95,3 +95,22 @@ def poly_to_geojson(polygon):
     poly_array = np.array(polygon.exterior.coords)
 
     return geojson.Polygon([[(poly_array[i,0], poly_array[i,1]) for i in range(poly_array.shape[0])]])
+
+def load_config(configfile=None):
+    import yaml
+    import os
+
+    if configfile is None:
+        configfile = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'spatial_config.yml'))
+        
+    if os.path.isfile(configfile):
+        if hasattr(yaml, 'FullLoader'):
+            # pyyaml new API
+            config = yaml.load(open(configfile, 'rb'), Loader=yaml.FullLoader)
+        else:
+            # pyyaml old API
+            config = yaml.load(open(configfile, 'rb'))
+
+    else:
+        config = {}
+    return config
