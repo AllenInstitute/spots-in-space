@@ -9,12 +9,15 @@
 version = 1
 
 from sawg.celltype_mapping import ScrattchMapping
-from sawg.segmentation import run_segmentation, CellposeSegmentationMethod, CellposeSegmentationResult
+from sawg.segmentation import run_segmentation, CellposeSegmentationMethod, CellposeSegmentationResult, SegmentationMethod, MerscopeSegmentationRun
 from sawg.segmentation import get_segmentation_region, get_tiles, create_seg_run_spec, merge_segmentation_results
 from sawg.spot_table import SpotTable
 from sawg.util import load_config
 import anndata as ad
-import os, sys, datetime, glob, pickle
+import os, sys, datetime, glob, pickle, time
+import json
+from abc import abstractmethod
+from pathlib import Path
 import seaborn as sns
 import matplotlib.pyplot as plt
 import pickle as pkl
@@ -22,6 +25,7 @@ import pandas as pd
 import numpy as np
 import ipywidgets as widgets
 from ipywidgets import interact_manual
+from tqdm.autonotebook import tqdm
 
 
 ## Allen Services
@@ -160,10 +164,6 @@ class MERSCOPESection(SpatialDataset):
         self.seg_dir = save_path + config['segmentation_dir']
         if not os.path.exists(self.seg_dir):
             os.mkdir(self.seg_dir)
-        # Get all subdirectories in segmentation directory
-        # Each should correspond to a segmentation run... unless there are
-        # weird random folders that shouldn't be there...
-        self.seg_runs = [f.name for f in os.scandir(self.seg_dir) if f.is_dir()]
 
     def get_section_metadata(self):
         bers = BersClient()
@@ -225,151 +225,36 @@ class MERSCOPESection(SpatialDataset):
         spot_table = SpotTable.load_merscope(self.detected_transcripts_file, self.detected_transcripts_cache)
         return spot_table
 
-    def set_segmentation_path(self, timestamp = None):
-        """Set the path for an individual segmentation."""
-        seg_dir = self.seg_dir 
-
-        # does it make sense to set these as None?
-        # we could also set what they would be by default
-        # and then future steps could check whether they exist
-        self.regions_path = None
-        self.run_spec_path = None
-        self.cid_path = None
-
-        if timestamp is not None:
-            # load from existing segmentation
-            this_seg_dir = os.path.join(seg_dir, timestamp)
-            assert timestamp in self.seg_runs and os.path.exists(this_seg_dir)
-            regions_path = os.path.join(this_seg_dir, 'regions.json')
-            run_spec_path = os.path.join(this_seg_dir, 'run_spec.pkl')
-            cid_path = os.path.join(this_seg_dir, 'segmentation.npy')
-
-            if os.path.exists(regions_path):
-                self.regions_path = regions_path
-            if os.path.exists(run_spec_path):
-                self.run_spec_path = run_spec_path
-            if os.path.exists(cid_path):
-                self.cid_path = cid_path
-
-        else:
-            # create a new subdirectory for segmentation
-            timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-            this_seg_dir = os.path.join(seg_dir, timestamp)
-            os.mkdir(this_seg_dir)
-            self.seg_runs.append(timestamp)
-
-        self.this_seg_dir = this_seg_dir # does this make sense?
-
     def check_segmentation_status(self):
-        if len(self.seg_runs) == 0:
+        # Get all subdirectories in segmentation directory
+        # Each should correspond to a segmentation run... unless there are
+        # weird random folders that shouldn't be there...
+        seg_runs = [f.name for f in os.scandir(self.seg_dir) if f.is_dir()]
+        if len(seg_runs) == 0:
             print(f'No segmentations available in {self.seg_dir}')
             return
 
         status = {}
-        if len(self.seg_runs) > 0:
-            for run_name in self.seg_runs:
+        if len(seg_runs) > 0:
+            for run_name in seg_runs:
                 run_path = os.path.join(self.seg_dir, run_name)
-                final_output = os.path.join(run_path, 'segmentation.npy')
+                final_output = os.path.join(run_path, 'cell_by_gene.h5ad')
                 status[run_name] = os.path.exists(final_output)
 
         return status
 
-    def get_load_func(self):
-        """Get the function to load a spot table."""
-        return SpotTable.load_merscope
+    def run_segmentation_on_section(self, subrgn, seg_method, seg_opts, hpc_opts):
+        seg_run = MerscopeSegmentationRun.from_spatial_dataset(self, subrgn, seg_method, seg_opts, hpc_opts)
+        cell_by_gene = seg_run.do_all_steps()
 
-    def get_load_args(self):
-        """Get args to pass to loading function (e.g. when submitting jobs to hpc)."""
-        load_args = {
-                'image_path': self.images_path,
-                'csv_file': self.detected_transcripts_file,
-                'cache_file': self.detected_transcripts_cache,
-                'max_rows': None
-        }
-        return load_args
+        return cell_by_gene
 
-    def save_regions(self, regions):
-        regions_path = os.path.join(self.this_seg_dir, 'regions.json')
-        regions_df = pd.DataFrame(regions, columns=['xlim', 'ylim'])
-        regions_df.to_json(regions_path)
-        self.regions_path = regions_path
+    def resume_segmentation_on_section(self, timestamp):
+        output_dir = self.seg_dir
+        seg_run = MerscopeSegmentationRun.from_timestamp(output_dir, timestamp)
+        cell_by_gene = seg_run.resume(timestamp)
 
-    def load_regions(self):
-        assert self.regions_path is not None and os.path.exists(self.regions_path)
-        regions = pd.read_json(self.regions_path).values
-        return regions
-
-    def save_run_spec(self, run_spec):
-        run_spec_path = os.path.join(self.this_seg_dir, 'run_spec.pkl')
-        with open(run_spec_path, 'wb') as f:
-            pickle.dump(run_spec, f)
-        self.run_spec_path = run_spec_path
-
-    def load_run_spec(self):
-        with open(self.run_spec_path, 'rb') as f:
-            run_spec = pickle.load(f)
-
-        return run_spec
-
-    def save_cell_ids(self, cell_ids):
-        cid_path = os.path.join(self.this_seg_dir, 'segmentation.npy')
-        np.save(cid_path, cell_ids)
-        self.cid_path = cid_path
-
-    def load_cell_ids(self):
-        assert self.cid_path is not None and os.path.exists(self.cid_path)
-        cell_ids = np.load(self.cid_path)
-        return cell_ids
-
-    def tile_section(self, subrgn='DAPI', **kwargs):
-        load_func = self.get_load_func()
-        load_args = self.get_load_args()
-        table = load_func(**load_args)
-        subtable = get_segmentation_region(table, subrgn)
-        tiles, regions = get_tiles(subtable, **kwargs)
-        
-        # save regions
-        self.save_regions(regions)
-
-        return tiles, regions
-
-    def get_seg_run_spec(self, regions, seg_method, seg_opts):
-        tile_save_path = os.path.join(self.this_seg_dir, 'seg_tiles')
-        if not os.path.exists(tile_save_path):
-            os.mkdir(tile_save_path)
-
-        run_spec = create_seg_run_spec(
-                regions,
-                self.get_load_func(),
-                self.get_load_args(),
-                seg_method,
-                seg_opts,
-                tile_save_path
-        )
-
-        # save run_spec
-        self.save_run_spec(run_spec)
-
-        return run_spec
-
-    def submit_seg_jobs(self, run_spec, conda_env, hpc_host, job_path):
-        jobs = run_segmentation_on_hpc(run_spec, conda_env, hpc_host, job_path)
-        return jobs
-
-    def merge_segmented_tiles(self, run_spec, tiles, subrgn='DAPI'):
-        # this stuff repeated from above...
-        load_func = self.get_load_func()
-        load_args = self.get_load_args()
-        table = load_func(**load_args)
-        subtable = get_segmentation_region(table, subrgn)
-
-        cell_ids, merge_results, skipped = merge_segmentation_results(subtable, run_spec, tiles)
-
-        # save cell_ids...?
-        self.save_cell_ids(cell_ids)
-
-        return cell_ids, merge_results, skipped
-
+        return cell_by_gene
 
 
 # class MERSCOPESection(SpatialDataset):
