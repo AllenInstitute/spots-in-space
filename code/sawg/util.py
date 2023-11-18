@@ -289,14 +289,19 @@ def show_cells_and_transcripts(spottable, anndata_obj,
                 for ii,anno_value in enumerate(cell_annotation_values):
                     anno_list = list(anno.loc[anno[cell_annotation_category]==anno_value,"cell_id"])
                     if cellid in anno_list :
-                        plt.plot(list(tg.boundary.coords.xy[1]), list(tg.boundary.coords.xy[0]), 
-                         color=plotted_categories[anno_value]["color"],linewidth=selected_cell_outline_weight,
-                                 label = anno_value)
-
+                        if not plotted_categories[anno_value]["plotted"]:
+                            plt.plot(list(tg.boundary.coords.xy[1]), list(tg.boundary.coords.xy[0]), 
+                             color=plotted_categories[anno_value]["color"],linewidth=selected_cell_outline_weight,
+                                     label = anno_value)
+                            plotted_categories[anno_value]["plotted"]=True
+                        else:
+                            plt.plot(list(tg.boundary.coords.xy[1]), list(tg.boundary.coords.xy[0]), 
+                             color=plotted_categories[anno_value]["color"],linewidth=selected_cell_outline_weight,
+                                     label = None)
 
             else:
                 plt.plot(list(tg.boundary.coords.xy[1]), list(tg.boundary.coords.xy[0]),
-                         color=[.2,.2,.2],linewidth=.1)
+                         color=[.2,.2,.2],linewidth=.5)
 
 #                 cell_centroids.append(dict(cell_id = cellid,
 #                         centroid_x = np.array(tg.boundary.centroid.coords).ravel()[1],
