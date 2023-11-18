@@ -4,6 +4,9 @@ from matplotlib import pyplot as plt
 import geopandas as gpd
 import pandas as pd
 from shapely import coverage_union_all
+import anndata as ad
+
+
 
 
 def reduce_expression(data, umap_args):
@@ -167,7 +170,8 @@ def show_cells_and_transcripts(spottable, anndata_obj,
                                loaded_image_array = None,
                                loaded_image_extent = None,
                                initial_figsize=[20,20],
-                               cell_annotation_color = 'k',
+                               cell_annotation_colors = ['k'],fontsize=20, image_cmap="Greys",
+                               selected_cell_outline_weight = 1.0,
                                **kwargs):
     """
     Parameters:
@@ -190,6 +194,15 @@ def show_cells_and_transcripts(spottable, anndata_obj,
     
     """
     
+
+    no_gray2 = list(plt.cm.tab10.colors[1:7])
+    no_gray2.extend(plt.cm.tab10.colors[8:])
+    np.roll(np.array(no_gray2),[2,0], [0,1])
+
+
+    fig = plt.figure(figsize=initial_figsize)
+
+
     # get image data and show it.
     
     if isinstance(loaded_image_array,type(None)):
@@ -200,13 +213,15 @@ def show_cells_and_transcripts(spottable, anndata_obj,
         # return max projection over z, transposed and flipped vertically for display
         loaded_image_array = np.max(image_data,axis=0).T[::-1,:]
         loaded_image_extent = np.array(spot_table_im.bounds())[::-1,:].ravel()
+        plt.imshow(loaded_image_array, extent=loaded_image_extent, cmap=image_cmap, vmax = 0.8*np.max(loaded_image_array))   
+
     else:
         # check input types pls
         pass
         
         
-    fig = plt.figure(figsize=initial_figsize)
-    plt.imshow(loaded_image_array, extent=loaded_image_extent, cmap="Greys", vmax = 0.8*np.max(loaded_image_array))   
+    
+    
     ax = plt.gca()
     targets = np.unique(spottable.gene_names)
 
@@ -226,17 +241,70 @@ def show_cells_and_transcripts(spottable, anndata_obj,
     # this particular case (2D segmentation on 3d data) means that we have 7 copies of each segmentation polygon (and 7 centroids for each cell)
     # to deal with this, I'm going to take only the 0th polygon for each unique cell id.
     # in the case where there is full 3D segmentation, it should show up plotted below and the centroids should still be reasonably accurate
-    cell_centroids =[]
-    for cellid in segmentation_geopandas.loc[segmentation_geopandas.EntityID.isin(spottable.cell_ids),["EntityID","Geometry"]].EntityID.unique():
-        cellinfo = segmentation_geopandas.loc[segmentation_geopandas.EntityID==cellid,"Geometry"].values[0]
-        tg = coverage_union_all(cellinfo)
-        plt.plot(list(tg.boundary.coords.xy[1]), list(tg.boundary.coords.xy[0]), color=[.2,.2,.2],linewidth=.2)
-        cell_centroids.append(dict(cell_id = cellid,
-                    centroid_x = np.array(tg.boundary.centroid.coords).ravel()[1],
-                    centroid_y = np.array(tg.boundary.centroid.coords).ravel()[0],            ))
+    
+    
+    
+    
+    
+       
+    # add mapped cell identities:
+    # suboptimal copy here
+    if type(anndata_obj) == ad.AnnData:
+        anno = anndata_obj.obs.copy()
+        anno["cell_id"] = anno.index.values.astype(int)   
 
-    centrdf = pd.DataFrame.from_records(cell_centroids)   
+#         if cell_annotation_values:
+#             cells_to_show = anno_merge.loc[anno_merge[cell_annotation_category].isin(cell_annotation_values),:]
+#         else:
+#             cells_to_show = anno_merge
 
+
+#         for r,canno in cells_to_show.iterrows():
+
+#                         plt.text(canno.centroid_x, canno.centroid_y, canno[cell_annotation_category], fontdict=dict(color=cell_annotation_color,fontsize=fontsize))
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    plotted_categories={pc:{"plotted":False,"color":no_gray2[ii]} for ii,pc in enumerate(cell_annotation_values)}
+    
+    
+    
+    if type(segmentation_geopandas) == gpd.geodataframe.GeoDataFrame :
+        
+        
+        cell_centroids =[]
+        for cellid in segmentation_geopandas.loc[segmentation_geopandas.EntityID.isin(spottable.cell_ids),["EntityID","Geometry"]].EntityID.unique():
+            cellinfo = segmentation_geopandas.loc[segmentation_geopandas.EntityID==cellid,"Geometry"].values[0]
+            tg = coverage_union_all(cellinfo)
+#             try:
+            if cellid in list(anno.loc[anno[cell_annotation_category].isin(cell_annotation_values),"cell_id"]):
+                for ii,anno_value in enumerate(cell_annotation_values):
+                    anno_list = list(anno.loc[anno[cell_annotation_category]==anno_value,"cell_id"])
+                    if cellid in anno_list :
+                        plt.plot(list(tg.boundary.coords.xy[1]), list(tg.boundary.coords.xy[0]), 
+                         color=plotted_categories[anno_value]["color"],linewidth=selected_cell_outline_weight,
+                                 label = anno_value)
+
+
+            else:
+                plt.plot(list(tg.boundary.coords.xy[1]), list(tg.boundary.coords.xy[0]),
+                         color=[.2,.2,.2],linewidth=.1)
+
+#                 cell_centroids.append(dict(cell_id = cellid,
+#                         centroid_x = np.array(tg.boundary.centroid.coords).ravel()[1],
+#                         centroid_y = np.array(tg.boundary.centroid.coords).ravel()[0],            ))
+#             except:
+#                 print("skipping plot of "+str(cellid))
+        centrdf = pd.DataFrame.from_records(cell_centroids)   
+    plt.legend()
     # could be useful at some point: get polygons from spotdata:
     # for k in list(mini.cell_polygons.keys()):
     #     if mini.cell_polygons[k] == None:
@@ -249,18 +317,19 @@ def show_cells_and_transcripts(spottable, anndata_obj,
     
     
     
-    # add mapped cell identities:
-    # suboptimal copy here
-    anno = anndata_obj.obs.copy()
-    anno["cell_id"] = anno.index.values.astype(int)   
-    anno_merge = pd.merge(centrdf,anno )
-    
-    if cell_annotation_values:
-        cells_to_show = anno_merge.loc[anno_merge[cell_annotation_category].isin(cell_annotation_values),:]
-    else:
-        cells_to_show = anno_merge
-        
-        
-    for r,canno in cells_to_show.iterrows():
+#     # add mapped cell identities:
+#     # suboptimal copy here
+#     if type(anndata_obj) == ad.AnnData:
+#         anno = anndata_obj.obs.copy()
+#         anno["cell_id"] = anno.index.values.astype(int)   
+#         anno_merge = pd.merge(centrdf,anno )
 
-                    plt.text(canno.centroid_x, canno.centroid_y, canno[cell_annotation_category], fontdict=dict(color=cell_annotation_color))
+#         if cell_annotation_values:
+#             cells_to_show = anno_merge.loc[anno_merge[cell_annotation_category].isin(cell_annotation_values),:]
+#         else:
+#             cells_to_show = anno_merge
+
+
+#         for r,canno in cells_to_show.iterrows():
+
+#                         plt.text(canno.centroid_x, canno.centroid_y, canno[cell_annotation_category], fontdict=dict(color=cell_annotation_color,fontsize=fontsize))
