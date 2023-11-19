@@ -159,7 +159,8 @@ def plot_genes(spottable,  gene_list,
     plt.axis('equal')
     plt.legend(fontsize=fontsize, markerscale=4)
 
-    
+
+
     
 def show_cells_and_transcripts(spottable, anndata_obj,
                                segmentation_geopandas,
@@ -200,28 +201,28 @@ def show_cells_and_transcripts(spottable, anndata_obj,
     np.roll(np.array(no_gray2),[2,0], [0,1])
 
 
-    fig = plt.figure(figsize=initial_figsize)
 
 
     # get image data and show it.
-    
+    plot_image = False
     if isinstance(loaded_image_array,type(None)):
-        
+
         spot_table_im =spottable.get_image(channel="DAPI")
 
         image_data = spot_table_im.get_data()
         # return max projection over z, transposed and flipped vertically for display
         loaded_image_array = np.max(image_data,axis=0).T[::-1,:]
         loaded_image_extent = np.array(spot_table_im.bounds())[::-1,:].ravel()
-        plt.imshow(loaded_image_array, extent=loaded_image_extent, cmap=image_cmap, vmax = 0.8*np.max(loaded_image_array))   
-
+        plot_image = True
     else:
         # check input types pls
         pass
-        
-        
+
     
-    
+    fig = plt.figure(figsize=initial_figsize)
+    if plot_image:
+        plt.imshow(loaded_image_array, extent=loaded_image_extent, cmap=image_cmap, vmax = 0.8*np.max(loaded_image_array))   
+
     ax = plt.gca()
     targets = np.unique(spottable.gene_names)
 
@@ -229,86 +230,65 @@ def show_cells_and_transcripts(spottable, anndata_obj,
         gene_list = list(targets)
     else:
         gene_list = [g for g in targets if "Blank-" not in g]
-    
-    
+
+
     plot_genes(spottable,gene_list, 1,
                highlight_list =genes_to_highlight,figsize=initial_figsize, incoming_ax=ax, **kwargs)
     plt.gca().invert_yaxis()
-    
-    
-    
+
+
+
     # plot cell perimeters and gather centroids along the way
     # this particular case (2D segmentation on 3d data) means that we have 7 copies of each segmentation polygon (and 7 centroids for each cell)
     # to deal with this, I'm going to take only the 0th polygon for each unique cell id.
     # in the case where there is full 3D segmentation, it should show up plotted below and the centroids should still be reasonably accurate
-    
-    
-    
-    
-    
-       
+
+
+
+
+
+
     # add mapped cell identities:
     # suboptimal copy here
     if type(anndata_obj) == ad.AnnData:
         anno = anndata_obj.obs.copy()
         anno["cell_id"] = anno.index.values.astype(int)   
 
-#         if cell_annotation_values:
-#             cells_to_show = anno_merge.loc[anno_merge[cell_annotation_category].isin(cell_annotation_values),:]
-#         else:
-#             cells_to_show = anno_merge
 
 
-#         for r,canno in cells_to_show.iterrows():
 
-#                         plt.text(canno.centroid_x, canno.centroid_y, canno[cell_annotation_category], fontdict=dict(color=cell_annotation_color,fontsize=fontsize))
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+
+
     plotted_categories={pc:{"plotted":False,"color":no_gray2[ii]} for ii,pc in enumerate(cell_annotation_values)}
-    
-    
-    
+
+
+
     if type(segmentation_geopandas) == gpd.geodataframe.GeoDataFrame :
-        
-        
-        cell_centroids =[]
+
+
         for cellid in segmentation_geopandas.loc[segmentation_geopandas.EntityID.isin(spottable.cell_ids),["EntityID","Geometry"]].EntityID.unique():
             cellinfo = segmentation_geopandas.loc[segmentation_geopandas.EntityID==cellid,"Geometry"].values[0]
             tg = coverage_union_all(cellinfo)
-#             try:
-            if cellid in list(anno.loc[anno[cell_annotation_category].isin(cell_annotation_values),"cell_id"]):
-                for ii,anno_value in enumerate(cell_annotation_values):
-                    anno_list = list(anno.loc[anno[cell_annotation_category]==anno_value,"cell_id"])
-                    if cellid in anno_list :
-                        if not plotted_categories[anno_value]["plotted"]:
-                            plt.plot(list(tg.boundary.coords.xy[1]), list(tg.boundary.coords.xy[0]), 
-                             color=plotted_categories[anno_value]["color"],linewidth=selected_cell_outline_weight,
-                                     label = anno_value)
-                            plotted_categories[anno_value]["plotted"]=True
-                        else:
-                            plt.plot(list(tg.boundary.coords.xy[1]), list(tg.boundary.coords.xy[0]), 
-                             color=plotted_categories[anno_value]["color"],linewidth=selected_cell_outline_weight,
-                                     label = None)
+            try:
+                if cellid in list(anno.loc[anno[cell_annotation_category].isin(cell_annotation_values),"cell_id"]):
+                    for ii,anno_value in enumerate(cell_annotation_values):
+                        anno_list = list(anno.loc[anno[cell_annotation_category]==anno_value,"cell_id"])
+                        if cellid in anno_list :
+                            if not plotted_categories[anno_value]["plotted"]:
+                                plt.plot(list(tg.boundary.coords.xy[1]), list(tg.boundary.coords.xy[0]), 
+                                 color=plotted_categories[anno_value]["color"],linewidth=selected_cell_outline_weight,
+                                         label = anno_value)
+                                plotted_categories[anno_value]["plotted"]=True
+                            else:
+                                plt.plot(list(tg.boundary.coords.xy[1]), list(tg.boundary.coords.xy[0]), 
+                                 color=plotted_categories[anno_value]["color"],linewidth=selected_cell_outline_weight,
+                                         label = None)
 
-            else:
-                plt.plot(list(tg.boundary.coords.xy[1]), list(tg.boundary.coords.xy[0]),
-                         color=[.2,.2,.2],linewidth=.5)
-
-#                 cell_centroids.append(dict(cell_id = cellid,
-#                         centroid_x = np.array(tg.boundary.centroid.coords).ravel()[1],
-#                         centroid_y = np.array(tg.boundary.centroid.coords).ravel()[0],            ))
-#             except:
-#                 print("skipping plot of "+str(cellid))
-        centrdf = pd.DataFrame.from_records(cell_centroids)   
+                else:
+                    plt.plot(list(tg.boundary.coords.xy[1]), list(tg.boundary.coords.xy[0]),
+                             color=[.2,.2,.2],linewidth=.5)
+            except:
+                print("skipping plot of "+str(cellid))
     plt.legend()
     # could be useful at some point: get polygons from spotdata:
     # for k in list(mini.cell_polygons.keys()):
@@ -320,21 +300,4 @@ def show_cells_and_transcripts(spottable, anndata_obj,
 
 
     
-    
-    
-#     # add mapped cell identities:
-#     # suboptimal copy here
-#     if type(anndata_obj) == ad.AnnData:
-#         anno = anndata_obj.obs.copy()
-#         anno["cell_id"] = anno.index.values.astype(int)   
-#         anno_merge = pd.merge(centrdf,anno )
-
-#         if cell_annotation_values:
-#             cells_to_show = anno_merge.loc[anno_merge[cell_annotation_category].isin(cell_annotation_values),:]
-#         else:
-#             cells_to_show = anno_merge
-
-
-#         for r,canno in cells_to_show.iterrows():
-
-#                         plt.text(canno.centroid_x, canno.centroid_y, canno[cell_annotation_category], fontdict=dict(color=cell_annotation_color,fontsize=fontsize))
+ 
