@@ -243,19 +243,26 @@ class MERSCOPESection(SpatialDataset):
 
         return status
 
-    def run_segmentation_on_section(self, subrgn, seg_method, seg_opts, hpc_opts):
-        seg_run = MerscopeSegmentationRun.from_spatial_dataset(self, subrgn, seg_method, seg_opts, hpc_opts)
-        cell_by_gene = seg_run.do_all_steps()
+    def run_segmentation_on_section(self, subrgn, seg_method, seg_opts, hpc_opts, timestamp = None):
+        if timestamp is not None:
+            # resume from previous segmentation
+            individual_seg_dir = os.path.join(self.seg_dir, timestamp)
+            assert os.path.exists(individual_seg_dir)
+            metadata_file = os.path.join(individual_seg_dir, 'metadata.pkl')
+            with open(metadata_file, 'rb') as f:
+                metadata = pickle.load(f)
+                seg_run = MerscopeSegmentationRun(**metadata)
 
-        return cell_by_gene
+        else:
+            # generate a new timestamp for segmentation
+            timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+            individual_seg_dir = os.path.join(self.seg_dir, timestamp)
+            seg_run = MerscopeSegmentationRun.from_spatial_dataset(self, individual_seg_dir, subrgn, seg_method, seg_opts, hpc_opts)
 
-    def resume_segmentation_on_section(self, timestamp):
-        output_dir = self.seg_dir
-        seg_run = MerscopeSegmentationRun.from_timestamp(output_dir, timestamp)
-        cell_by_gene = seg_run.resume(timestamp)
+        spot_table, cell_by_gene = seg_run.do_pipeline()
 
-        return cell_by_gene
-
+        return spot_table, cell_by_gene
+    
 
 # class MERSCOPESection(SpatialDataset):
 

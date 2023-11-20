@@ -13,6 +13,9 @@ import glob
 import time
 from abc import abstractmethod
 import pandas as pd
+import anndata as ad
+# used for type hint but it causes a circular import error
+# from sawg.spatial_dataset import SpatialDataset
 
 
 def run_segmentation(load_func, load_args:dict, subregion:dict|None, method_class, method_args:dict, result_file:str|None, cell_id_file:str|None):
@@ -773,6 +776,15 @@ class SegmentationRun:
         self.detected_transcripts_file = dt_file
         self.detected_transcripts_cache = dt_cache 
         self.output_dir = output_dir
+        if not os.path.exists(output_dir):
+            os.mkdir(output_dir)
+
+        # intermediate file paths
+        self.regions_path = os.path.join(output_dir, 'regions.json')
+        self.run_spec_path = os.path.join(output_dir, 'run_spec.pkl')
+        self.tile_save_path = os.path.join(output_dir, 'seg_tiles')
+        self.cid_path = os.path.join(output_dir, 'segmentation.npy')
+        self.cbg_path = os.path.join(output_dir, 'cell_by_gene.h5ad')
 
         # segmentation parameters
         self.subrgn = subrgn
@@ -780,11 +792,9 @@ class SegmentationRun:
         self.seg_opts = seg_opts
         self.hpc_opts = hpc_opts
 
-        # metadata updated during steps
-        self.path_to_meta = None
+        # initial arguments saved for future reference 
+        self.meta_path = os.path.join(output_dir, 'metadata.pkl')
         self.meta = {
-            'init_args':
-            {
                 'dt_file': dt_file,
                 'image_path': image_path,
                 'output_dir': output_dir,
@@ -794,31 +804,10 @@ class SegmentationRun:
                 'seg_opts': seg_opts,
                 'hpc_opts': hpc_opts
             }
-        }
+        self.save_metadata()
 
-    def set_run_directory(self, timestamp: str|None=None):
-
-        if timestamp is not None and os.path.exists(self.output_dir):
-            # load from existing segmentation
-            this_seg_dir = os.path.join(self.output_dir, timestamp)
-            assert os.path.exists(this_seg_dir)
-            self.path_to_meta = os.path.join(this_seg_dir, 'metadata.pkl')
-            self.meta = self.load_metadata()
-
-        else:
-            # create a new subdirectory for segmentation
-            timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-            this_seg_dir = os.path.join(self.output_dir, timestamp)
-            os.mkdir(this_seg_dir)
-            self.path_to_meta = os.path.join(this_seg_dir, 'metadata.pkl')
-            self.save_metadata()
-
-        self.this_seg_dir = this_seg_dir
-        self.regions_path = os.path.join(this_seg_dir, 'regions.json')
-        self.run_spec_path = os.path.join(this_seg_dir, 'run_spec.pkl')
-        self.tile_save_path = os.path.join(this_seg_dir, 'seg_tiles')
-        self.cid_path = os.path.join(this_seg_dir, 'segmentation.npy')
-        self.cbg_path = os.path.join(this_seg_dir, 'cell_by_gene.h5ad')
+        # load the spot table corresponding to the segmentation region
+        self.spot_table = self.load_spot_table(subrgn)
 
     @abstractmethod
     def get_load_func(self):
@@ -829,13 +818,13 @@ class SegmentationRun:
         return
 
     def save_metadata(self):
-        with open(self.path_to_meta, 'wb') as f:
+        with open(self.meta_path, 'wb') as f:
             pickle.dump(self.meta, f)
 
     def load_metadata(self):
-        assert os.path.exists(self.path_to_meta)
-        with open(self.path_to_meta, 'rb') as f:
+        with open(self.meta_path, 'rb') as f:
             meta = pickle.load(f)
+        
         return meta
 
     def save_regions(self, regions):
@@ -869,84 +858,63 @@ class SegmentationRun:
     def save_cbg(self, cell_by_gene):
         cell_by_gene.write(self.cbg_path)
 
+    def load_cbg(self):
+        assert os.path.exists(self.cbg_path)
+        cell_by_gene = ad.read_h5ad(self.cbg_path)
+        return cell_by_gene
+
     def load_spot_table(self, subregion):
         load_func = self.get_load_func()
         load_args = self.get_load_args()
         table = load_func(**load_args)
         subtable = get_segmentation_region(table, subregion)
-
-        self.meta.update({'subrgn': subregion})
-
         return subtable
 
-    def do_all_steps(self):
-        """Run a brand new segmentation in a new directory."""
-        self.set_run_directory()
-        subtable = self.load_spot_table(self.subrgn)
+    def check_run_status(self):
+        """Check which steps are complete."""
+        steps = {
+                'tiled': os.path.exists(self.regions_path),
+                'run spec': os.path.exists(self.run_spec_path),
+                'jobs submitted': os.path.exists(self.tile_save_path),
+                'merged tiles': os.path.exists(self.cid_path),
+                'cell by gene': os.path.exists(self.cbg_path)
+        }
 
-        print('Tiling region...')
-        tiles, regions = self.tile_seg_region(self.subrgn) 
+        return steps
+
+    def do_pipeline(self):
+        """Run steps as a pipeline.
+
+        If the output dir does not exist, start a new segmentation.
+        Otherwise, resume from an existing segmentation.
+        If existing segmentation is complete: load and return the output files.
+        """
+        step_status = self.check_run_status()
+
+        step_funcs = [
+                self.tile_seg_region,
+                self.get_seg_run_spec,
+                self.submit_seg_jobs,
+                self.merge_segmented_tiles,
+                self.create_cell_by_gene
+            ]
         
-        print('Creating run spec...')
-        run_spec = self.get_seg_run_spec(regions, self.seg_method, self.seg_opts)
+        not_done = [i for i, s in enumerate(list(step_status.values())) if not s] 
+        steps_to_do = [step_funcs[i] for i in not_done]
         
-        jobs = self.submit_seg_jobs(run_spec, self.hpc_opts)
-        self.track_job_progress(jobs)
+        if len(steps_to_do) > 0:
+            # evaluate steps not done
+            [f() for f in steps_to_do]
 
-        print('Merging tiles...')
-        cell_ids, merge_results, skipped = self.merge_segmented_tiles(subtable, run_spec, tiles)
+        # Load and return cell by gene table
+        cell_by_gene = self.load_cbg()
 
-        cell_by_gene = self.create_cell_by_gene(self.subrgn, cell_ids)
-        
-        return cell_by_gene
-
-    def resume(self, timestamp):
-        """Resume an unfinished segmentation from a previous step"""
-        self.set_run_directory(timestamp)
-
-        if os.path.exists(self.cbg_path):
-            raise FileExistsError('Final output file already exists.')
-
-        if os.path.exists(self.regions_path):
-            regions = self.load_regions()
-        else:
-            regions, _ = self.tile_seg_region(self.subrgn)
-
-        if os.path.exists(self.run_spec_path):
-            run_spec = self.load_run_spec()
-        else:
-            print('Creating run spec...')
-            run_spec = self.get_seg_run_spec(regions, self.seg_method, self.seg_opts)
-
-        # Check if all tiles were done
-        assert os.path.exists(self.tile_save_path)
-        n_submitted = len(run_spec)
-        n_finished = len(glob.glob(f'{self.tile_save_path}/segmentation_result_*.npy'))
-
-        if n_finished == 0:
-            # start from scratch
-            jobs = self.submit_seg_jobs(run_spec, self.hpc_opts)
-            self.track_job_progress(jobs)
-
-        elif n_finished < n_submitted:
-            raise NotImplementedError('Restarting from aborted HPC run not yet supported.')
-
-        elif n_finished == n_submitted:
-            # just merge
-            pass
-
-        else:
-            raise ValueError('Something is wrong.')
-
-        print('Merging tiles...')
-        cell_ids, merge_results, skipped = self.merge_segmented_tiles(run_spec, self.subrgn, None)
-
-        cell_by_gene = self.create_cell_by_gene(self.subrgn, cell_ids)
-
-        return cell_by_gene
+        return self.spot_table, cell_by_gene
 
     def track_job_progress(self, jobs):
-        """Make a progress bar to track job progress."""
+        """Make a progress bar to track job progress.
+        This also prevents merging until all cell id files are saved.
+        """
         print('Segmenting tiles...')
         with tqdm(total=len(jobs)) as pbar:
             while True:
@@ -958,19 +926,26 @@ class SegmentationRun:
                 if n_finished == len(jobs):
                     break
 
+        print('Checking all tiles are saved before proceeding...')
+        while True:
+            # not sure if there is a situation where this could go wrong?
+            n_cell_id_files = len(glob.glob(f'{self.tile_save_path}/segmentation_result_*.npy'))
+            if n_finished == n_cell_id_files:
+                break
 
-    def tile_seg_region(self, subrgn, **kwargs):
-        subtable = self.load_spot_table(subrgn)
+    def tile_seg_region(self, **kwargs):
+        subtable = self.spot_table
         tiles, regions = get_tiles(subtable, **kwargs)
         
         # save regions
         self.save_regions(regions)
-        self.meta.update((('regions_path', self.regions_path), ('n_tiles', len(regions))))
-        self.save_metadata()
 
         return tiles, regions
 
-    def get_seg_run_spec(self, regions, seg_method, seg_opts):
+    def get_seg_run_spec(self):
+        regions = self.load_regions()
+        seg_method = self.seg_method
+        seg_opts = self.seg_opts
         if not os.path.exists(self.tile_save_path):
             os.mkdir(self.tile_save_path)
 
@@ -985,44 +960,45 @@ class SegmentationRun:
 
         # save run_spec
         self.save_run_spec(run_spec)
-        self.meta.update((('run_spec_path', self.run_spec_path), ('seg_method', seg_method), ('seg_opts', seg_opts)))
-        self.save_metadata()
 
         return run_spec
 
-    def submit_seg_jobs(self, run_spec, hpc_opts):
-        job_path = os.path.join(self.this_seg_dir, 'hpc-jobs')
+    def submit_seg_jobs(self):
+        run_spec = self.load_run_spec()
+        hpc_opts = self.hpc_opts
+
+        job_path = os.path.join(self.output_dir, 'hpc-jobs')
         if not os.path.exists(job_path):
             os.mkdir(job_path)
-
         hpc_opts.update({'job_path': job_path})
 
         jobs = run_segmentation_on_hpc(run_spec, **hpc_opts)
-        # should probably save hpc_opts too
-        self.meta.update({'hpc_opts': hpc_opts})
-        self.save_metadata()
+        self.track_job_progress(jobs)
 
         return jobs
 
-    def merge_segmented_tiles(self, run_spec, subrgn, tiles):
-        subtable = self.load_spot_table(subrgn)
-        cell_ids, merge_results, skipped = merge_segmentation_results(subtable, run_spec, tiles)
+    def merge_segmented_tiles(self):
+        run_spec = self.load_run_spec()
+        
+        subtable = self.spot_table
+        # need to make extra sure this updates the spot table attached to the 
+        # class in place
+        cell_ids, merge_results, skipped = merge_segmentation_results(subtable, run_spec, None)
+
         if len(run_spec) == len(skipped):
             raise RuntimeError('All tiles were skipped, check error logs.')
 
+        if len(skipped) > 0:
+            print('Warning: Some tiles were skipped.')
+
         # save cell_ids
         self.save_cell_ids(cell_ids)
-        self.meta.update({'cell_ids_path': self.cid_path})
-        self.save_metadata()
 
         return cell_ids, merge_results, skipped
 
-    def create_cell_by_gene(self, subrgn, cell_ids, remove_bg = True):
-        subtable = self.load_spot_table(subrgn)
-        subtable.cell_ids = cell_ids
-        
-        if remove_bg:
-            subtable = subtable.filter_cells(real_cells = True)
+    def create_cell_by_gene(self, remove_bg = True):
+        subtable = self.spot_table
+        subtable = subtable.filter_cells(real_cells = remove_bg)
 
         cell_by_gene = subtable.cell_by_gene_anndata()
         self.save_cbg(cell_by_gene)
@@ -1045,12 +1021,11 @@ class MerscopeSegmentationRun(SegmentationRun):
         super().__init__(dt_file, image_path, output_dir, dt_cache, subrgn, seg_method, seg_opts, hpc_opts)
 
     @classmethod
-    def from_spatial_dataset(cls, sp_dataset: SpatialDataset, subrgn, seg_method, seg_opts, hpc_opts):
+    def from_spatial_dataset(cls, sp_dataset, output_dir, subrgn, seg_method, seg_opts, hpc_opts):
         """Alternate constructor to load from a SpatialDataset"""
         image_path = sp_dataset.images_path
         csv_file = sp_dataset.detected_transcripts_file
         cache_file = sp_dataset.detected_transcripts_cache
-        output_dir = sp_dataset.seg_dir
 
         return cls(csv_file, image_path, output_dir, cache_file, subrgn, seg_method, seg_opts, hpc_opts)
 
