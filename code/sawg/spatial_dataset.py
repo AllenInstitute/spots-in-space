@@ -8,8 +8,8 @@
 
 version = 1
 
-from sawg.celltype_mapping import ScrattchMapping
-from sawg.segmentation import run_segmentation, CellposeSegmentationMethod, CellposeSegmentationResult, SegmentationMethod, MerscopeSegmentationRun
+from sawg.celltype_mapping import ScrattchMapping, CellTypeMapping
+from sawg.segmentation import run_segmentation, SegmentationMethod, MerscopeSegmentationRun
 from sawg.segmentation import get_segmentation_region, get_tiles, create_seg_run_spec, merge_segmentation_results
 from sawg.spot_table import SpotTable
 from sawg.util import load_config
@@ -26,6 +26,11 @@ import numpy as np
 import ipywidgets as widgets
 from ipywidgets import interact_manual
 from tqdm.autonotebook import tqdm
+from contextlib import redirect_stdout
+from .optional_import import optional_import
+
+widgets = optional_import('ipywidgets')
+interact_manual = optional_import('ipywidgets', names='interact_manual')
 
 
 ## Allen Services
@@ -48,11 +53,11 @@ class SpatialDataset:
     def load_from_barcode(cls, barcode: str, dataset_type: 'SpatialDataset', file_name='spatial_dataset'):
         config = load_config()
         if dataset_type == MERSCOPESection:
-            data_path = os.path.join(config['merscope_save_path'], str(barcode), file_name)
+            data_path = Path(config['merscope_save_path']).joinpath(str(barcode), file_name)
         if dataset_type == StereoSeqSection:
-            data_path = os.path.join(config['stereoseq_save_path'], str(barcode), file_name)
+            data_path = Path(config['stereoseq_save_path']).joinpath(str(barcode), file_name)
         # other config paths would be added here as they come about
-        if not os.path.isfile(data_path):
+        if not Path.is_file(data_path):
             print(f'SpatialDataset {data_path} does not exist')
             return None
         with open(data_path, 'rb') as file:
@@ -62,9 +67,27 @@ class SpatialDataset:
         return dataset
     
     def save_dataset(self, file_name: str='spatial_dataset'):
-        file = open(os.path.join(self.save_path, file_name), 'wb')
+        file = open(self.save_path.joinpath(file_name), 'wb')
         pkl.dump(self, file)
         file.close()
+
+    def get_mappings(self, print_output=True):
+        mappings = {}
+        mapping_dir = self.save_path.joinpath(self.config['mapping_dir'])
+        for mapping in mapping_dir.iterdir():
+            ts = mapping.name
+            try:
+                with redirect_stdout(None):
+                    meta = CellTypeMapping.load_from_timestamp(directory=mapping_dir, timestamp=ts, meta_only=True)
+                mappings[ts] = meta
+                if print_output is True:
+                    print(f'{ts}: {meta}')
+            except:
+                mappings[ts] = None
+                if print_output is True:
+                    print(f'{ts}: None')
+        self.mappings = mappings
+        self.save_dataset()
         
     def spatial_corr_to_bulk(self, spot_table=None, save_fig=True):
         if spot_table is None:
@@ -104,7 +127,7 @@ class SpatialDataset:
         plt.tight_layout()
 
         if save_fig is True:
-            fig.savefig(os.path.join(self.save_path, 'correlation_to_bulk.pdf'))
+            fig.savefig(self.save_path.joinpath('correlation_to_bulk.png'))
         
         self.save_dataset()
 
@@ -115,24 +138,63 @@ class SpatialDataset:
         fig_rows = len(subregions) if subregions is not None else 1
         fig, ax = plt.subplots(fig_rows, 2, figsize=(10, 5*fig_rows))
         
-        genes_table = spot_table.get_genes(genes)
+        gene_ids = spot_table.map_gene_names_to_ids(genes)
+        genes_table = spot_table.get_genes(gene_ids=gene_ids)
         reduced_spots = int(np.floor(len(spot_table)/100000))
         if fig_rows==1:
             spot_table[::reduced_spots].scatter_plot(ax[0])
+            spot_table.gene_names
             df = genes_table.dataframe(cols=['x', 'y', 'gene_names'])
-            sns.scatterplot(data=df, x='x', y='y', hue='gene_names', s=3, alpha=0.5, linewidth=0, ax=ax[1], palette='tab10')
+            sns.scatterplot(data=df, x='x', y='y', hue='gene_names', s=3, alpha=0.5, linewidth=0, ax=ax[1], palette='tab10', hue_order=genes)
             ax[1].legend(bbox_to_anchor=(1, 1))
         else:  
             for i, subregion in enumerate(subregions):
                 spot_table[::reduced_spots].scatter_plot(ax[i, 0])
                 sub_table = genes_table.get_subregion(xlim=subregion[0], ylim=subregion[1])
                 sub_table.plot_rect(ax[i, 0], 'r')
+                sub_table.gene_names
                 df = sub_table.dataframe(cols=['x', 'y', 'gene_names'])
-                sns.scatterplot(data=df, x='x', y='y', hue='gene_names', s=3, alpha=0.5, linewidth=0, ax=ax[i, 1], palette='tab10')
+                sns.scatterplot(data=df, x='x', y='y', hue='gene_names', s=3, alpha=0.5, linewidth=0, ax=ax[i, 1], palette='tab10', hue_order=genes)
                 ax[i, 1].legend(bbox_to_anchor=(1, 1))
                 
         if save_fig is True:
-            fig.savefig(os.path.join(self.save_path, 'marker_gene_transcripts.pdf'))
+            fig.savefig(self.save_path.joinpath('marker_gene_transcripts.png'))
+
+    def view_mapping_results(self, ct_map, ct_level, score_thresh=None):
+        if type(ct_map) == str:
+            ct_map = CellTypeMapping.load_from_timestamp(directory=self.mapping_path, timestamp=ct_map)
+
+        if isinstance(ct_map, ScrattchMapping):
+            ct_map.load_scrattch_mapping_results()
+            mapping_score_col = 'score.Corr'
+            col_labels = [prefix + 'Corr' for prefix in self.config['taxonomy_info'][ct_map.meta['taxonomy_name']]['col_labels']]
+
+        fig, ax = plt.subplots()
+        sns.histplot(data=ct_map.ad_map.obs, x=mapping_score_col, ax=ax)
+        if score_thresh is not None:
+            qc_pass = True
+            ct_map.qc_mapping(qc_params={mapping_score_col: score_thresh})
+            ax.axvline(score_thresh, color='k', ls='--')
+        else:
+            qc_pass = False
+        fig.savefig(Path(ct_map.run_directory).joinpath('score_hist.png'))
+
+        cls_label = [label for label in col_labels if 'class' in label][0]
+        ct_level_label = [label for label in col_labels if ct_level in label]
+        if len(ct_level_label) != 1:
+            print(f'{ct_level} does not have an obvious corresponding column in mapping output, check obs columns')
+            return
+        ct_level_label = ct_level_label[0]
+        groups= {}
+        for cls in ct_map.ad_map.obs[cls_label].unique():
+            group = ct_map.ad_map.obs[ct_map.ad_map.obs[cls_label]==cls][ct_level_label].unique()
+            groups[cls] = group
+
+        fig = ct_map.plot_best_mapping_corr(level=ct_level_label, groups=groups, qc_pass=qc_pass, args={'scale': 'width'})
+        fig.savefig(Path(ct_map.run_directory).joinpath(f'score_corr_{ct_level}.png'))
+
+        fig = ct_map.plot_best_mapping(level=ct_level_label, groups=groups, qc_pass=qc_pass, args={'s': 5})
+        fig.savefig(Path(ct_map.run_directory).joinpath(f'{ct_level}_spatial_map.png'))
         
 class MERSCOPESection(SpatialDataset):
 
@@ -141,18 +203,27 @@ class MERSCOPESection(SpatialDataset):
 
     def __init__(self, barcode):
         config = load_config()
-        save_path = os.path.join(config['merscope_save_path'], str(barcode))
-        if os.path.isfile(os.path.join(save_path, 'spatial_dataset')):
+        save_path = Path(config['merscope_save_path']).joinpath(str(barcode))
+        if Path.is_file(save_path.joinpath('spatial_dataset')):
             print(f'SpatialDataset already exists and will be loaded. If you want to reprocess this dataset delete the file and start over')
             cached = SpatialDataset.load_from_barcode(barcode, MERSCOPESection)
             self.__dict__ = cached.__dict__
+            self.get_analysis_status()
         
         else:
             SpatialDataset.__init__(self, barcode)
             self.save_path = save_path
-            if not os.path.exists(self.save_path):
-                os.mkdir(self.save_path)
+
+            if not Path.exists(self.save_path):
+                Path.mkdir(self.save_path)
             
+            self.mapping_path = self.save_path.joinpath(self.config['mapping_dir']) if self.config.get('mapping_dir') is not None else None
+            if self.mapping_path is not None and not Path.exists(self.mapping_path):
+                Path.mkdir(self.mapping_path)
+            self.segmentation_path = self.save_path.joinpath(self.config['segmentation_dir']) if self.config.get('segmentation_dir') is not None else None
+            if self.segmentation_path is not None and not Path.exists(self.segmentation_path):
+                Path.mkdir(self.segmentation_path)
+
             self.broad_region = None
             self.get_section_metadata()
             self.get_section_data_paths()
@@ -202,10 +273,13 @@ class MERSCOPESection(SpatialDataset):
         
         merscope_expt = pts.get_process_by_id(self.merscope_expt_pts_id)
         for output in merscope_expt.outputs: 
-            dats_collection = dats.get_collection_by_id(account_id = macaque_dats_account.id, collection_id = output.external_id)
-            if dats_collection.type == 'File Bundle':
-                spec_data_collection = dats_collection
-                break
+            try:
+                dats_collection = dats.get_collection_by_id(account_id = macaque_dats_account.id, collection_id = output.external_id)
+                if dats_collection.description == 'Isilon Backfill' and dats_collection.type == 'File Bundle':
+                    spec_data_collection = dats_collection
+                    break
+            except:
+                pass
 
         for asset in spec_data_collection.digital_assets:
             if asset.type == 'CSV' and 'detected_transcripts' in asset.name:
@@ -219,6 +293,21 @@ class MERSCOPESection(SpatialDataset):
                 if platform.startswith('win'):
                     self.images_path = '/' + self.images_path
                 
+    def get_analysis_status(self):
+        # check for segmentation and mapping files
+        if self.corr_to_bulk is not None:
+            print(f'Correlation to bulk already calculated: {self.corr_to_bulk:.2f}')
+        else:
+            print('Correlation to bulk not calculated')
+        ## add segmentation check here
+        self.get_mappings(print_output=False)
+        if len(self.mappings) == 0:
+            print('No mappings found')
+        else:
+            print('Mapping timestamps: \t Mapping info')
+            for ts, info in self.mappings.items():
+                print(f'{ts}: \t {info}')
+
     def load_spottable(self):
         if hasattr(self, 'detected_transcripts_cache') is False:
             self.detected_transcripts_cache = os.path.join(self.save_path, 'detected_transcripts.npz')
@@ -263,49 +352,37 @@ class MERSCOPESection(SpatialDataset):
 
         return spot_table, cell_by_gene
     
-
-# class MERSCOPESection(SpatialDataset):
-
-#     pts_qc_filt = pts_schema.MetadataFilterInput(type=pts_schema.DataTypeFilterInput(name=pts_schema.StringOperationFilterInput(eq="QCMetadata")))
-#     pst_request_filt = pts_schema.MetadataFilterInput(type=pts_schema.DataTypeFilterInput(name=pts_schema.StringOperationFilterInput(eq="MerscopeImagingRequestMetadata")))
-
-#     def __init__(self):
-#         self.save_path # get from config file?  
-#         self.bers_id
-#         self.get_section_metadata()
-#         self.get_section_data_paths()
-    
-#     def get_section_data_paths(self):
-#         #dats
-#         self.images_path
-#         self.detected_transcripts_path
-#         self.expt_json
-#         # do we even need these 2 if we're just going to re-segment?
-#         self.cbg_path
-#         self.cbg_meta_path
-
-#     def get_section_metadata(self):
-#         self.section_thickness # not sure where this comes from?
-#         self.z_coord # this will probably require some math and grabbing of parent z_coord - nothing currently in BERS
-#         self.gene_panel #PTS
-#         self.qc_state #PTS
-#         self.lims_specimen_name #BERS
-#         self.species #BERS
-
-#     def make_section_anndata(self):
-#         # this may be a part of the segmentation? 
-#         self.anndata = anndata
-
-#     def qc_cells(self):
-#         # question of when this step happens. 
-#         # should it replace self.anndata? if the segmentation can easy recreate the original, or we save that as a csv then we can
-#         # or could have self.qc_anndata
-#         # it's too bad that anndata can't have layers of different dimensions
-
-#     def run_segmentation_on_section(self, method):
-#         self.segmentation = CellposeSegmentationResult
+    def run_mapping_on_section(self, method, taxonomy=None, method_args={}, hpc_args={}):
+        if method == ScrattchMapping:
+            mapping = ScrattchMapping(
+                sp_data = self.anndata,
+                taxonomy_path = self.config['taxonomy_info'][taxonomy]['path'],
+            )
+        else:
+            print(f'Mapping method not instantiated for {method}')
+            return
         
-#     def run_mapping_on_section(self, method):
+        meta = {'taxonomy_name': taxonomy, 'taxonomy_cols': self.config['taxonomy_info'][taxonomy]['col_labels']}
+        ad_map_args = {'save_path': self.mapping_path.as_posix(), 'meta': meta}
+        ad_map_args.update(method_args)
+        
+        hpc_args_default = {
+            'job_path': f"{self.config['hpc_outputs']}/scripts/",
+            'output':f"{self.config['hpc_outputs']}/%j.out",
+            'error': f"{self.config['hpc_outputs']}/%j.err",
+        }
+        
+        hpc_args_default.update(hpc_args)
+        
+        if 'docker' in hpc_args.keys():
+            docker = hpc_args['docker']
+            hpc_args_default.pop('docker')
+            job = mapping.run_on_hpc(ad_map_args, hpc_args_default, docker=docker)
+        else:
+            job = mapping.run_on_hpc(ad_map_args, hpc_args_default)
+        
+        return job, mapping    
+
 
 # class MERSCOPESectionCollection(MERSCOPESection):
 #     #collection of MERSCOPE sections that go together
@@ -314,21 +391,29 @@ class StereoSeqSection(SpatialDataset):
     
     def __init__(self, barcode):
         config = load_config()
-        save_path = os.path.join(config['stereoseq_save_path'], barcode)
-        if os.path.isfile(os.path.join(save_path, 'spatial_dataset')):
+        save_path = Path(config['stereoseq_save_path']).joinpath(barcode)
+        if Path.is_file(save_path.joinpath('spatial_dataset')):
             print(f'SpatialDataset already exists and will be loaded. If you want to reprocess this dataset delete the file and start over')
             cached = SpatialDataset.load_from_barcode(barcode, StereoSeqSection)
             self.__dict__ = cached.__dict__
-        
+            print('QC status:')
+            print(self.qc)
+
         else:
             SpatialDataset.__init__(self, barcode)
             self.save_path = save_path
 
-            if not os.path.exists(self.save_path):
-                os.path.mkdir(self.save_path)
-                
+            if not Path.exists(self.save_path):
+                Path.mkdir(self.save_path)
+            
             self.xyscale = 0.5
             self.broad_region = None
+            self.mapping_path = self.save_path.joinpath(self.config['mapping_dir']) if self.config.get('mapping_dir') is not None else None
+            if self.mapping_path is not None and not Path.exists(self.mapping_path):
+                Path.mkdir(self.mapping_path)
+            self.segmentation_path = self.save_path.joinpath(self.config['segmentation_dir']) if self.config.get('segmentation_dir') is not None else None
+            if self.segmentation_path is not None and Path.exists(self.segmentation_path):
+                Path.mkdir(self.segmentation_path)
 
             self.qc = {
                 'bin200_median_transcript': None,
@@ -340,9 +425,11 @@ class StereoSeqSection(SpatialDataset):
                 'celltype_mapping': None,
             }
 
-            self.bin_files = {}
             self.ad_files = {}
+            self.mappings = []
+            self.segmentations = []
 
+            self.get_section_metadata()
             self.get_section_data_paths()
 
             self.save_dataset() 
@@ -350,7 +437,14 @@ class StereoSeqSection(SpatialDataset):
     def get_section_data_paths(self):
         # hopefully this will get integrated into Allen Services but for now, hardcode paths
         
-        self.detected_transcripts_file  = os.path.join(self.save_path, 'gem_files', (self.barcode + '.tissue.gem'))
+        self.detected_transcripts_file  = self.save_path.joinpath('gem_files', (self.barcode + '.tissue.gem'))
+        self.bin_file =  self.save_path.joinpath('gem_files', (self.barcode + '.tissue.gef'))
+        self.cellbin_file =  self.save_path.joinpath('gem_files', (self.barcode + '.tissue.gef'))
+    
+    def get_section_metadata(self):
+        # hopefully this will get integrated into Allen Services but for now, hardcode 
+        
+        self.species = 'Macaque'
         
     def load_spottable(self):       
         if hasattr(self, 'detected_transcripts_cache') is False:
@@ -372,7 +466,7 @@ class StereoSeqSection(SpatialDataset):
         self.save_dataset()
         print(f'{qc_metric}: {self.qc[qc_metric]}')
 
-    def evaluate_gene_expression(self, gene_list=None, spot_table=None, save_fig=True):
+    def qc_gene_expression(self, gene_list=None, spot_table=None, save_fig=True):
         # optionally provide a spot table if one is already loaded
         if spot_table is None:
             spot_table = self.load_spottable()
@@ -400,59 +494,159 @@ class StereoSeqSection(SpatialDataset):
             col += 1
 
         if save_fig is True:
-            fig.savefig(os.path.join(self.save_path, 'gene_expression_qc.pdf'))
+            fig.savefig( self.save_path.joinpath('gene_expression_qc.png'))
 
 
         self.qc_widget(metric='gene_expression_qc')
     
-    def spatial_corr_to_bulk_qc(self, threshold=0.6, kwargs={}):
+    def qc_spatial_corr_to_bulk(self, threshold=0.6, kwargs={}):
         self.spatial_corr_to_bulk(**kwargs)
         self.qc['corr_to_bulk'] = 'Pass' if self.corr_to_bulk >= threshold else 'Fail'
         print(f"corr_to_bulk: {self.qc['corr_to_bulk']}")
         
-    def evaluate_bin200(self, spot_table=None, median_transcript_thresh=18000, base_transcript_thresh=7000, save_fig=True):
-        bin200_file = self.bin_files.get('bin200', None)
-        if bin200_file is None:
-            bin200_file = os.path.join(self.save_path, 'bin200.npz')
-            self.bin_files['bin200'] = bin200_file
+    def qc_bin200(self, median_transcript_thresh=18000, base_transcript_thresh=7000, save_fig=True):
+        import stereo as st
+
         ad200_file = self.ad_files.get('bin200', None)
         if ad200_file is None:
             ad200_file = os.path.join(self.save_path, 'ad_sp_bin200.h5ad')
             self.ad_files['bin200'] = ad200_file
 
         if not os.path.isfile(ad200_file):
-            if spot_table is None:
-                self.load_spottable()
-            ad_bin200 = spot_table.bin_by_gene_anndata(binsize=200*self.xyscale, cache_file=bin200_file, ad_file = ad200_file)
+            meta = {'chip_name': self.barcode,
+                    'binsize': '200',
+                    'species': self.species,
+                    'region': self.broad_region,
+                    'method': 'StereoSeq',
+                   }  
+            bin200_data = st.io.read_gef(file_path=str(self.bin_file), bin_size=200)
+            bin200_data.tl.raw_checkpoint()
+            bin200_data.tl.cal_qc()
+            ad_bin200 = st.io.stereo_to_anndata(bin200_data, flavor='scanpy', reindex=True, output= ad200_file)
+            ad_bin200.uns.update(meta)
+            ad_bin200.write_h5ad(ad200_file)
         else:
             ad_bin200 = ad.read_h5ad(ad200_file)
 
-        self.bin200_median_transcript = ad_bin200.obs['n_transcripts'].median()
-        self.bin200_transcript_coverage = len(ad_bin200.obs[ad_bin200.obs['n_transcripts']>base_transcript_thresh])/len(ad_bin200)*100
+        self.bin200_median_transcript = ad_bin200.obs['total_counts'].median()
+        self.bin200_transcript_coverage = len(ad_bin200.obs[ad_bin200.obs['total_counts']>base_transcript_thresh])/len(ad_bin200)*100
 
-        self.qc['bin200_median_transcript'] = 'Pass' if self.bin200_median_transcript >= median_transcript_thresh else 'Fail'
-        print(f"bin200_median_transcript: {self.qc['bin200_median_transcript']}")
-
-        self.qc['bin200_transcript_coverage'] = 'Pass' if self.bin200_transcript_coverage >= 0.8 else 'Fail'
-        print(f"bin200_transcript_coverage: {self.qc['bin200_transcript_coverage']}")
+        self.evaluate_qc_metric('bin200_median_transcript', 'Pass' if self.bin200_median_transcript >= median_transcript_thresh else 'Fail')
+        self.evaluate_qc_metric('bin200_transcript_coverage', 'Pass' if self.bin200_transcript_coverage >= 0.8 else 'Fail')
 
         fig, ax = plt.subplots(1, 3, figsize=(12, 4))
 
-        sns.violinplot(data=ad_bin200.obs, y='n_transcripts', ax=ax[0], cut=0)
+        sns.violinplot(data=ad_bin200.obs, y='total_counts', ax=ax[0], cut=0)
         ax[0].axhline(18000, color='orange', ls='--')
         ax[0].set_title(f'Median MID: {self.bin200_median_transcript}')
-        sns.ecdfplot(data=ad_bin200.obs, x='n_transcripts', ax=ax[1])
+        sns.ecdfplot(data=ad_bin200.obs, x='total_counts', ax=ax[1])
         ax[1].axvline(7000, color='orange', ls='--')
         ax[1].axhline(0.2, color='orange', ls='--')  
         ax[1].set_title(f'% Bins > Base MID: {self.bin200_transcript_coverage:.2f}%')
-        sns.violinplot(data=ad_bin200.obs, y='n_genes', ax=ax[2], cut=0)
+        sns.violinplot(data=ad_bin200.obs, y='n_genes_by_counts', ax=ax[2], cut=0)
         plt.tight_layout()
 
         if save_fig is True:
-            fig.savefig(os.path.join(self.save_path, 'Bin200_transcript_detection.pdf'))
+            fig.savefig( self.save_path.joinpath('Bin200_transcript_detection.png'))
+    
+    def run_mapping_on_section(self, method, binsize=50, taxonomy=None, training_genes='hvgs', method_args={}, hpc_args={}):
+        import stereo as st
 
-# class StereoSeqSectionPair(StereoSeqSection):
+        bin_key = 'bin' + str(binsize) if binsize != 'cell' else binsize
+        ad_file = self.ad_files.get(bin_key, None)
+        if ad_file is None:
+            ad_file = Path.joinpath(self.save_path, 'ad_sp_' + bin_key + '.h5ad')
+            self.ad_files[bin_key] = ad_file
+
+        if not os.path.isfile(ad_file):
+            uns = {
+                'chip_name': self.barcode,
+                'binsize': str(binsize),
+                'species': self.species,
+                'region': self.broad_region,
+                'method': 'StereoSeq',
+                }
+            
+            if binsize == 'cell':
+                data = st.io.read_gef(file_path=self.cellbin_file, bin_type='cell_bins')
+            else:
+                data = st.io.read_gef(file_path=self.bin_file, bin_size=binsize)
+            
+            data.tl.raw_checkpoint()
+            data.tl.cal_qc()
+            ad_data = st.io.stereo_to_anndata(data, flavor='scanpy', reindex=True, output= ad_file)
+            ad_data.uns.update(uns)
+            ad_data.layers['logcounts'] = np.log1p(ad_data.X)
+            ad_data.write_h5ad(ad_file)
+        else:
+            ad_data = ad.read_h5ad(ad_file)
+
+        if method == ScrattchMapping:
+            mapping = ScrattchMapping(
+                sp_data = ad_data,
+                taxonomy_path = taxonomy_path,
+            )
+        else:
+            print(f'Mapping method not instantiated for {method}')
+            return
+        
+        meta = {'taxonomy_name': taxonomy, 'taxonomy_cols': self.config['taxonomy_info'][taxonomy]['col_labels']}
+        if taxonomy is not None:
+            taxonomy_path = self.config['taxonomy_info'][taxonomy]['path']
+        if training_genes == 'hvgs' and taxonomy is not None:
+            taxonomy_ad = ad.read_h5ad(Path.joinpath(taxonomy_path, 'AI_taxonomy.h5ad'), backed='r')
+            training_genes = taxonomy_ad.var[taxonomy_ad.var['highly_variable_genes']==True].index.to_list()
+            meta['training_genes'] = 'taxonomy highly variable genes'
+       
+        ad_map_args = {'save_path': self.mapping_path.as_posix(), 
+                    'ad_sp_layer': 'logcounts',
+                    'training_genes': training_genes,
+                    'meta': meta}
+        ad_map_args.update(method_args)
+
+        hpc_args_default = {
+            'job_path': self.config['hpc_outputs'] + '/scripts/',
+            'output': self.config['hpc_outputs'] + '/%j.out',
+            'error': self.config['hpc_outputs'] + '/%j.err',
+        }
+        hpc_args_default.update(hpc_args)
+
+        if 'docker' in hpc_args.keys():
+            docker = hpc_args['docker']
+            hpc_args_default.pop('docker')
+            job = mapping.run_on_hpc(ad_map_args, hpc_args_default, docker=docker)
+        else:
+            job = mapping.run_on_hpc(ad_map_args, hpc_args_default)
+
+        return job, mapping
+
+    def qc_mapping_reults(self, ct_map, score_thresh, map_thresh=0.6):
+        if type(ct_map) == str:
+            ct_map = CellTypeMapping.load_from_timestamp(directory=self.mapping_path, timestamp=ct_map)
+
+        if isinstance(ct_map, ScrattchMapping):
+            ct_map.load_scrattch_mapping_results()
+            mapping_score_col = 'score.Corr'
+            col_labels = [prefix + 'Corr' for prefix in self.config['taxonomy_info'][ct_map.meta['taxonomy_name']]['col_labels']]
+
+        fig, ax = plt.subplots()
+        sns.histplot(data=ct_map.ad_map.obs, x=mapping_score_col, ax=ax)
+        ax.axvline(score_thresh, color='k', ls='--')
+        ct_map.qc_mapping(qc_params={mapping_score_col: score_thresh})
+        
+        self.mapping_quality = sum(ct_map.ad_map.obs[mapping_score_col] >= score_thresh)/len(ct_map.ad_map.obs)
+        self.evaluate_qc_metric('mapping_quality', 'Pass' if self.mapping_quality >= map_thresh else 'Fail')
+        ax.set_title(f'Mapping Quality: {self.mapping_quality:.2f}')
+        fig.savefig(self.save_path.joinpath('mapping_qc.png'))   
+        
+# class StereoSeqSectionCollection(StereoSeqSection):
 
 # class XeniumSection(SpatialDataset):
+#     def __init__(self, barcode):
+#         super().__init__(barcode)   
+#         self.save_path = os.path.join(self.config['xenium_save_path'], barcode)
+#         if not os.path.exists(self.save_path):
+#             os.mkdir(self.save_path)
+
 
 # class XeniumSectionCollection(XeniumSection):
