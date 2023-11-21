@@ -264,6 +264,22 @@ class MERSCOPESection(SpatialDataset):
         spot_table, cell_by_gene = seg_run.do_pipeline()
 
         return spot_table, cell_by_gene
+
+    def load_segmentation(self, timestamp):
+        individual_seg_dir = os.path.join(f'{self.seg_dir}/', f'{timestamp}/')
+        assert os.path.exists(individual_seg_dir)
+
+        metadata_file = os.path.join(individual_seg_dir, 'metadata.pkl')
+        with open(metadata_file, 'rb') as f:
+            metadata = pickle.load(f)
+            seg_run = MerscopeSegmentationRun(**metadata)
+
+        cell_ids = seg_run.load_cell_ids()
+        seg_run.spot_table.cell_ids = cell_ids
+        cbg_table = seg_run.load_cbg()
+        
+        return spot_table, cbg_table
+
     
 
 # class MERSCOPESection(SpatialDataset):

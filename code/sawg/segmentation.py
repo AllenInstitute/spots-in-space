@@ -894,6 +894,7 @@ class SegmentationRun:
         If the output dir does not exist, start a new segmentation.
         Otherwise, resume from an existing segmentation.
         If existing segmentation is complete: load and return the output files.
+        Warning: Currently will not reassign cell_ids if all steps are done...
         """
         step_status = self.check_run_status()
 
@@ -916,6 +917,15 @@ class SegmentationRun:
         cell_by_gene = self.load_cbg()
 
         return self.spot_table, cell_by_gene
+
+    def resume_pipeline(self):
+        pass
+    
+    def load_results(self):
+        """Load the results of a finished segmentation."""
+        self.spot_table.cell_ids = self.load_cell_ids
+        cell_by_gene = self.load_cbg()
+        return self.spot_table.cell_ids, cell_by_gene
 
     def track_job_progress(self, jobs, run_spec):
         """Track progress of segmentation jobs. Will not complete until all 
