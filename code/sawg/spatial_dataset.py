@@ -141,7 +141,8 @@ class MERSCOPESection(SpatialDataset):
 
     def __init__(self, barcode):
         config = load_config()
-        save_path = os.path.join(config['merscope_save_path'], str(barcode))
+        #save_path = os.path.join(config['merscope_save_path'], str(barcode))
+        save_path = config['merscope_save_path'] + f'/{barcode}'
         if os.path.isfile(os.path.join(save_path, 'spatial_dataset')):
             print(f'SpatialDataset already exists and will be loaded. If you want to reprocess this dataset delete the file and start over')
             cached = SpatialDataset.load_from_barcode(barcode, MERSCOPESection)
@@ -161,7 +162,8 @@ class MERSCOPESection(SpatialDataset):
         
         #self.seg_dir = os.path.join(save_path, config['segmentation_dir'])
         # the above doesn't work if the segmentation dir has a leading slash
-        self.seg_dir = save_path + config['segmentation_dir']
+        seg_dir_name = config['segmentation_dir']
+        self.seg_dir = f'{save_path}/{seg_dir_name}/'
         if not os.path.exists(self.seg_dir):
             os.mkdir(self.seg_dir)
 
@@ -246,7 +248,7 @@ class MERSCOPESection(SpatialDataset):
     def run_segmentation_on_section(self, subrgn, seg_method, seg_opts, hpc_opts, timestamp = None):
         if timestamp is not None:
             # resume from previous segmentation
-            individual_seg_dir = os.path.join(self.seg_dir, timestamp)
+            individual_seg_dir = os.path.join(f'{self.seg_dir}/', f'{timestamp}/')
             assert os.path.exists(individual_seg_dir)
             metadata_file = os.path.join(individual_seg_dir, 'metadata.pkl')
             with open(metadata_file, 'rb') as f:
@@ -256,7 +258,7 @@ class MERSCOPESection(SpatialDataset):
         else:
             # generate a new timestamp for segmentation
             timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-            individual_seg_dir = os.path.join(self.seg_dir, timestamp)
+            individual_seg_dir = os.path.join(self.seg_dir, f'{timestamp}/')
             seg_run = MerscopeSegmentationRun.from_spatial_dataset(self, individual_seg_dir, subrgn, seg_method, seg_opts, hpc_opts)
 
         spot_table, cell_by_gene = seg_run.do_pipeline()
