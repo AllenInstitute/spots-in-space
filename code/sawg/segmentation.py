@@ -12,6 +12,7 @@ import datetime
 import glob
 import time
 from abc import abstractmethod
+from typing import Union
 import pandas as pd
 import anndata as ad
 # used for type hint but it causes a circular import error
@@ -646,8 +647,8 @@ def create_seg_run_spec(regions, load_func, load_args: dict, seg_method: Segment
                 subregion=region,
                 method_class=seg_method,
                 method_args=seg_opts,
-                result_file=os.path.join(tile_save_path, f'segmentation_result_{i}.pkl'),
-                cell_id_file=os.path.join(tile_save_path, f'segmentation_result_{i}.npy'),
+                result_file=os.path.join(f'{tile_save_path}/', f'segmentation_result_{i}.pkl'),
+                cell_id_file=os.path.join(f'{tile_save_path}/', f'segmentation_result_{i}.npy'),
             )
         )
     print(f"Generated segmentation spec for {len(run_spec)} tiles")
@@ -782,7 +783,7 @@ class SegmentationRun:
         # intermediate file paths
         self.regions_path = os.path.join(output_dir, 'regions.json')
         self.run_spec_path = os.path.join(output_dir, 'run_spec.pkl')
-        self.tile_save_path = os.path.join(output_dir, 'seg_tiles')
+        self.tile_save_path = os.path.join(output_dir, 'seg_tiles/')
         self.cid_path = os.path.join(output_dir, 'segmentation.npy')
         self.cbg_path = os.path.join(output_dir, 'cell_by_gene.h5ad')
 
@@ -872,10 +873,15 @@ class SegmentationRun:
 
     def check_run_status(self):
         """Check which steps are complete."""
+        if os.path.exists(self.tile_save_path):
+            num_segmented_tiles = len(os.listdir(self.tile_save_path))
+        else:
+            num_segmented_tiles = 0
+
         steps = {
                 'tiled': os.path.exists(self.regions_path),
                 'run spec': os.path.exists(self.run_spec_path),
-                'jobs submitted': os.path.exists(self.tile_save_path),
+                'jobs submitted': num_segmented_tiles > 0,
                 'merged tiles': os.path.exists(self.cid_path),
                 'cell by gene': os.path.exists(self.cbg_path)
         }
@@ -888,6 +894,7 @@ class SegmentationRun:
         If the output dir does not exist, start a new segmentation.
         Otherwise, resume from an existing segmentation.
         If existing segmentation is complete: load and return the output files.
+        Warning: Currently will not reassign cell_ids if all steps are done...
         """
         step_status = self.check_run_status()
 
@@ -911,29 +918,37 @@ class SegmentationRun:
 
         return self.spot_table, cell_by_gene
 
-    def track_job_progress(self, jobs):
-        """Make a progress bar to track job progress.
-        This also prevents merging until all cell id files are saved.
+    def resume_pipeline(self):
+        pass
+    
+    def load_results(self):
+        """Load the results of a finished segmentation."""
+        self.spot_table.cell_ids = self.load_cell_ids
+        cell_by_gene = self.load_cbg()
+        return self.spot_table.cell_ids, cell_by_gene
+
+    def track_job_progress(self, jobs, run_spec):
+        """Track progress of segmentation jobs. Will not complete until all 
+        cell id files have been saved.
         """
-        print('Segmenting tiles...')
+        saved_cid_files = [os.path.exists(v[2]['cell_id_file']) for v in run_spec.values()]
+        timeout = time.time() + 60*30 # 30 min, the standard time for one job
         with tqdm(total=len(jobs)) as pbar:
-            while True:
+            while not all(saved_cid_files):
                 finished = [j for j in jobs if os.path.exists(j.output_file)]
                 n_finished = len(finished)
-                pbar.update(n_finished - pbar.n)
-                print(f'{n_finished} / {len(jobs)}  {jobs.state_counts()}')
+                saved_cid_files = [os.path.exists(v[2]['cell_id_file']) for v in run_spec.values()]
+                n_saved = saved_cid_files.count(True)
+                pbar.update(n_saved - pbar.n)
+                print(f'Submitted: {n_finished} / {len(jobs)} Status: {jobs.state_counts()} Saved: {n_saved}')
+                if not any(saved_cid_files) and time.time() > timeout:
+                    jobs.cancel()
+                    raise RuntimeError('No cell id files found within the timeout period.'\
+                            'Jobs canceled. Check error logs.')
                 time.sleep(60)
-                if n_finished == len(jobs):
-                    break
-
-        print('Checking all tiles are saved before proceeding...')
-        while True:
-            # not sure if there is a situation where this could go wrong?
-            n_cell_id_files = len(glob.glob(f'{self.tile_save_path}/segmentation_result_*.npy'))
-            if n_finished == n_cell_id_files:
-                break
 
     def tile_seg_region(self, **kwargs):
+        print('Tiling segmentation region...')
         subtable = self.spot_table
         tiles, regions = get_tiles(subtable, **kwargs)
         
@@ -967,13 +982,13 @@ class SegmentationRun:
         run_spec = self.load_run_spec()
         hpc_opts = self.hpc_opts
 
-        job_path = os.path.join(self.output_dir, 'hpc-jobs')
+        job_path = os.path.join(self.output_dir, 'hpc-jobs/')
         if not os.path.exists(job_path):
             os.mkdir(job_path)
         hpc_opts.update({'job_path': job_path})
 
         jobs = run_segmentation_on_hpc(run_spec, **hpc_opts)
-        self.track_job_progress(jobs)
+        self.track_job_progress(jobs, run_spec)
 
         return jobs
 
@@ -983,6 +998,7 @@ class SegmentationRun:
         subtable = self.spot_table
         # need to make extra sure this updates the spot table attached to the 
         # class in place
+        print('Merging tiles...')
         cell_ids, merge_results, skipped = merge_segmentation_results(subtable, run_spec, None)
 
         if len(run_spec) == len(skipped):
@@ -997,6 +1013,7 @@ class SegmentationRun:
         return cell_ids, merge_results, skipped
 
     def create_cell_by_gene(self, remove_bg = True):
+		# to be updated with volume and other metadata calculation when done
         subtable = self.spot_table
         subtable = subtable.filter_cells(real_cells = remove_bg)
 
@@ -1059,3 +1076,31 @@ class MerscopeSegmentationRun(SegmentationRun):
         }
         return load_args
 
+class StereoSeqSegmentationRun(SegmentationRun):
+    def __init__(
+            self, 
+            dt_file: Path|str, 
+            image_path: Path|str, 
+            output_dir: Path|str, 
+            dt_cache: Path|str|None,
+            subrgn: str|tuple,
+            seg_method: SegmentationMethod,
+            seg_opts: dict,
+            hpc_opts: dict,
+        ):
+        super().__init__(dt_file, image_path, output_dir, dt_cache, subrgn, seg_method, seg_opts, hpc_opts)
+
+    def get_load_func(self):
+        """Get the function to load a spot table."""
+        return SpotTable.load_stereoseq
+
+    def get_load_args(self):
+        """Get args to pass to loading function (e.g. when submitting jobs to hpc)."""
+        load_args = {
+                'image_path': self.image_path,
+                'gem_file': self.dt_file,
+                'cache_file': self.dt_cache,
+                'skiprows': 7,
+                'image_channel': 'nuclear'
+        }
+        return load_args
