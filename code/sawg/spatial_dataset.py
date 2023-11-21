@@ -20,9 +20,11 @@ import pickle as pkl
 import pandas as pd
 import numpy as np
 from pathlib import Path
+from contextlib import redirect_stdout
 from .optional_import import optional_import
+
 widgets = optional_import('ipywidgets')
-interact_manual = optional_import('ipywidgets.interact_manual')
+interact_manual = optional_import('ipywidgets', names='interact_manual')
 
 
 ## Allen Services
@@ -62,6 +64,24 @@ class SpatialDataset:
         file = open(self.save_path.joinpath(file_name), 'wb')
         pkl.dump(self, file)
         file.close()
+
+    def get_mappings(self, print_output=True):
+        mappings = {}
+        mapping_dir = self.save_path.joinpath(self.config['mapping_dir'])
+        for mapping in mapping_dir.iterdir():
+            ts = mapping.name
+            try:
+                with redirect_stdout(None):
+                    meta = CellTypeMapping.load_from_timestamp(directory=mapping_dir, timestamp=ts, meta_only=True)
+                mappings[ts] = meta
+                if print_output is True:
+                    print(f'{ts}: {meta}')
+            except:
+                mappings[ts] = None
+                if print_output is True:
+                    print(f'{ts}: None')
+        self.mappings = mappings
+        self.save_dataset()
         
     def spatial_corr_to_bulk(self, spot_table=None, save_fig=True):
         if spot_table is None:
@@ -101,7 +121,7 @@ class SpatialDataset:
         plt.tight_layout()
 
         if save_fig is True:
-            fig.savefig(self.save_path.joinpath('correlation_to_bulk.pdf'))
+            fig.savefig(self.save_path.joinpath('correlation_to_bulk.png'))
         
         self.save_dataset()
 
@@ -132,7 +152,43 @@ class SpatialDataset:
                 ax[i, 1].legend(bbox_to_anchor=(1, 1))
                 
         if save_fig is True:
-            fig.savefig(self.save_path.joinpath('marker_gene_transcripts.pdf'))
+            fig.savefig(self.save_path.joinpath('marker_gene_transcripts.png'))
+
+    def view_mapping_results(self, ct_map, ct_level, score_thresh=None):
+        if type(ct_map) == str:
+            ct_map = CellTypeMapping.load_from_timestamp(directory=self.mapping_path, timestamp=ct_map)
+
+        if isinstance(ct_map, ScrattchMapping):
+            ct_map.load_scrattch_mapping_results()
+            mapping_score_col = 'score.Corr'
+            col_labels = [prefix + 'Corr' for prefix in self.config['taxonomy_info'][ct_map.meta['taxonomy_name']]['col_labels']]
+
+        fig, ax = plt.subplots()
+        sns.histplot(data=ct_map.ad_map.obs, x=mapping_score_col, ax=ax)
+        if score_thresh is not None:
+            qc_pass = True
+            ct_map.qc_mapping(qc_params={mapping_score_col: score_thresh})
+            ax.axvline(score_thresh, color='k', ls='--')
+        else:
+            qc_pass = False
+        fig.savefig(Path(ct_map.run_directory).joinpath('score_hist.png'))
+
+        cls_label = [label for label in col_labels if 'class' in label][0]
+        ct_level_label = [label for label in col_labels if ct_level in label]
+        if len(ct_level_label) != 1:
+            print(f'{ct_level} does not have an obvious corresponding column in mapping output, check obs columns')
+            return
+        ct_level_label = ct_level_label[0]
+        groups= {}
+        for cls in ct_map.ad_map.obs[cls_label].unique():
+            group = ct_map.ad_map.obs[ct_map.ad_map.obs[cls_label]==cls][ct_level_label].unique()
+            groups[cls] = group
+
+        fig = ct_map.plot_best_mapping_corr(level=ct_level_label, groups=groups, qc_pass=qc_pass, args={'scale': 'width'})
+        fig.savefig(Path(ct_map.run_directory).joinpath(f'score_corr_{ct_level}.png'))
+
+        fig = ct_map.plot_best_mapping(level=ct_level_label, groups=groups, qc_pass=qc_pass, args={'s': 5})
+        fig.savefig(Path(ct_map.run_directory).joinpath(f'{ct_level}_spatial_map.png'))
         
 class MERSCOPESection(SpatialDataset):
 
@@ -146,6 +202,7 @@ class MERSCOPESection(SpatialDataset):
             print(f'SpatialDataset already exists and will be loaded. If you want to reprocess this dataset delete the file and start over')
             cached = SpatialDataset.load_from_barcode(barcode, MERSCOPESection)
             self.__dict__ = cached.__dict__
+            self.get_analysis_status()
         
         else:
             SpatialDataset.__init__(self, barcode)
@@ -153,6 +210,13 @@ class MERSCOPESection(SpatialDataset):
             if not Path.exists(self.save_path):
                 Path.mkdir(self.save_path)
             
+            self.mapping_path = self.save_path.joinpath(self.config['mapping_dir']) if self.config.get('mapping_dir') is not None else None
+            if self.mapping_path is not None and not Path.exists(self.mapping_path):
+                Path.mkdir(self.mapping_path)
+            self.segmentation_path = self.save_path.joinpath(self.config['segmentation_dir']) if self.config.get('segmentation_dir') is not None else None
+            if self.segmentation_path is not None and not Path.exists(self.segmentation_path):
+                Path.mkdir(self.segmentation_path)
+
             self.broad_region = None
             self.get_section_metadata()
             self.get_section_data_paths()
@@ -198,7 +262,7 @@ class MERSCOPESection(SpatialDataset):
         for output in merscope_expt.outputs: 
             try:
                 dats_collection = dats.get_collection_by_id(account_id = macaque_dats_account.id, collection_id = output.external_id)
-                if dats_collection.type == 'File Bundle':
+                if dats_collection.description == 'Isilon Backfill' and dats_collection.type == 'File Bundle':
                     spec_data_collection = dats_collection
                     break
             except:
@@ -216,54 +280,58 @@ class MERSCOPESection(SpatialDataset):
                 if platform.startswith('win'):
                     self.images_path = '/' + self.images_path
                 
+    def get_analysis_status(self):
+        # check for segmentation and mapping files
+        if self.corr_to_bulk is not None:
+            print(f'Correlation to bulk already calculated: {self.corr_to_bulk:.2f}')
+        else:
+            print('Correlation to bulk not calculated')
+        ## add segmentation check here
+        self.get_mappings(print_output=False)
+        if len(self.mappings) == 0:
+            print('No mappings found')
+        else:
+            print('Mapping timestamps: \t Mapping info')
+            for ts, info in self.mappings.items():
+                print(f'{ts}: \t {info}')
+
     def load_spottable(self):
         if hasattr(self, 'detected_transcripts_cache') is False:
             self.detected_transcripts_cache = os.path.join(self.save_path, 'detected_transcripts.npz')
         spot_table = SpotTable.load_merscope(self.detected_transcripts_file, self.detected_transcripts_cache)
         return spot_table
-
-# class MERSCOPESection(SpatialDataset):
-
-#     pts_qc_filt = pts_schema.MetadataFilterInput(type=pts_schema.DataTypeFilterInput(name=pts_schema.StringOperationFilterInput(eq="QCMetadata")))
-#     pst_request_filt = pts_schema.MetadataFilterInput(type=pts_schema.DataTypeFilterInput(name=pts_schema.StringOperationFilterInput(eq="MerscopeImagingRequestMetadata")))
-
-#     def __init__(self):
-#         self.save_path # get from config file?  
-#         self.bers_id
-#         self.get_section_metadata()
-#         self.get_section_data_paths()
     
-#     def get_section_data_paths(self):
-#         #dats
-#         self.images_path
-#         self.detected_transcripts_path
-#         self.expt_json
-#         # do we even need these 2 if we're just going to re-segment?
-#         self.cbg_path
-#         self.cbg_meta_path
-
-#     def get_section_metadata(self):
-#         self.section_thickness # not sure where this comes from?
-#         self.z_coord # this will probably require some math and grabbing of parent z_coord - nothing currently in BERS
-#         self.gene_panel #PTS
-#         self.qc_state #PTS
-#         self.lims_specimen_name #BERS
-#         self.species #BERS
-
-#     def make_section_anndata(self):
-#         # this may be a part of the segmentation? 
-#         self.anndata = anndata
-
-#     def qc_cells(self):
-#         # question of when this step happens. 
-#         # should it replace self.anndata? keep segmented cbg with segmentation results, save out new anndata with cell statistics and qc columns as the useable self.anndata.
-#         #        This can then be replaced when new segmentations are done and the mapping object will retain the copy of the anndata that was used for that mapping
-
-
-#     def run_segmentation_on_section(self, method):
-#         self.segmentation = CellposeSegmentationResult
+    def run_mapping_on_section(self, method, taxonomy=None, method_args={}, hpc_args={}):
+        if method == ScrattchMapping:
+            mapping = ScrattchMapping(
+                sp_data = self.anndata,
+                taxonomy_path = self.config['taxonomy_info'][taxonomy]['path'],
+            )
+        else:
+            print(f'Mapping method not instantiated for {method}')
+            return
         
-#     def run_mapping_on_section(self, method):
+        meta = {'taxonomy_name': taxonomy, 'taxonomy_cols': self.config['taxonomy_info'][taxonomy]['col_labels']}
+        ad_map_args = {'save_path': self.mapping_path.as_posix(), 'meta': meta}
+        ad_map_args.update(method_args)
+        
+        hpc_args_default = {
+            'job_path': f"{self.config['hpc_outputs']}/scripts/",
+            'output':f"{self.config['hpc_outputs']}/%j.out",
+            'error': f"{self.config['hpc_outputs']}/%j.err",
+        }
+        
+        hpc_args_default.update(hpc_args)
+        
+        if 'docker' in hpc_args.keys():
+            docker = hpc_args['docker']
+            hpc_args_default.pop('docker')
+            job = mapping.run_on_hpc(ad_map_args, hpc_args_default, docker=docker)
+        else:
+            job = mapping.run_on_hpc(ad_map_args, hpc_args_default)
+        
+        return job, mapping    
+
 
 # class MERSCOPESectionCollection(MERSCOPESection):
 #     #collection of MERSCOPE sections that go together
@@ -277,7 +345,9 @@ class StereoSeqSection(SpatialDataset):
             print(f'SpatialDataset already exists and will be loaded. If you want to reprocess this dataset delete the file and start over')
             cached = SpatialDataset.load_from_barcode(barcode, StereoSeqSection)
             self.__dict__ = cached.__dict__
-        
+            print('QC status:')
+            print(self.qc)
+
         else:
             SpatialDataset.__init__(self, barcode)
             self.save_path = save_path
@@ -373,7 +443,7 @@ class StereoSeqSection(SpatialDataset):
             col += 1
 
         if save_fig is True:
-            fig.savefig( self.save_path.joinpath('gene_expression_qc.pdf'))
+            fig.savefig( self.save_path.joinpath('gene_expression_qc.png'))
 
 
         self.qc_widget(metric='gene_expression_qc')
@@ -398,7 +468,7 @@ class StereoSeqSection(SpatialDataset):
                     'region': self.broad_region,
                     'method': 'StereoSeq',
                    }  
-            bin200_data = st.io.read_gef(file_path=self.bin_file, bin_size=200)
+            bin200_data = st.io.read_gef(file_path=str(self.bin_file), bin_size=200)
             bin200_data.tl.raw_checkpoint()
             bin200_data.tl.cal_qc()
             ad_bin200 = st.io.stereo_to_anndata(bin200_data, flavor='scanpy', reindex=True, output= ad200_file)
@@ -410,11 +480,8 @@ class StereoSeqSection(SpatialDataset):
         self.bin200_median_transcript = ad_bin200.obs['total_counts'].median()
         self.bin200_transcript_coverage = len(ad_bin200.obs[ad_bin200.obs['total_counts']>base_transcript_thresh])/len(ad_bin200)*100
 
-        self.qc['bin200_median_transcript'] = 'Pass' if self.bin200_median_transcript >= median_transcript_thresh else 'Fail'
-        print(f"bin200_median_transcript: {self.qc['bin200_median_transcript']}")
-
-        self.qc['bin200_transcript_coverage'] = 'Pass' if self.bin200_transcript_coverage >= 0.8 else 'Fail'
-        print(f"bin200_transcript_coverage: {self.qc['bin200_transcript_coverage']}")
+        self.evaluate_qc_metric('bin200_median_transcript', 'Pass' if self.bin200_median_transcript >= median_transcript_thresh else 'Fail')
+        self.evaluate_qc_metric('bin200_transcript_coverage', 'Pass' if self.bin200_transcript_coverage >= 0.8 else 'Fail')
 
         fig, ax = plt.subplots(1, 3, figsize=(12, 4))
 
@@ -429,9 +496,9 @@ class StereoSeqSection(SpatialDataset):
         plt.tight_layout()
 
         if save_fig is True:
-            fig.savefig( self.save_path.joinpath('Bin200_transcript_detection.pdf'))
+            fig.savefig( self.save_path.joinpath('Bin200_transcript_detection.png'))
     
-    def run_mapping(self, binsize=50, taxonomy=None, training_genes='hvgs', kwargs={}):
+    def run_mapping_on_section(self, method, binsize=50, taxonomy=None, training_genes='hvgs', method_args={}, hpc_args={}):
         import stereo as st
 
         bin_key = 'bin' + str(binsize) if binsize != 'cell' else binsize
@@ -441,7 +508,7 @@ class StereoSeqSection(SpatialDataset):
             self.ad_files[bin_key] = ad_file
 
         if not os.path.isfile(ad_file):
-            meta = {
+            uns = {
                 'chip_name': self.barcode,
                 'binsize': str(binsize),
                 'species': self.species,
@@ -457,56 +524,71 @@ class StereoSeqSection(SpatialDataset):
             data.tl.raw_checkpoint()
             data.tl.cal_qc()
             ad_data = st.io.stereo_to_anndata(data, flavor='scanpy', reindex=True, output= ad_file)
-            ad_data.uns.update(meta)
+            ad_data.uns.update(uns)
             ad_data.layers['logcounts'] = np.log1p(ad_data.X)
             ad_data.write_h5ad(ad_file)
         else:
             ad_data = ad.read_h5ad(ad_file)
 
-        if taxonomy is None or taxonomy not in self.config['taxonomy_paths']:
-            print(f"No taxonomy provided or taxonmomy not in listed config {self.config['taxonomy_paths'].keys()}. Skipping celltype mapping QC.")
+        if method == ScrattchMapping:
+            mapping = ScrattchMapping(
+                sp_data = ad_data,
+                taxonomy_path = taxonomy_path,
+            )
+        else:
+            print(f'Mapping method not instantiated for {method}')
             return
-        taxonomy_path = self.config['taxonomy_paths'][taxonomy]
-        if training_genes == 'hvgs':
+        
+        meta = {'taxonomy_name': taxonomy, 'taxonomy_cols': self.config['taxonomy_info'][taxonomy]['col_labels']}
+        if taxonomy is not None:
+            taxonomy_path = self.config['taxonomy_info'][taxonomy]['path']
+        if training_genes == 'hvgs' and taxonomy is not None:
             taxonomy_ad = ad.read_h5ad(Path.joinpath(taxonomy_path, 'AI_taxonomy.h5ad'), backed='r')
             training_genes = taxonomy_ad.var[taxonomy_ad.var['highly_variable_genes']==True].index.to_list()
-            meta = {'training_genes': 'taxonomy highly variable genes'}
-        else:
-            meta = kwargs.get('meta', {})
-
-        scrattch_map = ScrattchMapping(
-            sp_data = ad_data,
-            taxonomy_path = taxonomy_path,
-        )
-        
+            meta['training_genes'] = 'taxonomy highly variable genes'
+       
         ad_map_args = {'save_path': self.mapping_path.as_posix(), 
                     'ad_sp_layer': 'logcounts',
                     'training_genes': training_genes,
                     'meta': meta}
-        if ad_map_args in kwargs.keys():
-            ad_map_args.update(kwargs['ad_map_args'])
+        ad_map_args.update(method_args)
 
-        hpc_args = {
+        hpc_args_default = {
             'job_path': self.config['hpc_outputs'] + '/scripts/',
             'output': self.config['hpc_outputs'] + '/%j.out',
             'error': self.config['hpc_outputs'] + '/%j.err',
         }
-        if hpc_args in kwargs.keys():
-            hpc_args.update(kwargs['hpc_args'])
+        hpc_args_default.update(hpc_args)
 
-        docker = kwargs.get('docker', None)
+        if 'docker' in hpc_args.keys():
+            docker = hpc_args['docker']
+            hpc_args_default.pop('docker')
+            job = mapping.run_on_hpc(ad_map_args, hpc_args_default, docker=docker)
+        else:
+            job = mapping.run_on_hpc(ad_map_args, hpc_args_default)
 
-        scrattch_map.run_on_hpc(ad_map_args, hpc_args, docker=docker)
-        self.mappings.append(os.path.basename(scrattch_map.run_directory)) 
-        return scrattch_map
+        return job, mapping
 
-    def qc_mapping(self, mapping, threshold=0.1):
-        if not isinstance(mapping, ScrattchMapping):
-            mapping = ScrattchMapping.load_from_timestamp(directory=self.mapping_path, timestamp=str(mapping))
+    def qc_mapping_reults(self, ct_map, score_thresh, map_thresh=0.6):
+        if type(ct_map) == str:
+            ct_map = CellTypeMapping.load_from_timestamp(directory=self.mapping_path, timestamp=ct_map)
 
-        mapping.load_scrattch_mapping_results()
+        if isinstance(ct_map, ScrattchMapping):
+            ct_map.load_scrattch_mapping_results()
+            mapping_score_col = 'score.Corr'
+            col_labels = [prefix + 'Corr' for prefix in self.config['taxonomy_info'][ct_map.meta['taxonomy_name']]['col_labels']]
+
+        fig, ax = plt.subplots()
+        sns.histplot(data=ct_map.ad_map.obs, x=mapping_score_col, ax=ax)
+        ax.axvline(score_thresh, color='k', ls='--')
+        ct_map.qc_mapping(qc_params={mapping_score_col: score_thresh})
         
-# class StereoSeqSectionPair(StereoSeqSection):
+        self.mapping_quality = sum(ct_map.ad_map.obs[mapping_score_col] >= score_thresh)/len(ct_map.ad_map.obs)
+        self.evaluate_qc_metric('mapping_quality', 'Pass' if self.mapping_quality >= map_thresh else 'Fail')
+        ax.set_title(f'Mapping Quality: {self.mapping_quality:.2f}')
+        fig.savefig(self.save_path.joinpath('mapping_qc.png'))   
+        
+# class StereoSeqSectionCollection(StereoSeqSection):
 
 # class XeniumSection(SpatialDataset):
 #     def __init__(self, barcode):
