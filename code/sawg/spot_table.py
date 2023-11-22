@@ -898,14 +898,14 @@ class SpotTable:
             if row_height <= max_tile_size:
                 break
 
-        tiles = []
+        tiles = []`
         for row in tqdm(range(n_rows)):
             ystart = bounds[1][0] + row * (row_height - overlap)
             ylim = (ystart, ystart + row_height)
             row_tile = self.get_subregion(bounds[0], ylim, incl_end=incl_end)
             for col in range(n_cols):
                 xstart = bounds[0][0] + col * (col_width - overlap)
-                xlim = (xstart, xstart + col_width)
+                xlim = (xstart, min(xstart + col_width, bounds[0][1])) # We do this min so that the xlim never ends after the last transcript (this created inconsistencies in expected transcript counts) 
                 tile = row_tile.get_subregion(xlim, ylim, incl_end=incl_end)
                 if len(tile) > 0:
                     tiles.append(tile)
