@@ -203,7 +203,7 @@ class MERSCOPESection(SpatialDataset):
 
     def __init__(self, barcode):
         config = load_config()
-        save_path = config['merscope_save_path'] + f'/{barcode}'
+        save_path = Path(config['merscope_save_path']).joinpath(str(barcode))
         if os.path.isfile(os.path.join(save_path, 'spatial_dataset')):
             print(f'SpatialDataset already exists and will be loaded. If you want to reprocess this dataset delete the file and start over')
             cached = SpatialDataset.load_from_barcode(barcode, MERSCOPESection)
@@ -213,29 +213,20 @@ class MERSCOPESection(SpatialDataset):
         else:
             SpatialDataset.__init__(self, barcode)
             self.save_path = save_path
-
-            if not Path.exists(self.save_path):
-                Path.mkdir(self.save_path)
+            self.save_path.mkdir(exist_ok=True)
             
             self.mapping_path = self.save_path.joinpath(self.config['mapping_dir']) if self.config.get('mapping_dir') is not None else None
-            if self.mapping_path is not None and not Path.exists(self.mapping_path):
-                Path.mkdir(self.mapping_path)
+            if self.mapping_path is not None and not self.mapping_path.exists():
+                self.mapping_path.mkdir()
             self.segmentation_path = self.save_path.joinpath(self.config['segmentation_dir']) if self.config.get('segmentation_dir') is not None else None
-            if self.segmentation_path is not None and not Path.exists(self.segmentation_path):
-                Path.mkdir(self.segmentation_path)
+            if self.segmentation_path is not None and not self.segmentation_path.exists():
+                self.segmentation_path.mkdir()
 
             self.broad_region = None
             self.get_section_metadata()
             self.get_section_data_paths()
             
             self.save_dataset()
-        
-        #self.seg_dir = os.path.join(save_path, config['segmentation_dir'])
-        # the above doesn't work if the segmentation dir has a leading slash
-        seg_dir_name = config['segmentation_dir']
-        self.seg_dir = f'{save_path}/{seg_dir_name}/'
-        if not os.path.exists(self.seg_dir):
-            os.mkdir(self.seg_dir)
 
     def get_section_metadata(self):
         bers = BersClient()
@@ -311,63 +302,72 @@ class MERSCOPESection(SpatialDataset):
 
     def load_spottable(self):
         if hasattr(self, 'detected_transcripts_cache') is False:
-            self.detected_transcripts_cache = os.path.join(self.save_path, 'detected_transcripts.npz')
-        spot_table = SpotTable.load_merscope(self.detected_transcripts_file, self.detected_transcripts_cache)
+            self.detected_transcripts_cache = self.save_path.joinpath('detected_transcripts.npz')
+
+        if hasattr(self, 'images_path'):
+            spot_table = SpotTable.load_merscope(self.detected_transcripts_file, self.detected_transcripts_cache, self.images_path)
+
+        else:
+            spot_table = SpotTable.load_merscope(self.detected_transcripts_file, self.detected_transcripts_cache)
+
         return spot_table
 
     def check_segmentation_status(self):
         # Get all subdirectories in segmentation directory
         # Each should correspond to a segmentation run... unless there are
         # weird random folders that shouldn't be there...
-        seg_runs = [f.name for f in os.scandir(self.seg_dir) if f.is_dir()]
+        seg_runs = [f.name for f in os.scandir(self.segmentation_path) if f.is_dir()]
         if len(seg_runs) == 0:
-            print(f'No segmentations available in {self.seg_dir}')
+            print(f'No segmentations available in {self.segmentation_path}')
             return
 
         status = {}
         if len(seg_runs) > 0:
             for run_name in seg_runs:
-                run_path = os.path.join(self.seg_dir, run_name)
+                run_path = os.path.join(self.segmentation_path, run_name)
                 final_output = os.path.join(run_path, 'cell_by_gene.h5ad')
                 status[run_name] = os.path.exists(final_output)
 
         return status
 
-    def run_segmentation_on_section(self, subrgn, seg_method, seg_opts, hpc_opts, timestamp = None):
-        if timestamp is not None:
-            # resume from previous segmentation
-            individual_seg_dir = os.path.join(f'{self.seg_dir}/', f'{timestamp}/')
-            assert os.path.exists(individual_seg_dir)
-            metadata_file = os.path.join(individual_seg_dir, 'metadata.pkl')
-            with open(metadata_file, 'rb') as f:
-                metadata = pickle.load(f)
-                seg_run = MerscopeSegmentationRun(**metadata)
-
-        else:
-            # generate a new timestamp for segmentation
-            timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-            individual_seg_dir = os.path.join(self.seg_dir, f'{timestamp}/')
-            seg_run = MerscopeSegmentationRun.from_spatial_dataset(self, individual_seg_dir, subrgn, seg_method, seg_opts, hpc_opts)
-
-        spot_table, cell_by_gene = seg_run.do_pipeline()
+    def run_segmentation_on_section(self, subrgn, seg_method, seg_opts, hpc_opts):
+        # generate a new timestamp for segmentation
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        individual_seg_dir = self.segmentation_path.joinpath(str(timestamp))
+        assert not os.path.exists(individual_seg_dir)
+        seg_run = MerscopeSegmentationRun.from_spatial_dataset(self, individual_seg_dir, subrgn, seg_method, seg_opts, hpc_opts)
+        spot_table, cell_by_gene = seg_run.run()
 
         return spot_table, cell_by_gene
 
-    def load_segmentation(self, timestamp):
-        individual_seg_dir = os.path.join(f'{self.seg_dir}/', f'{timestamp}/')
+    def resume_segmentation_on_section(self, subrgn, seg_method, seg_opts, hpc_opts, timestamp):
+        # resume from previous segmentation
+        # Note: the resume method is not currently implemented in SegRun
+        individual_seg_dir = self.segmentation_path.joinpath(str(timestamp))
         assert os.path.exists(individual_seg_dir)
-
-        metadata_file = os.path.join(individual_seg_dir, 'metadata.pkl')
+        metadata_file = individual_seg_dir.joinpath('metadata.pkl')
         with open(metadata_file, 'rb') as f:
             metadata = pickle.load(f)
             seg_run = MerscopeSegmentationRun(**metadata)
+            spot_table, cell_by_gene = seg_run.resume()
 
-        cell_ids = seg_run.load_cell_ids()
-        seg_run.spot_table.cell_ids = cell_ids
-        cbg_table = seg_run.load_cbg()
-        
-        return spot_table, cbg_table
+        return spot_table, cell_by_gene
 
+    def load_segmentation_results(self, timestamp):
+        # useful for attempting to load results from older segmentations
+        # that don't have metadata pkl files
+        individual_seg_dir = self.segmentation_path.joinpath(str(timestamp))
+        assert os.path.exists(individual_seg_dir)
+
+        cid_path = individual_seg_dir.joinpath('segmentation.npy')
+        cbg_path = individual_seg_dir.joinpath('cell_by_gene.h5ad')
+
+        cell_ids = np.load(cid_path)
+        cell_by_gene = ad.read_h5ad(cbg_path)
+        spot_table = self.load_spottable()
+        spot_table.cell_ids = cell_ids
+
+        return spot_table, cell_by_gene
     
     def run_mapping_on_section(self, method, taxonomy=None, method_args={}, hpc_args={}):
         if method == ScrattchMapping:
@@ -465,8 +465,9 @@ class StereoSeqSection(SpatialDataset):
         
     def load_spottable(self):       
         if hasattr(self, 'detected_transcripts_cache') is False:
-            self.detected_transcripts_cache = os.path.join(self.save_path, 'detected_transcripts.npz')
+            self.detected_transcripts_cache = self.save_path.joinpath('detected_transcripts.npz')
         spot_table = SpotTable.load_stereoseq(self.detected_transcripts_file, self.detected_transcripts_cache, skiprows=7)
+
         return spot_table
         
     def qc_widget(self, metric):
