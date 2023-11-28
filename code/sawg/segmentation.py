@@ -7,7 +7,7 @@ from .hpc import run_slurm_func
 from .spot_table import SpotTable
 from .image import Image, ImageBase, ImageTransform
 
-from pathlib import Path
+from pathlib import Path, PurePath
 import datetime
 import glob
 import time
@@ -777,7 +777,7 @@ class SegmentationRun:
         self.detected_transcripts_file = dt_file
         self.detected_transcripts_cache = dt_cache 
 
-        if isinstance(output_dir, str):
+        if isinstance(output_dir, str) or isinstance(output_dir, PurePath):
             output_dir = Path(output_dir)
         self.output_dir = output_dir
         self.output_dir.mkdir(exist_ok=True)
@@ -947,9 +947,9 @@ class SegmentationRun:
             run_spec = self.load_run_spec()
         hpc_opts = self.hpc_opts
 
-        job_path = self.output_dir.joinpath('hpc-jobs/')
+        job_path = self.output_dir.joinpath('hpc-jobs')
         job_path.mkdir(exist_ok=True)
-        hpc_opts.update({'job_path': job_path.as_posix()})
+        hpc_opts.update({'job_path': f'{job_path.as_posix()}/'})
 
         jobs = run_segmentation_on_hpc(run_spec, **hpc_opts)
         self.track_job_progress(jobs, run_spec)

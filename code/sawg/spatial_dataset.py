@@ -17,7 +17,7 @@ import anndata as ad
 import os, sys, datetime, glob, pickle, time
 import json
 from abc import abstractmethod
-from pathlib import Path
+from pathlib import Path, PurePath
 import seaborn as sns
 import matplotlib.pyplot as plt
 import pickle as pkl
@@ -57,7 +57,7 @@ class SpatialDataset:
         if dataset_type == StereoSeqSection:
             data_path = Path(config['stereoseq_save_path']).joinpath(str(barcode), file_name)
         # other config paths would be added here as they come about
-        if not Path.is_file(data_path):
+        if not data_path.is_file():
             print(f'SpatialDataset {data_path} does not exist')
             return None
         with open(data_path, 'rb') as file:
@@ -73,7 +73,7 @@ class SpatialDataset:
 
     def get_mappings(self, print_output=True):
         mappings = {}
-        mapping_dir = self.save_path.joinpath(self.config['mapping_dir'])
+        mapping_dir = Path(self.save_path.joinpath(self.config['mapping_dir']))
         for mapping in mapping_dir.iterdir():
             ts = mapping.name
             try:
@@ -203,8 +203,8 @@ class MERSCOPESection(SpatialDataset):
 
     def __init__(self, barcode):
         config = load_config()
-        save_path = Path(config['merscope_save_path']).joinpath(str(barcode))
-        if os.path.isfile(os.path.join(save_path, 'spatial_dataset')):
+        save_path = PurePath(config['merscope_save_path']).joinpath(str(barcode))
+        if os.path.exists(save_path.joinpath('spatial_dataset')):
             print(f'SpatialDataset already exists and will be loaded. If you want to reprocess this dataset delete the file and start over')
             cached = SpatialDataset.load_from_barcode(barcode, MERSCOPESection)
             self.__dict__ = cached.__dict__
@@ -213,14 +213,16 @@ class MERSCOPESection(SpatialDataset):
         else:
             SpatialDataset.__init__(self, barcode)
             self.save_path = save_path
-            self.save_path.mkdir(exist_ok=True)
+            Path(self.save_path).mkdir(exist_ok=True)
             
             self.mapping_path = self.save_path.joinpath(self.config['mapping_dir']) if self.config.get('mapping_dir') is not None else None
-            if self.mapping_path is not None and not self.mapping_path.exists():
-                self.mapping_path.mkdir()
+            mapping_path = Path(self.mapping_path)
+            if mapping_path is not None and not mapping_path.exists():
+                mapping_path.mkdir()
             self.segmentation_path = self.save_path.joinpath(self.config['segmentation_dir']) if self.config.get('segmentation_dir') is not None else None
-            if self.segmentation_path is not None and not self.segmentation_path.exists():
-                self.segmentation_path.mkdir()
+            segmentation_path = Path(self.segmentation_path)
+            if segmentation_path is not None and not segmentation_path.exists():
+                segmentation_path.mkdir()
 
             self.broad_region = None
             self.get_section_metadata()
@@ -292,6 +294,7 @@ class MERSCOPESection(SpatialDataset):
         else:
             print('Correlation to bulk not calculated')
         ## add segmentation check here
+        self.check_segmentation_status()
         self.get_mappings(print_output=False)
         if len(self.mappings) == 0:
             print('No mappings found')
