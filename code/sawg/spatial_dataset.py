@@ -9,8 +9,7 @@
 version = 1
 
 from sawg.celltype_mapping import ScrattchMapping, CellTypeMapping
-from sawg.segmentation import run_segmentation, SegmentationMethod, MerscopeSegmentationRun
-from sawg.segmentation import get_segmentation_region, get_tiles, create_seg_run_spec, merge_segmentation_results
+from sawg.segmentation import get_segmentation_region, get_tiles, create_seg_run_spec, merge_segmentation_results, MerscopeSegmentationRun
 from sawg.spot_table import SpotTable
 from sawg.util import load_config
 import anndata as ad
@@ -370,7 +369,7 @@ class MERSCOPESection(SpatialDataset):
 
         return spot_table, cell_by_gene
 
-    def resume_segmentation_on_section(self, subrgn, seg_method, seg_opts, hpc_opts, timestamp):
+    def resume_segmentation_on_section(self, timestamp):
         # resume from previous segmentation
         # Note: the resume method is not currently implemented in SegRun
         segmentation_path = self.segmentation_path
