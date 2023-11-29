@@ -9,17 +9,23 @@
 version = 1
 
 from sawg.celltype_mapping import ScrattchMapping, CellTypeMapping
-from sawg.segmentation import run_segmentation, CellposeSegmentationMethod, CellposeSegmentationResult
+from sawg.segmentation import run_segmentation, SegmentationMethod, MerscopeSegmentationRun
+from sawg.segmentation import get_segmentation_region, get_tiles, create_seg_run_spec, merge_segmentation_results
 from sawg.spot_table import SpotTable
 from sawg.util import load_config
 import anndata as ad
-import os, sys
+import os, sys, datetime, glob, pickle, time
+import json
+from abc import abstractmethod
+from pathlib import Path
 import seaborn as sns
 import matplotlib.pyplot as plt
 import pickle as pkl
 import pandas as pd
 import numpy as np
-from pathlib import Path
+import ipywidgets as widgets
+from ipywidgets import interact_manual
+from tqdm.autonotebook import tqdm
 from contextlib import redirect_stdout
 from .optional_import import optional_import
 
@@ -51,20 +57,48 @@ class SpatialDataset:
         if dataset_type == StereoSeqSection:
             data_path = Path(config['stereoseq_save_path']).joinpath(str(barcode), file_name)
         # other config paths would be added here as they come about
-        if not Path.is_file(data_path):
+        if not data_path.is_file():
             print(f'SpatialDataset {data_path} does not exist')
             return None
         with open(data_path, 'rb') as file:
             dataset = pkl.load(file)
             file.close()
+            dataset._convert_str_to_paths()
             print(f'SpatialDataset {data_path} loaded...')
         return dataset
-    
+
     def save_dataset(self, file_name: str='spatial_dataset'):
-        file = open(self.save_path.joinpath(file_name), 'wb')
+        self._convert_paths_to_str()
+        save_path = Path(self.save_path)
+        file = open(save_path.joinpath(file_name), 'wb')
         pkl.dump(self, file)
         file.close()
+        # convert back to paths to continue using the object (bit hacky)
+        self._convert_str_to_paths()
 
+    def _get_path_attrs(self):
+        path_attrs = [k for k, v in self.__dict__.items() if k.endswith('_path') or k.endswith('_file') or k.endswith('_cache')]
+        return path_attrs
+
+    def _convert_paths_to_str(self):
+        path_attrs = self._get_path_attrs()
+        for attr in path_attrs:
+            path = getattr(self, attr)
+            if isinstance(path, str):
+                continue
+            assert isinstance(path, Path)
+            if path.is_file():
+                setattr(self, attr, path.as_posix())
+            elif path.is_dir():
+                setattr(self, attr, f'{path.as_posix()}/')
+
+    def _convert_str_to_paths(self):
+        path_attrs = self._get_path_attrs()
+        for attr in path_attrs:
+            path = getattr(self, attr)
+            assert isinstance(path, str)
+            setattr(self, attr, Path(path))
+ 
     def get_mappings(self, print_output=True):
         mappings = {}
         mapping_dir = self.save_path.joinpath(self.config['mapping_dir'])
@@ -189,7 +223,7 @@ class SpatialDataset:
 
         fig = ct_map.plot_best_mapping(level=ct_level_label, groups=groups, qc_pass=qc_pass, args={'s': 5})
         fig.savefig(Path(ct_map.run_directory).joinpath(f'{ct_level}_spatial_map.png'))
-        
+
 class MERSCOPESection(SpatialDataset):
 
     pts_qc_filt = pts_schema.MetadataFilterInput(type=pts_schema.DataTypeFilterInput(name=pts_schema.StringOperationFilterInput(eq="QCMetadata")))
@@ -198,7 +232,7 @@ class MERSCOPESection(SpatialDataset):
     def __init__(self, barcode):
         config = load_config()
         save_path = Path(config['merscope_save_path']).joinpath(str(barcode))
-        if Path.is_file(save_path.joinpath('spatial_dataset')):
+        if os.path.exists(save_path.joinpath('spatial_dataset')):
             print(f'SpatialDataset already exists and will be loaded. If you want to reprocess this dataset delete the file and start over')
             cached = SpatialDataset.load_from_barcode(barcode, MERSCOPESection)
             self.__dict__ = cached.__dict__
@@ -207,15 +241,14 @@ class MERSCOPESection(SpatialDataset):
         else:
             SpatialDataset.__init__(self, barcode)
             self.save_path = save_path
-            if not Path.exists(self.save_path):
-                Path.mkdir(self.save_path)
+            self.save_path.mkdir(exist_ok=True)
             
             self.mapping_path = self.save_path.joinpath(self.config['mapping_dir']) if self.config.get('mapping_dir') is not None else None
-            if self.mapping_path is not None and not Path.exists(self.mapping_path):
-                Path.mkdir(self.mapping_path)
+            if self.mapping_path is not None and not self.mapping_path.exists():
+                self.mapping_path.mkdir()
             self.segmentation_path = self.save_path.joinpath(self.config['segmentation_dir']) if self.config.get('segmentation_dir') is not None else None
-            if self.segmentation_path is not None and not Path.exists(self.segmentation_path):
-                Path.mkdir(self.segmentation_path)
+            if self.segmentation_path is not None and not self.segmentation_path.exists():
+                self.segmentation_path.mkdir()
 
             self.broad_region = None
             self.get_section_metadata()
@@ -282,11 +315,11 @@ class MERSCOPESection(SpatialDataset):
                 
     def get_analysis_status(self):
         # check for segmentation and mapping files
-        if self.corr_to_bulk is not None:
+        if hasattr(self, 'corr_to_bulk'):
             print(f'Correlation to bulk already calculated: {self.corr_to_bulk:.2f}')
         else:
             print('Correlation to bulk not calculated')
-        ## add segmentation check here
+        self.check_segmentation_status()
         self.get_mappings(print_output=False)
         if len(self.mappings) == 0:
             print('No mappings found')
@@ -297,9 +330,76 @@ class MERSCOPESection(SpatialDataset):
 
     def load_spottable(self):
         if hasattr(self, 'detected_transcripts_cache') is False:
-            self.detected_transcripts_cache = os.path.join(self.save_path, 'detected_transcripts.npz')
-        spot_table = SpotTable.load_merscope(self.detected_transcripts_file, self.detected_transcripts_cache)
+            self.detected_transcripts_cache = self.save_path.joinpath('detected_transcripts.npz')
+
+        if hasattr(self, 'images_path'):
+            spot_table = SpotTable.load_merscope(self.detected_transcripts_file, self.detected_transcripts_cache, self.images_path)
+
+        else:
+            spot_table = SpotTable.load_merscope(self.detected_transcripts_file, self.detected_transcripts_cache)
+
         return spot_table
+
+    def check_segmentation_status(self):
+        # Get all subdirectories in segmentation directory
+        # Each should correspond to a segmentation run... unless there are
+        # weird random folders that shouldn't be there...
+        segmentation_path = self.segmentation_path
+        seg_runs = [f.name for f in os.scandir(segmentation_path) if f.is_dir()]
+        if len(seg_runs) == 0:
+            print(f'No segmentations available in {segmentation_path}')
+            return
+
+        status = {}
+        if len(seg_runs) > 0:
+            for run_name in seg_runs:
+                run_path = os.path.join(segmentation_path, run_name)
+                final_output = os.path.join(run_path, 'cell_by_gene.h5ad')
+                status[run_name] = os.path.exists(final_output)
+
+        return status
+
+    def run_segmentation_on_section(self, subrgn, seg_method, seg_opts, hpc_opts):
+        # generate a new timestamp for segmentation
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        segmentation_path = self.segmentation_path
+        individual_seg_dir = segmentation_path.joinpath(str(timestamp))
+        assert not os.path.exists(individual_seg_dir)
+        seg_run = MerscopeSegmentationRun.from_spatial_dataset(self, individual_seg_dir, subrgn, seg_method, seg_opts, hpc_opts)
+        spot_table, cell_by_gene = seg_run.run()
+
+        return spot_table, cell_by_gene
+
+    def resume_segmentation_on_section(self, subrgn, seg_method, seg_opts, hpc_opts, timestamp):
+        # resume from previous segmentation
+        # Note: the resume method is not currently implemented in SegRun
+        segmentation_path = self.segmentation_path
+        individual_seg_dir = segmentation_path.joinpath(str(timestamp))
+        assert os.path.exists(individual_seg_dir)
+        metadata_file = individual_seg_dir.joinpath('metadata.pkl')
+        with open(metadata_file, 'rb') as f:
+            metadata = pickle.load(f)
+            seg_run = MerscopeSegmentationRun(**metadata)
+            spot_table, cell_by_gene = seg_run.resume()
+
+        return spot_table, cell_by_gene
+
+    def load_segmentation_results(self, timestamp):
+        # useful for attempting to load results from older segmentations
+        # that don't have metadata pkl files
+        segmentation_path = self.segmentation_path
+        individual_seg_dir = segmentation_path.joinpath(str(timestamp))
+        assert os.path.exists(individual_seg_dir)
+
+        cid_path = individual_seg_dir.joinpath('segmentation.npy')
+        cbg_path = individual_seg_dir.joinpath('cell_by_gene.h5ad')
+
+        cell_ids = np.load(cid_path)
+        cell_by_gene = ad.read_h5ad(cbg_path)
+        spot_table = self.load_spottable()
+        spot_table.cell_ids = cell_ids
+
+        return spot_table, cell_by_gene
     
     def run_mapping_on_section(self, method, taxonomy=None, method_args={}, hpc_args={}):
         if method == ScrattchMapping:
@@ -435,8 +535,9 @@ class StereoSeqSection(SpatialDataset):
         
     def load_spottable(self):       
         if hasattr(self, 'detected_transcripts_cache') is False:
-            self.detected_transcripts_cache = os.path.join(self.save_path, 'detected_transcripts.npz')
+            self.detected_transcripts_cache = self.save_path.joinpath('detected_transcripts.npz')
         spot_table = SpotTable.load_stereoseq(self.detected_transcripts_file, self.detected_transcripts_cache, skiprows=7)
+
         return spot_table
         
     def qc_widget(self, metric):

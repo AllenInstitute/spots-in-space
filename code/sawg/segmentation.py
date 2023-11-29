@@ -7,6 +7,17 @@ from .hpc import run_slurm_func
 from .spot_table import SpotTable
 from .image import Image, ImageBase, ImageTransform
 
+from pathlib import Path, PurePath
+import datetime
+import glob
+import time
+from abc import abstractmethod
+from typing import Union
+import pandas as pd
+import anndata as ad
+# used for type hint but it causes a circular import error
+# from sawg.spatial_dataset import SpatialDataset
+
 
 def run_segmentation(load_func, load_args:dict, subregion:dict|None, method_class, method_args:dict, result_file:str|None, cell_id_file:str|None):
     """Load a spot table, run segmentation (possibly on a subregion), and save the SegmentationResult.
@@ -556,3 +567,508 @@ def dilate_labels(img, radius):
     interpolated[~dilated_mask] = 0
 
     return interpolated
+
+def get_segmentation_region(spot_table: SpotTable, subregion: tuple|str):
+    """Get a subregion of a spot table to use for segmentation.
+
+    Parameters
+    ----------
+    spot_table: SpotTable
+        The spot table to subset.
+    subregion: tuple|str
+        Can be provided as a tuple of ((x_min, x_max), (y_min, y_max) to use as bounding box.
+        Or provide a string corresponding to the name of an image channel attached to spot_table.
+        If a string, will get the area of the spot table bounded by the image region.
+
+    Returns
+    -------
+    subtable
+        The subset spot table.
+    """
+
+    if isinstance(subregion, str):
+        subrgn = spot_table.get_image(channel=subregion).bounds()
+
+    else:
+        subrgn = subregion
+
+    subtable = spot_table.get_subregion(xlim=subrgn[0], ylim=subrgn[1])
+
+    return subtable
+
+
+def get_tiles(spot_table: SpotTable, max_tile_size: int = 200, overlap: int = 30):
+    """Split a spot table into overlapping tiles.
+
+    Returns a list of tiles and a list of corresponding subregions.
+    """
+
+    tiles = spot_table.grid_tiles(max_tile_size=max_tile_size, overlap=overlap)
+    regions = [tile.parent_region for tile in tiles]
+
+    return tiles, regions
+
+
+def create_seg_run_spec(regions, load_func, load_args: dict, seg_method: SegmentationMethod, seg_opts: dict, tile_save_path: str):
+    """Create run specifications for tiled segmentation on the hpc.
+
+    Parameters
+    ----------
+    regions
+        List of subregions corresponding to tiles of a spot table.
+    load_func
+        Function used to load a spatial dataset, e.g. SpotTable.load_merscope
+    load_args: dict
+        Keyword arguments to pass to the loading function.
+    seg_method: SegmentationMethod
+        The method to use for segmentation.
+    seg_opts: dict
+        Keyword arguments to pass to the segmentation method.
+    tile_save_path: str
+        Directory in which to save segmentation results and cell id files for individual tiles.
+
+    Returns
+    -------
+    run_spec
+        The specifications to segment each tile on the hpc.
+    """
+
+    assert os.path.exists(tile_save_path)
+
+    run_spec = {}
+    for i, region in enumerate(regions):
+        run_spec[i] = (
+            run_segmentation,
+            (),
+            dict(
+                load_func=load_func,
+                load_args=load_args,
+                subregion=region,
+                method_class=seg_method,
+                method_args=seg_opts,
+                result_file=os.path.join(f'{tile_save_path}/', f'segmentation_result_{i}.pkl'),
+                cell_id_file=os.path.join(f'{tile_save_path}/', f'segmentation_result_{i}.npy'),
+            )
+        )
+    print(f"Generated segmentation spec for {len(run_spec)} tiles")
+
+    return run_spec
+
+
+def run_segmentation_on_hpc(run_spec: dict, conda_env: str, hpc_host: str, job_path: str, **hpc_opts):
+    """Submit an array job to run segmentation on tiles to hpc.
+    Jobs are submitted immediately upon calling this function.
+
+    Parameters
+    ----------
+    run_spec: dict
+        The specifications to segment each tile on the hpc.
+    conda_env: str
+        Path to a conda environment from which to run segmentation.
+    hpc_host: str
+        Set as 'hpc-login' if running from a local machine,
+        'localhost' if running from the hpc.
+    job_path: str
+        Directory in which to save job output and error log files.
+    **hpc_opts
+        Remaining keyword arguments to pass to run_slurm_func.
+
+    Returns
+    -------
+    jobs
+        A SlurmJob object with information about submitted jobs.
+    """
+
+    hpc_config = {
+        'run_spec': run_spec,
+        'conda_env': conda_env,
+        'hpc_host': hpc_host,
+        'job_path': job_path,
+        'partition': 'celltypes',
+        'job_name': 'segment',
+        'nodes': 1,
+        'ntasks': 1,
+        'array': f'0-{len(run_spec)-1}',
+        'mincpus': 1,
+        'gpus_per_node': 1,
+        'mem': '20G',
+        'time': '0:30:00',
+        'mail_user': None,
+    }
+
+    hpc_config.update(**hpc_opts)
+    jobs = run_slurm_func(**hpc_config)
+
+    return jobs
+
+
+def merge_segmentation_results(spot_table: SpotTable, run_spec: dict, tiles: list[SpotTable]|None = None):
+    """Merge results of a tiled segmentation, updating spot_table.cell_ids in place.
+
+    Parameters
+    ----------
+    spot_table: SpotTable
+        The entire spot table to which to assign cell_ids.
+    run_spec: dict
+        The specifications provided to segment each tile on the hpc.
+    tiles: list[SpotTable]|None
+        The individual tiles that were segmented.
+        If not provided, will be generated from spot_table and run_spec.
+
+    Returns
+    ------- 
+    cell_ids
+        The cell_ids assigned to each spot in spot_table.
+    merge_results
+        Information about conflicts collected during tile merging.
+    skipped
+        Indices of tiles skipped during segmentation.
+    """
+
+    spot_table.cell_ids = np.empty(len(spot_table), dtype=int)
+    spot_table.cell_ids[:] = -1
+
+    merge_results = []
+    skipped = []
+    for i, tile_spec in enumerate(tqdm(run_spec.values())):
+        cell_id_file = tile_spec[2]['cell_id_file']
+        if not os.path.exists(cell_id_file):
+            print(f"Skipping tile {i} : no cell ID file generated")
+            skipped.append(i)
+            continue
+
+        if tiles is not None:
+            # Use tiles in memory
+            tile = tiles[i]
+
+        else:
+            # Recreate each tile from spot_table and run_spec
+            tile_rgn = tile_spec[2]['subregion']
+            tile = spot_table.get_subregion(xlim = tile_rgn[0], ylim = tile_rgn[1])
+
+        tile.cell_ids = np.load(cell_id_file)
+        result = spot_table.merge_cells(tile, padding=5)
+        merge_results.append(result)
+
+    cell_ids = spot_table.cell_ids
+
+    return cell_ids, merge_results, skipped
+
+
+class SegmentationRun:
+    """Trying out an object to represent an individual segmentation run on a 
+    dataset.
+    """
+    def __init__(
+            self, 
+            dt_file: Path|str,
+            image_path: Path|str,
+            output_dir: Path|str,
+            dt_cache: Path|str|None,
+            subrgn: str|tuple,
+            seg_method: SegmentationMethod,
+            seg_opts: dict,
+            hpc_opts: dict
+            ):
+
+        # input/output paths
+        self.images_path = image_path
+        self.detected_transcripts_file = dt_file
+        self.detected_transcripts_cache = dt_cache 
+
+        if isinstance(output_dir, str) or isinstance(output_dir, PurePath):
+            output_dir = Path(output_dir)
+        self.output_dir = output_dir
+        self.output_dir.mkdir(exist_ok=True)
+
+        # intermediate file paths
+        self.regions_path = output_dir.joinpath('regions.json')
+        self.run_spec_path = output_dir.joinpath('run_spec.pkl')
+        self.tile_save_path = output_dir.joinpath('seg_tiles/')
+        self.cid_path = output_dir.joinpath('segmentation.npy')
+        self.cbg_path = output_dir.joinpath('cell_by_gene.h5ad')
+
+        # segmentation parameters
+        self.subrgn = subrgn
+        self.seg_method = seg_method
+        self.seg_opts = seg_opts
+        self.hpc_opts = hpc_opts
+
+        # initial arguments saved for future reference 
+        self.meta_path = output_dir.joinpath('metadata.pkl')
+        self.meta = {
+                'dt_file': dt_file,
+                'image_path': image_path,
+                'output_dir': output_dir,
+                'dt_cache': dt_cache,
+                'subrgn': subrgn,
+                'seg_method': seg_method,
+                'seg_opts': seg_opts,
+                'hpc_opts': hpc_opts
+            }
+        self.save_metadata()
+
+        # load the spot table corresponding to the segmentation region
+        self.spot_table = self.load_spot_table(subrgn)
+        
+    @abstractmethod
+    def get_load_func(self):
+        return
+
+    @abstractmethod
+    def get_load_args(self):
+        return
+
+    def save_metadata(self):
+        with open(self.meta_path, 'wb') as f:
+            pickle.dump(self.meta, f)
+
+    def load_metadata(self):
+        with open(self.meta_path, 'rb') as f:
+            meta = pickle.load(f)
+        
+        return meta
+
+    def save_regions(self, regions):
+        regions_df = pd.DataFrame(regions, columns=['xlim', 'ylim'])
+        regions_df.to_json(self.regions_path)
+
+    def load_regions(self):
+        assert self.regions_path.exists()
+        regions = pd.read_json(self.regions_path).values
+        regions = [tuple(r) for r in regions]
+        return regions
+
+    def save_run_spec(self, run_spec):
+        with open(self.run_spec_path, 'wb') as f:
+            pickle.dump(run_spec, f)
+
+    def load_run_spec(self):
+        with open(self.run_spec_path, 'rb') as f:
+            run_spec = pickle.load(f)
+
+        return run_spec
+
+    def save_cell_ids(self, cell_ids):
+        np.save(self.cid_path, cell_ids)
+
+    def load_cell_ids(self):
+        assert self.cid_path.exists()
+        cell_ids = np.load(self.cid_path)
+        return cell_ids
+
+    def save_cbg(self, cell_by_gene):
+        cell_by_gene.write(self.cbg_path)
+
+    def load_cbg(self):
+        assert self.cbg_path.exists()
+        cell_by_gene = ad.read_h5ad(self.cbg_path)
+        return cell_by_gene
+
+    def load_spot_table(self, subregion):
+        load_func = self.get_load_func()
+        load_args = self.get_load_args()
+        table = load_func(**load_args)
+        subtable = get_segmentation_region(table, subregion)
+        return subtable
+
+    def run(self):
+        """Run all steps in a new subdirectory."""
+        tiles, regions = self.tile_seg_region()
+        run_spec = self.get_seg_run_spec(regions)
+        jobs = self.submit_seg_jobs(run_spec)
+        cell_ids, merge_results, skipped = self.merge_segmented_tiles(run_spec)
+        cell_by_gene = self.create_cell_by_gene(self.spot_table)
+
+        return self.spot_table, cell_by_gene
+
+    def resume(self):
+        raise NotImplementedError()
+    
+    def load_results(self):
+        """Load the results of a finished segmentation."""
+        self.spot_table.cell_ids = self.load_cell_ids
+        cell_by_gene = self.load_cbg()
+        return self.spot_table, cell_by_gene
+    
+    def track_job_progress(self, jobs, run_spec):
+        """Track progress of segmentation jobs. Will not complete until all
+        cell id files have been saved.
+        """
+        saved_cid_files = [os.path.exists(v[2]['cell_id_file']) for v in run_spec.values()]
+        timeout = time.time() + 60*30  # 30 min, the standard time for one job
+        with tqdm(total=len(jobs)) as pbar:
+            while not all(saved_cid_files):
+                finished = [j for j in jobs if os.path.exists(j.output_file)]
+                n_finished = len(finished)
+                saved_cid_files = [os.path.exists(v[2]['cell_id_file']) for v in run_spec.values()]
+                n_saved = saved_cid_files.count(True)
+                pbar.update(n_saved - pbar.n)
+                print(f'Submitted: {n_finished} / {len(jobs)} Status: {jobs.state_counts()} Saved: {n_saved}')
+                if not any(saved_cid_files) and time.time() > timeout:
+                    jobs.cancel()
+                    raise RuntimeError('No cell id files found within the timeout period. Jobs canceled. Check error logs.')
+                time.sleep(60)
+
+    def tile_seg_region(self, **kwargs):
+        print('Tiling segmentation region...')
+        subtable = self.spot_table
+        tiles, regions = get_tiles(subtable, **kwargs)
+        
+        # save regions
+        self.save_regions(regions)
+
+        return tiles, regions
+
+    def get_seg_run_spec(self, regions=None):
+        if regions is None:
+            regions = self.load_regions()
+        seg_method = self.seg_method
+        seg_opts = self.seg_opts
+        self.tile_save_path.mkdir(exist_ok=True)
+
+        run_spec = create_seg_run_spec(
+                regions,
+                self.get_load_func(),
+                self.get_load_args(),
+                seg_method,
+                seg_opts,
+                self.tile_save_path.as_posix()
+        )
+
+        # save run_spec
+        self.save_run_spec(run_spec)
+
+        return run_spec
+
+    def submit_seg_jobs(self, run_spec=None):
+        if run_spec is None:
+            run_spec = self.load_run_spec()
+        hpc_opts = self.hpc_opts
+
+        job_path = self.output_dir.joinpath('hpc-jobs')
+        job_path.mkdir(exist_ok=True)
+        hpc_opts.update({'job_path': f'{job_path.as_posix()}/'})
+
+        jobs = run_segmentation_on_hpc(run_spec, **hpc_opts)
+        self.track_job_progress(jobs, run_spec)
+
+        return jobs
+
+    def merge_segmented_tiles(self, run_spec=None):
+        if run_spec is None:
+            run_spec = self.load_run_spec()
+        
+        subtable = self.spot_table
+        # need to make extra sure this updates the spot table attached to the 
+        # class in place
+        print('Merging tiles...')
+        cell_ids, merge_results, skipped = merge_segmentation_results(subtable, run_spec, None)
+
+        if len(run_spec) == len(skipped):
+            raise RuntimeError('All tiles were skipped, check error logs.')
+
+        if len(skipped) > 0:
+            print('Warning: Some tiles were skipped.')
+
+        # save cell_ids
+        self.save_cell_ids(cell_ids)
+
+        return cell_ids, merge_results, skipped
+
+    def create_cell_by_gene(self, spot_table=None, remove_bg=True):
+        # to be updated with volume and other metadata calculation when done
+        if spot_table is None:
+            subtable = self.spot_table.copy()
+        else:
+            subtable = spot_table
+
+        subtable = subtable.filter_cells(real_cells = remove_bg)
+
+        cell_by_gene = subtable.cell_by_gene_anndata()
+        self.save_cbg(cell_by_gene)
+
+        return cell_by_gene
+
+
+class MerscopeSegmentationRun(SegmentationRun):
+    def __init__(
+            self, 
+            dt_file: Path|str, 
+            image_path: Path|str, 
+            output_dir: Path|str, 
+            dt_cache: Path|str|None,
+            subrgn: str|tuple,
+            seg_method: SegmentationMethod,
+            seg_opts: dict,
+            hpc_opts: dict,
+        ):
+        super().__init__(dt_file, image_path, output_dir, dt_cache, subrgn, seg_method, seg_opts, hpc_opts)
+
+    @classmethod
+    def from_spatial_dataset(cls, sp_dataset, output_dir, subrgn, seg_method, seg_opts, hpc_opts):
+        """Alternate constructor to load from a SpatialDataset"""
+        image_path = sp_dataset.images_path
+        csv_file = sp_dataset.detected_transcripts_file
+        cache_file = sp_dataset.detected_transcripts_cache
+
+        return cls(csv_file, image_path, output_dir, cache_file, subrgn, seg_method, seg_opts, hpc_opts)
+
+    @classmethod
+    def from_expt_path(cls, expt_path: Path, cache_file: Path|str, output_dir: Path|str):
+        image_path = expt_path / 'images/'
+        csv_file = expt_path / 'detected_transcripts.csv'
+        return cls(csv_file, image_path, cache_file, output_dir)
+
+    @classmethod
+    def from_timestamp(cls, output_dir, timestamp):
+        """Load a partially completed run from timestamp (metadata?)"""
+        path_to_meta = os.path.join(output_dir, timestamp, 'metadata.pkl')
+
+        with open(path_to_meta, 'rb') as f:
+            meta = pickle.load(f)
+
+        return cls(**meta['init_args'])
+
+    def get_load_func(self):
+        """Get the function to load a spot table."""
+        return SpotTable.load_merscope
+
+    def get_load_args(self):
+        """Get args to pass to loading function (e.g. when submitting jobs to hpc)."""
+        load_args = {
+                'image_path': self.images_path,
+                'csv_file': self.detected_transcripts_file,
+                'cache_file': self.detected_transcripts_cache,
+                'max_rows': None
+        }
+        return load_args
+
+class StereoSeqSegmentationRun(SegmentationRun):
+    def __init__(
+            self, 
+            dt_file: Path|str, 
+            image_path: Path|str, 
+            output_dir: Path|str, 
+            dt_cache: Path|str|None,
+            subrgn: str|tuple,
+            seg_method: SegmentationMethod,
+            seg_opts: dict,
+            hpc_opts: dict,
+        ):
+        super().__init__(dt_file, image_path, output_dir, dt_cache, subrgn, seg_method, seg_opts, hpc_opts)
+
+    def get_load_func(self):
+        """Get the function to load a spot table."""
+        return SpotTable.load_stereoseq
+
+    def get_load_args(self):
+        """Get args to pass to loading function (e.g. when submitting jobs to hpc)."""
+        load_args = {
+                'image_path': self.image_path,
+                'gem_file': self.dt_file,
+                'cache_file': self.dt_cache,
+                'skiprows': 7,
+                'image_channel': 'nuclear'
+        }
+        return load_args
