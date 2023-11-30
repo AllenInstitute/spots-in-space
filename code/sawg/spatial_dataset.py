@@ -498,7 +498,7 @@ class StereoSeqSection(SpatialDataset):
             if self.mapping_path is not None and not Path.exists(self.mapping_path):
                 Path.mkdir(self.mapping_path)
             self.segmentation_path = self.save_path.joinpath(self.config['segmentation_dir']) if self.config.get('segmentation_dir') is not None else None
-            if self.segmentation_path is not None and Path.exists(self.segmentation_path):
+            if self.segmentation_path is not None and not Path.exists(self.segmentation_path):
                 Path.mkdir(self.segmentation_path)
 
             self.qc = {

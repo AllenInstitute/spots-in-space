@@ -780,6 +780,8 @@ class SegmentationRun:
             output_dir = Path(output_dir)
         self.output_dir = output_dir
         self.output_dir.mkdir(exist_ok=True)
+        assert self.output_dir.exists()
+        print(f'Segmentation output directory: {self.output_dir}')
 
         # intermediate file paths
         self.regions_path = output_dir.joinpath('regions.json')
