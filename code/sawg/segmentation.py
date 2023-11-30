@@ -884,7 +884,38 @@ class SegmentationRun:
         return self.spot_table, cell_by_gene
 
     def resume(self):
-        raise NotImplementedError()
+        """Resume from last completed step in an existing output directory"""
+        if os.path.exists(self.regions_path):
+            regions = self.load_regions()
+        else:
+            _, regions = self.tile_seg_regions()
+
+        if os.path.exists(self.run_spec_path):
+            run_spec = self.load_run_spec()
+        else:
+            run_spec = self.get_seg_run_spec()
+
+        if not os.path.exists(self.tile_save_path):
+            jobs = self.submit_seg_jobs(run_spec)
+
+        if os.path.exists(self.cid_path):
+            cell_ids = self.load_cell_ids()
+            self.spot_table.cell_ids = cell_ids
+
+        else:
+            saved_cid_files = [os.path.exists(v[2]['cell_id_file']) for v in run_spec.values()]
+            n_saved = saved_cid_files.count(True)
+            if n_saved == len(regions):
+                cell_ids, merge_results, skipped = self.merge_segmented_tiles(run_spec)
+            else:
+                raise ValueError(f'Number of saved tiles {n_saved} does not match number of regions {len(regions)}.')
+
+        if os.path.exists(self.cbg_path):
+            cell_by_gene = self.load_cbg_file()
+        else:
+            cell_by_gene = self.create_cell_by_gene(self.spot_table)
+
+        return self.spot_table, cell_by_gene
     
     def load_results(self):
         """Load the results of a finished segmentation."""
@@ -1031,6 +1062,10 @@ class MerscopeSegmentationRun(SegmentationRun):
 
         return cls(**meta['init_args'])
 
+    @classmethod
+    def from_json(cls, config_file):
+        pass
+
     def get_load_func(self):
         """Get the function to load a spot table."""
         return SpotTable.load_merscope
@@ -1041,8 +1076,13 @@ class MerscopeSegmentationRun(SegmentationRun):
                 'image_path': self.images_path,
                 'csv_file': self.detected_transcripts_file,
                 'cache_file': self.detected_transcripts_cache,
-                'max_rows': None
         }
+        for k, v in load_args.items():
+            if isinstance(v, Path):
+                load_args[k] = v.as_posix()
+
+        load_args['max_rows'] = None
+
         return load_args
 
 class StereoSeqSegmentationRun(SegmentationRun):
@@ -1069,7 +1109,12 @@ class StereoSeqSegmentationRun(SegmentationRun):
                 'image_path': self.image_path,
                 'gem_file': self.dt_file,
                 'cache_file': self.dt_cache,
-                'skiprows': 7,
-                'image_channel': 'nuclear'
         }
+
+        for k, v in load_args.items():
+            if isinstance(v, Path):
+                load_args[k] = v.as_posix()
+
+        load_args.update({'skiprows': 7, 'image_channel': 'nuclear'})
+
         return load_args
