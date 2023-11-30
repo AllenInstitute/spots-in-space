@@ -673,10 +673,10 @@ class ScrattchMapping(CellTypeMapping):
             os.remove(os.path.join(self.run_directory, 'scrattch_map_temp.h5ad'))
     
     def load_taxonomy_anndata(self):
-        # the taxonomy anndatas are pretty big, only load if necessary. 
+        # the taxonomy anndatas are pretty big, only load if necessary and backed so no changes inadvertantly get made. 
         taxonomy_files = [os.path.join(dirpath,filename) for dirpath, _, filenames in os.walk(self.taxonomy_path) for filename in filenames if filename.endswith('taxonomy.h5ad')]
         if len(taxonomy_files) == 1:
-            self.ad_sc = ad.read_h5ad(taxonomy_files[0])
+            self.ad_sc = ad.read_h5ad(taxonomy_files[0], backed='r')
         elif len(taxonomy_files)==0:
             print(f'No taxonomy.h5ad file found that ends in path: {self.taxonomy_path}')
         else:

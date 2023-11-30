@@ -9,8 +9,7 @@
 version = 1
 
 from sawg.celltype_mapping import ScrattchMapping, CellTypeMapping
-from sawg.segmentation import run_segmentation, SegmentationMethod, MerscopeSegmentationRun
-from sawg.segmentation import get_segmentation_region, get_tiles, create_seg_run_spec, merge_segmentation_results
+from sawg.segmentation import get_segmentation_region, get_tiles, create_seg_run_spec, merge_segmentation_results, MerscopeSegmentationRun
 from sawg.spot_table import SpotTable
 from sawg.util import load_config
 import anndata as ad
@@ -370,7 +369,7 @@ class MERSCOPESection(SpatialDataset):
 
         return spot_table, cell_by_gene
 
-    def resume_segmentation_on_section(self, subrgn, seg_method, seg_opts, hpc_opts, timestamp):
+    def resume_segmentation_on_section(self, timestamp):
         # resume from previous segmentation
         # Note: the resume method is not currently implemented in SegRun
         segmentation_path = self.segmentation_path
@@ -432,6 +431,44 @@ class MERSCOPESection(SpatialDataset):
         
         return job, mapping    
 
+    def make_cirro(self, mapping):
+        if type(mapping) == str:
+            ct_map = CellTypeMapping.load_from_timestamp(directory=self.mapping_path, timestamp=mapping)
+
+        if isinstance(mapping, ScrattchMapping):
+            ct_map.load_scrattch_mapping_results()
+        
+        if 'raw_counts' in ct_map.ad_map.layers.keys():
+            raw_dat = ct_map.ad_map.to_df(layer='raw_counts')
+        else:
+            raw_dat = ct_map.ad_map.to_df()
+            
+        ct_map.spatial_umap(attr='ad_map')
+        x_umap = ct_map.ad_map.obs[['umap_x', 'umap_y']].to_numpy()
+        spatial = ct_map.ad_map.obs[['x', 'y']].to_numpy()
+
+        obsm = {
+                'spatial': spatial,
+                'X_umap': x_umap,
+            } 
+
+        X = raw_dat[ct_map.ad_map.var.index.unique()]
+
+        var = pd.DataFrame(index=ct_map.ad_map.var.index.unique())
+
+        ad_cirro = ad.AnnData(
+            X = X,
+            obs = ct_map.ad_map.obs,
+            var = var,
+            obsm = obsm,
+            uns = ct_map.ad_map.uns,
+        )
+
+        cirro_file = Path(ct_map.run_directory).joinpath(f'ad_cirro_{self.lims_specimen_name}.h5ad')
+        ad_cirro.write_h5ad(cirro_file)
+        print(cirro_file)
+
+        return cirro_file
 
 # class MERSCOPESectionCollection(MERSCOPESection):
 #     #collection of MERSCOPE sections that go together
@@ -618,9 +655,9 @@ class StereoSeqSection(SpatialDataset):
                 }
             
             if binsize == 'cell':
-                data = st.io.read_gef(file_path=self.cellbin_file, bin_type='cell_bins')
+                data = st.io.read_gef(file_path=str(self.cellbin_file), bin_type='cell_bins')
             else:
-                data = st.io.read_gef(file_path=self.bin_file, bin_size=binsize)
+                data = st.io.read_gef(file_path=str(self.bin_file), bin_size=binsize)
             
             data.tl.raw_checkpoint()
             data.tl.cal_qc()
@@ -631,22 +668,23 @@ class StereoSeqSection(SpatialDataset):
         else:
             ad_data = ad.read_h5ad(ad_file)
 
+        if taxonomy is not None:
+            taxonomy_path = self.config['taxonomy_info'][taxonomy]['path']
+
         if method == ScrattchMapping:
             mapping = ScrattchMapping(
                 sp_data = ad_data,
                 taxonomy_path = taxonomy_path,
+                meta = {'taxonomy_name': taxonomy, 'taxonomy_cols': self.config['taxonomy_info'][taxonomy]['col_labels']}
             )
         else:
             print(f'Mapping method not instantiated for {method}')
             return
         
-        meta = {'taxonomy_name': taxonomy, 'taxonomy_cols': self.config['taxonomy_info'][taxonomy]['col_labels']}
-        if taxonomy is not None:
-            taxonomy_path = self.config['taxonomy_info'][taxonomy]['path']
         if training_genes == 'hvgs' and taxonomy is not None:
-            taxonomy_ad = ad.read_h5ad(Path.joinpath(taxonomy_path, 'AI_taxonomy.h5ad'), backed='r')
+            taxonomy_ad = ad.read_h5ad(Path(taxonomy_path).joinpath('AI_taxonomy.h5ad'), backed='r')
             training_genes = taxonomy_ad.var[taxonomy_ad.var['highly_variable_genes']==True].index.to_list()
-            meta['training_genes'] = 'taxonomy highly variable genes'
+            meta = {'training_genes': 'taxonomy highly variable genes'}
        
         ad_map_args = {'save_path': self.mapping_path.as_posix(), 
                     'ad_sp_layer': 'logcounts',
@@ -670,18 +708,18 @@ class StereoSeqSection(SpatialDataset):
 
         return job, mapping
 
-    def qc_mapping_reults(self, ct_map, score_thresh, map_thresh=0.6):
+    def qc_mapping_results(self, ct_map, score_thresh, map_thresh=0.6):
         if type(ct_map) == str:
             ct_map = CellTypeMapping.load_from_timestamp(directory=self.mapping_path, timestamp=ct_map)
 
         if isinstance(ct_map, ScrattchMapping):
-            ct_map.load_scrattch_mapping_results()
             mapping_score_col = 'score.Corr'
-            col_labels = [prefix + 'Corr' for prefix in self.config['taxonomy_info'][ct_map.meta['taxonomy_name']]['col_labels']]
 
         fig, ax = plt.subplots()
-        sns.histplot(data=ct_map.ad_map.obs, x=mapping_score_col, ax=ax)
-        ax.axvline(score_thresh, color='k', ls='--')
+        sns.ecdfplot(data=ct_map.ad_map.obs, x=mapping_score_col, ax=ax)
+        ax.axvline(score_thresh, color='orange', ls='--')
+        ax.axhline(1-map_thresh, color='orange', ls='--')  
+        
         ct_map.qc_mapping(qc_params={mapping_score_col: score_thresh})
         
         self.mapping_quality = sum(ct_map.ad_map.obs[mapping_score_col] >= score_thresh)/len(ct_map.ad_map.obs)

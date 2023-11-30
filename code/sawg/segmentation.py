@@ -568,7 +568,6 @@ def dilate_labels(img, radius):
 
     return interpolated
 
-
 def get_segmentation_region(spot_table: SpotTable, subregion: tuple|str):
     """Get a subregion of a spot table to use for segmentation.
 

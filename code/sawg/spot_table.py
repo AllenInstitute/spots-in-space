@@ -1135,7 +1135,7 @@ class SpotTable:
 
         return bec, (xbins, ybins, gbins), (reduced,)
 
-    def show_image(self, ax, image_size=300, log=True):
+    def show_binned_heatmap(self, ax, image_size=300, log=True):
         """Show an image of binned spot positions.
         """
         xbins = np.linspace(self.x.min(), self.x.max(), image_size)

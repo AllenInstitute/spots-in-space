@@ -8,3 +8,11 @@ merscope_lims_code: "mfishMERSCOPEmacaqueAtlas"
 lims_code: "macaqueAtlas"
 bulkseq_file: "//allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/bulkseq/macaque/master_bulk_data.csv"
 stereoseq_qc_genes_file: "//allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/BGI/QC_Genes_Stereoseq.csv"
+taxonomy_info: 
+    AIT20: 
+        path: '//allen/programs/celltypes/workgroups/rnaseqanalysis/shiny/10x_seq/NHP_MTG_AIT_20'
+        col_labels: ['class_', 'neighborhood_', 'subclass_', 'cluster_']
+    AIT115: 
+        path: '//allen/programs/celltypes/workgroups/rnaseqanalysis/shiny/10x_seq/NHP_BG_AIT_115' 
+        col_labels: ['level1.class_', 'level2.neighborhood_', 'level3.subclass_', 'cluster_']
+hpc_outputs: '//allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/hpc-jobs'
