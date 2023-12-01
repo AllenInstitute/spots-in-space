@@ -406,6 +406,34 @@ class MERSCOPESection(SpatialDataset):
         spot_table.cell_ids = cell_ids
 
         return spot_table, cell_by_gene
+
+    def run_qc_on_section(self, cell_by_gene, qc_params: dict, use_cols: list[str]|None=None):
+        # calculate basic qc parameters
+        # more could be added here...
+        # could also envision splitting into a few functions
+        n_genes = cell_by_gene.X.getnnz(axis=1)
+        n_transcripts = cell_by_gene.X.A.sum(axis=1)
+
+        blank_names = cell_by_gene.var_names.str.startswith('Blank')
+        blank_counts = cell_by_gene.X.A[:, blank_names].sum(axis=1)
+        blank_ratio = blank_counts / n_transcripts
+        
+        cbg_meta = cell_by_gene.obs.copy()
+        cbg_meta['n_genes'] = n_genes
+        cbg_meta['n_transcripts'] = n_transcripts
+        cbg_meta['pct_counts_blank'] = blank_ratio*100
+        for param, (lower, upper) in qc_params.items():
+            cbg_meta[f'{param}_toolow_qc'] = cbg_meta[param] < lower
+            cbg_meta[f'{param}_toohigh_qc'] = cbg_meta[param] > upper
+
+        if use_cols is None:
+            # use all qc params for filtering
+            cbg_meta['qc_pass'] = ~cbg_meta.loc[:, cbg_meta.columns.str.endswith('_qc')].apply(np.any, axis=1)
+        else:
+            # use only indicated columns
+            cbg_meta['qc_pass'] = ~cbg_meta.loc[:, use_cols].apply(np.any, axis=1)
+
+        return cbg_meta  # better to return cell by gene with updated obs?
     
     def run_mapping_on_section(self, method, taxonomy=None, method_args={}, hpc_args={}):
         if method == ScrattchMapping:
