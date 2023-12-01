@@ -375,11 +375,18 @@ class MERSCOPESection(SpatialDataset):
         segmentation_path = self.segmentation_path
         individual_seg_dir = segmentation_path.joinpath(str(timestamp))
         assert os.path.exists(individual_seg_dir)
-        metadata_file = individual_seg_dir.joinpath('metadata.pkl')
-        with open(metadata_file, 'rb') as f:
-            metadata = pickle.load(f)
-            seg_run = MerscopeSegmentationRun(**metadata)
-            spot_table, cell_by_gene = seg_run.resume()
+
+        if individual_seg_dir.joinpath('metadata.pkl').exists():
+            metadata_file = individual_seg_dir.joinpath('metadata.pkl')
+            with open(metadata_file, 'rb') as f:
+                metadata = pickle.load(f)
+                seg_run = MerscopeSegmentationRun(**metadata)
+
+        elif indivivdual_seg_dir.joinpath('seg_meta.json').exists():
+            metadata_file = individual_seg_dir.joinpath('seg_meta.json')
+            seg_run = MerscopeSegmentationRun.from_json(metadata_file)
+
+        spot_table, cell_by_gene = seg_run.resume()
 
         return spot_table, cell_by_gene
 

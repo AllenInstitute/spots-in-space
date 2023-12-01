@@ -7,6 +7,8 @@ from .hpc import run_slurm_func
 from .spot_table import SpotTable
 from .image import Image, ImageBase, ImageTransform
 
+import inspect
+import json
 from pathlib import Path, PurePath
 import datetime
 import glob
@@ -797,7 +799,7 @@ class SegmentationRun:
         self.hpc_opts = hpc_opts
 
         # initial arguments saved for future reference 
-        self.meta_path = output_dir.joinpath('metadata.pkl')
+        self.meta_path = output_dir.joinpath('seg_meta.json')
         self.meta = {
                 'dt_file': dt_file,
                 'image_path': image_path,
@@ -822,12 +824,21 @@ class SegmentationRun:
         return
 
     def save_metadata(self):
-        with open(self.meta_path, 'wb') as f:
-            pickle.dump(self.meta, f)
+        metadata_cl = self.meta.copy()
+        for k, v in self.meta.items():
+            if isinstance(v, PurePath):
+                metadata_cl[k] = v.as_posix()
+            elif inspect.isclass(v):
+                metadata_cl[k] = v.__module__ + '.' + v.__name__
+            elif not isinstance(v, str|tuple):
+                metadata_cl[k] = str(v)
+
+        with open(self.meta_path, 'w') as f:
+            json.dump(metadata_cl, f)
 
     def load_metadata(self):
-        with open(self.meta_path, 'rb') as f:
-            meta = pickle.load(f)
+        with open(self.meta_path, 'r') as f:
+            meta = json.load(f)
         
         return meta
 
@@ -1057,15 +1068,26 @@ class MerscopeSegmentationRun(SegmentationRun):
     def from_timestamp(cls, output_dir, timestamp):
         """Load a partially completed run from timestamp (metadata?)"""
         path_to_meta = os.path.join(output_dir, timestamp, 'metadata.pkl')
-
+        
         with open(path_to_meta, 'rb') as f:
             meta = pickle.load(f)
 
         return cls(**meta['init_args'])
 
     @classmethod
-    def from_json(cls, config_file):
-        pass
+    def from_json(cls, json_file):
+        """Load a run from a json file"""
+        with open(json_file, 'r') as f:
+            config = json.load(f)
+        seg_method_name = config['seg_method'].rpartition('.')[-1]
+        if seg_method_name == 'CellposeSegmentationMethod':
+            config['seg_method'] = sawg.segmentation.CellposeSegmentationMethod
+        else:
+            raise NotImplementedError(f'Segmentation method {seg_method_name} not implemented.')
+        if isinstance(config['subrgn'], list):
+            config['subrgn'] = tuple([tuple(l) for l in config['subrgn']])
+
+        return cls(config)
 
     def get_load_func(self):
         """Get the function to load a spot table."""
