@@ -49,6 +49,9 @@ class SpotTable:
                  gene_ids: None|np.ndarray=None, 
                  gene_id_to_name: None|np.ndarray=None,
                  cell_ids: None|np.ndarray=None, 
+                 production_cell_ids: None|np.ndarray=None,
+                 pcid_to_cid: None|dict=None,
+                 cid_to_pcid: None|dict=None,
                  parent_table: 'None|SpotTable'=None, 
                  parent_inds: None|np.ndarray=None, 
                  parent_region: None|tuple=None,
@@ -75,10 +78,13 @@ class SpotTable:
 
         self._gene_names = None
         self._cell_ids = cell_ids
+        self._production_cell_ids = production_cell_ids
+        self._pcid_to_cid = pcid_to_cid
+        self._cid_to_pcid = cid_to_pcid
         self._cell_index = None
         self._cell_bounds = None
         self.cell_polygons = {}
-        
+
         self.images = []
         if images is not None:
             for img in images:
@@ -147,6 +153,24 @@ class SpotTable:
     def cell_ids(self, cid: np.ndarray):
         self._cell_ids = cid
         self.cell_ids_changed()
+
+    @property
+    def production_cell_ids(self):
+        """An array of production cell IDs.
+        """
+        return self._production_cell_ids
+    
+    @production_cell_ids.setter
+    def production_cell_ids(self, cid: np.ndarray):
+        self._production_cell_ids = cid
+
+    def convert_cell_id(self, cell_id: int|str):
+        if isinstance(cell_id, (int, np.integer)):
+            return self._cid_to_pcid[cell_id]
+        elif isinstance(cell_id, str):
+            return self._pcid_to_cid[cell_id]
+        else:
+            raise ValueError("cell_id must be of type 'int' or 'str'")
         
     def bounds(self):
         """Return ((xmin, xmax), (ymin, ymax)) giving the boundaries of data included in this table.
@@ -437,6 +461,39 @@ class SpotTable:
 
         return gene_ids, gene_to_id, id_to_gene
 
+    def generate_production_cell_ids(self, prefix: str='', suffix: str=''):
+        """ Generates cell ids which count up from 1 to the total cell count rather than jumping between integers.
+            Production cell ids are of type string to allow for concatenating a prefix and/or suffix to the id
+
+            Parameters
+            ----------
+            prefix : str
+                String to prepend to all production cell ids
+            suffix : str
+                String to postpend to all production cell ids
+
+            Sets
+            ----------
+            self.production_cell_ids
+        """
+        
+        unique_cell_ids = np.unique(self.cell_ids) # Pull out unique cell ids
+        unique_cell_ids = np.delete(unique_cell_ids, np.where((unique_cell_ids == 0) | (unique_cell_ids == -1))) # Remove background ids
+
+        cid_to_pcid = dict(zip(unique_cell_ids, np.char.mod(f'{prefix}%d{suffix}', np.arange(1, len(unique_cell_ids)+1)))) # Create dictionary to map cell ids to production ids 
+        cid_to_pcid[-1] = "-1"
+        pcid_to_cid = dict(zip(np.char.mod(f'{prefix}%d{suffix}', np.arange(1, len(unique_cell_ids)+1)), unique_cell_ids)) # Create dictionary to map production cell ids to cell ids 
+        pcid_to_cid["-1"] = -1
+
+        # We set the cell ids which are 0 to -1 b/c they both mean background and we want to be consistent when we use a dictionary which goes b/w production & normal cell ids
+        self.cell_ids[self.cell_ids == 0] = -1 
+        self.cell_ids_changed()
+
+        self.production_cell_ids = np.vectorize(cid_to_pcid.get)(self.cell_ids)
+        self._pcid_to_cid = pcid_to_cid
+        self._cid_to_pcid = cid_to_pcid
+
+    
     def filter_cells(self, real_cells=None, min_spot_count=None):
         """Return a filtered spot table containing only cells matching the filter criteria.
 
@@ -466,12 +523,17 @@ class SpotTable:
         cells = cells[mask]
         return self[np.isin(self.cell_ids, cells)]
 
-    def cell_by_gene_dataframe(self):
+    def cell_by_gene_dataframe(self, use_production_ids: bool=False):
         """Return a pandas dataframe containing a cell-by-gene table derived from this spot table.
         """
-        spot_df = pandas.DataFrame({'cell': self.cell_ids, 'gene': self.gene_ids})
+        spot_df = pandas.DataFrame({'cell': self.production_cell_ids if use_production_ids else self.cell_ids, 'gene': self.gene_ids})
         cell_by_gene_df = pandas.pivot_table(spot_df, columns='gene', index='cell', aggfunc=len, fill_value=0)
         cell_by_gene_df.columns = self.map_gene_ids_to_names(cell_by_gene_df.columns)
+
+        if use_production_ids: # Since the production ids are strings, we want to use natsort to sort by the integer part of the strings rather than sort the ids as strings
+            from natsort import index_natsorted, ns
+            cell_by_gene_df.sort_index(key=lambda col: np.argsort(index_natsorted(col, alg=ns.REAL)), inplace=True)
+            
         return cell_by_gene_df
 
     def cell_by_gene_sparse_matrix(self, dtype='uint16'):
@@ -512,7 +574,7 @@ class SpotTable:
         cellxgene = scipy.sparse.csr_matrix((data, (rowind, colind)), dtype=dtype)
         return cellxgene, cell_ids, gene_ids
 
-    def cell_by_gene_anndata(self, x_dtype='uint16'):
+    def cell_by_gene_anndata(self, use_production_ids: bool=False, x_dtype='uint16'):
         """Return a cell x gene table in AnnData format with cell centroids in x,y obs columns.
         """
         import anndata
@@ -522,6 +584,10 @@ class SpotTable:
         print("Calculating cell centroids...")
         centroids = self.cell_centroids()
 
+        if use_production_ids:
+            from natsort import natsorted, ns
+            cell_ids = natsorted(np.unique(self.production_cell_ids), alg=ns.REAL)
+
         adata = anndata.AnnData(cellxgene)
         adata.obs_names = cell_ids
         adata.var_names = gene_names
@@ -529,7 +595,7 @@ class SpotTable:
         adata.obs['y'] = centroids[:, 1]
         return adata
 
-    def cell_bounds(self, cell_id: int):
+    def cell_bounds(self, cell_id: int | str):
         """Return xmin, xmax, ymin, ymax for *cell_id*
         """
         if self._cell_bounds is None:
@@ -543,7 +609,8 @@ class SpotTable:
                     rows[:,1].min(),
                     rows[:,1].max(),
                 )
-        return self._cell_bounds[cell_id]
+
+        return self._cell_bounds[self.convert_cell_id(cell_id) if isinstance(cell_id, str) else cell_id]
 
     def cell_centroids(self):
         """Return an array of cell centroids calculated as the center of the bounding box for each cell."""
@@ -672,7 +739,7 @@ class SpotTable:
             json.dump( geojson.GeometryCollection(geojsonROIs), w)
 
         
-    def cell_indices(self, cell_ids: int | np.ndarray):
+    def cell_indices(self, cell_ids: int | str | np.ndarray):
         """Return indices giving table location of all spots with *cell_ids*
         """
         if self._cell_index is None:
@@ -683,9 +750,15 @@ class SpotTable:
 
         if isinstance(cell_ids, (int, np.integer)):
             return self._cell_index[cell_ids]
+        elif isinstance(cell_ids, str):
+            return self._cell_index[self.convert_cell_id(cell_ids)]
         else:
             if len(cell_ids) == 0:
                 return np.array([], dtype=int)
+
+            if isinstance(cell_ids[0], str):
+                cell_ids = np.vectorize(self._pcid_to_cid.get)(cell_ids)
+
             return np.concatenate([self._cell_index[cid] for cid in cell_ids])
 
     def cells_inside_region(self, xlim: tuple, ylim: tuple):
@@ -698,12 +771,22 @@ class SpotTable:
                 cell_ids.append(cid)
         return cell_ids
 
-    def cell_mask(self, cell_ids: int | np.ndarray):
+    def cell_mask(self, cell_ids: int | str | np.ndarray):
         """Return a mask selecting spots that belong to cells in *cell_ids*
         """
         mask = np.zeros(len(self), dtype=bool)
-        for cid in cell_ids:
-            mask[self.cell_indices(cid)] = True
+
+        if np.issubdtype(type(cell_ids), np.integer):
+            mask[self.cell_indices(cell_ids)] = True
+        elif isinstance(cell_ids, str):
+            mask[self.cell_indices(self.convert_cell_id(cell_ids))] = True
+        else:
+            if isinstance(cell_ids[0], str):
+                cell_ids = np.vectorize(self._pcid_to_cid.get)(cell_ids)
+
+            for cid in cell_ids:
+                mask[self.cell_indices(cid)] = True
+
         return mask
 
     def gene_indices(self, gene_names=None, gene_ids=None):
@@ -743,6 +826,7 @@ class SpotTable:
         pos = self.pos[item]
         gene_ids = self.gene_ids[item]
         cell_ids = None if self.cell_ids is None else self.cell_ids[item]
+        production_cell_ids = None if self.production_cell_ids is None else self.production_cell_ids[item]
 
         if len(pos) > 0:
             parent_region = ((pos[:,0].min(), pos[:,0].max()), (pos[:,1].min(), pos[:,1].max()))
@@ -754,6 +838,9 @@ class SpotTable:
             gene_ids=gene_ids,
             gene_id_to_name=self.gene_id_to_name,
             cell_ids=cell_ids, 
+            production_cell_ids=production_cell_ids, 
+            pcid_to_cid=self._pcid_to_cid,
+            cid_to_pcid=self._cid_to_pcid,
             parent_table=self, 
             parent_inds=np.arange(len(self))[item],
             parent_region=parent_region,
@@ -772,11 +859,13 @@ class SpotTable:
             parent_region=self.parent_region,
         )
         init_kwargs.update(kwds)
-        for name in ['pos', 'gene_ids', 'gene_id_to_name', 'cell_ids', 'images']:
+        for name in ['pos', 'gene_ids', 'gene_id_to_name', 'cell_ids', 'production_cell_ids', '_pcid_to_cid', '_cid_to_pcid', 'images']:
             if name not in init_kwargs:
                 val = getattr(self, name)
                 if deep:
                     val = None if val is None else val.copy()
+                if name.startswith('_'): # This is to handle _pcid_to_cid and _cid_to_pcid as arguments
+                    name = name[1:]
                 init_kwargs[name] = val
             
         return SpotTable(**init_kwargs)
@@ -898,14 +987,14 @@ class SpotTable:
             if row_height <= max_tile_size:
                 break
 
-        tiles = []`
+        tiles = []
         for row in tqdm(range(n_rows)):
             ystart = bounds[1][0] + row * (row_height - overlap)
             ylim = (ystart, ystart + row_height)
             row_tile = self.get_subregion(bounds[0], ylim, incl_end=incl_end)
             for col in range(n_cols):
                 xstart = bounds[0][0] + col * (col_width - overlap)
-                xlim = (xstart, min(xstart + col_width, bounds[0][1])) # We do this min so that the xlim never ends after the last transcript (this created inconsistencies in expected transcript counts) 
+                xlim = (xstart, min(xstart + col_width, bounds[0][1]))
                 tile = row_tile.get_subregion(xlim, ylim, incl_end=incl_end)
                 if len(tile) > 0:
                     tiles.append(tile)
@@ -1198,6 +1287,3 @@ class SpotTable:
             img = img.get_z_pos(z_pos)
             
         return img
-        
-
-
