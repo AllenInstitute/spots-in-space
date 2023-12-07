@@ -130,10 +130,13 @@ class CellposeSegmentationMethod(SegmentationMethod):
             'batch_size': 8,   # more if memory allows
             'normalize': True,
             'tile': False,
+            'diameter': None # if None, cellpose will estimate diameter or use from pretrained model file
         }
         cp_opts.update(self.options['cellpose_options'])
         cp_opts.setdefault('anisotropy', self.options['z_plane_thickness'] / self.options['px_size'])
-        cp_opts.setdefault('diameter', self.options['cell_dia'] / self.options['px_size'])
+        if self.options['cell_dia'] is not None:
+            manual_diam = self.options['cell_dia'] / self.options['px_size']
+            cp_opts.update({'diameter': manual_diam})
         
         # collect images
         images = {}
@@ -179,25 +182,41 @@ class CellposeSegmentationMethod(SegmentationMethod):
 
         # initialize cellpose model
         cp_opts['channels'] = channels
-        model = cellpose.models.Cellpose(model_type=self.options['cellpose_model'], gpu=gpu)
 
-        # run segmentation
-        masks, flows, styles, diams = model.eval(image_data, **cp_opts)
+        if self.options['cellpose_model'] in ['cyto', 'cyto2', 'nuclei']:
+            # use a default cellpose 1.0 model
+            model = cellpose.models.Cellpose(model_type=self.options['cellpose_model'], gpu=gpu)
+            # run segmentation
+            masks, flows, styles, diams = model.eval(image_data, **cp_opts)
+            cellpose_output = {
+                'masks': masks, 
+                'flows': flows, 
+                'styles': styles, 
+                'diams': diams,
+            }
+
+        else:
+            # use a path to a custom model
+            assert os.path.exists(self.options['cellpose_model'])
+            model = cellpose.models.CellposeModel(pretrained_model=self.options['cellpose_model'], gpu=gpu)
+            # run segmentation
+            masks, flows, styles = model.eval(image_data, **cp_opts)
+            cellpose_output = {
+                'masks': masks, 
+                'flows': flows, 
+                'styles': styles, 
+            }
 
         dilate = self.options.get('dilate', 0)
         if dilate != 0:
             masks = dilate_labels(masks, radius=dilate/self.options['px_size'])
+            cellpose_output.update({'masks': masks})
 
         # return result object
         result = CellposeSegmentationResult(
             method=self, 
             input_spot_table=spot_table,
-            cellpose_output={
-                'masks': masks, 
-                'flows': flows, 
-                'styles': styles, 
-                'diams': diams,
-            },
+            cellpose_output=cellpose_output,
             image_transform=first_image.transform,
         )
             
@@ -210,7 +229,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
         - "total_mrna" returns an image generated from spot density
         - Any other string returns an image channel attached to the spot table
         - {'channel': channel, 'frame': int} can be used to select a single frame
-        - {'channel': 'total_mrna', 'gauss_kernel': (1, 3, 3), 'median_kernel': (2, 10, 10)} can be ued to configure total mrna image generation
+        - {'channel': 'total_mrna', 'n_planes': int, 'frame': int, 'gauss_kernel': (1, 3, 3), 'median_kernel': (2, 10, 10)} can be ued to configure total mrna image generation
         """
         # optionally, cyto image may be generated from spot table total mrna        
         if img_spec is None or isinstance(img_spec, ImageBase):
@@ -247,12 +266,12 @@ class CellposeSegmentationMethod(SegmentationMethod):
         
         return {'image_shape': (1, shape[0], shape[1]), 'image_transform': image_tr}
 
-    def get_total_mrna_image(self, spot_table, image_shape:tuple, image_transform:ImageTransform, gauss_kernel=(1, 3, 3), median_kernel=(2, 10, 10)):
-            
-        density_img = np.zeros(image_shape[:3], dtype='float32')
+    def get_total_mrna_image(self, spot_table, image_shape:tuple, image_transform:ImageTransform, n_planes:int, frame:int|None=None, gauss_kernel=(1, 3, 3), median_kernel=(2, 10, 10)):
 
-        spot_px = self.map_spots_to_img_px(spot_table, image_transform=image_transform, image_shape=image_shape)
-        n_planes = density_img.shape[0]
+        image_shape_full = (n_planes, *image_shape[1:3])
+        density_img = np.zeros(image_shape_full, dtype='float32')
+
+        spot_px = self.map_spots_to_img_px(spot_table, image_transform=image_transform, image_shape=image_shape_full)
         for i in range(n_planes):
             z_mask = spot_px[..., 0] == i
             x = spot_px[z_mask, 1]
@@ -268,8 +287,12 @@ class CellposeSegmentationMethod(SegmentationMethod):
         # very sensitive to these parameters :/
         density_img = scipy.ndimage.gaussian_filter(density_img, gauss_kernel)
         density_img = scipy.ndimage.median_filter(density_img, median_kernel)
-        
-        return Image(density_img[..., np.newaxis], transform=image_transform, channels=['Total mRNA'], name=None)
+
+        if frame is not None:
+            return Image(density_img[..., np.newaxis], transform=image_transform, channels=['Total mRNA'], name=None).get_frame(frame)
+
+        else:
+            return Image(density_img[..., np.newaxis], transform=image_transform, channels=['Total mRNA'], name=None)
 
     def map_spots_to_img_px(self, spot_table:SpotTable, image:Image|None=None, image_transform:ImageTransform|None=None, image_shape:tuple|None=None):
         """Map spot table (x, y, z) positions to image (frame, row, col). 
