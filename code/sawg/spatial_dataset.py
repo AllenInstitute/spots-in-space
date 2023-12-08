@@ -403,15 +403,15 @@ class MERSCOPESection(SpatialDataset):
     def run_mapping_on_section(self, method, taxonomy=None, method_args={}, hpc_args={}):
         if method == ScrattchMapping:
             mapping = ScrattchMapping(
-                sp_data = self.anndata,
+                sp_data = self.anndata_file,
                 taxonomy_path = self.config['taxonomy_info'][taxonomy]['path'],
+                meta = {'taxonomy_name': taxonomy, 'taxonomy_cols': self.config['taxonomy_info'][taxonomy]['col_labels']}
             )
         else:
             print(f'Mapping method not instantiated for {method}')
             return
         
-        meta = {'taxonomy_name': taxonomy, 'taxonomy_cols': self.config['taxonomy_info'][taxonomy]['col_labels']}
-        ad_map_args = {'save_path': self.mapping_path.as_posix(), 'meta': meta}
+        ad_map_args = {'save_path': self.mapping_path.as_posix()}
         ad_map_args.update(method_args)
         
         hpc_args_default = {
@@ -431,11 +431,11 @@ class MERSCOPESection(SpatialDataset):
         
         return job, mapping    
 
-    def make_cirro(self, mapping):
-        if type(mapping) == str:
-            ct_map = CellTypeMapping.load_from_timestamp(directory=self.mapping_path, timestamp=mapping)
+    def make_cirro(self, ct_map):
+        if type(ct_map) == str:
+            ct_map = CellTypeMapping.load_from_timestamp(directory=self.mapping_path, timestamp=ct_map)
 
-        if isinstance(mapping, ScrattchMapping):
+        if isinstance(ct_map, ScrattchMapping):
             ct_map.load_scrattch_mapping_results()
         
         if 'raw_counts' in ct_map.ad_map.layers.keys():
@@ -644,6 +644,7 @@ class StereoSeqSection(SpatialDataset):
         if ad_file is None:
             ad_file = Path.joinpath(self.save_path, 'ad_sp_' + bin_key + '.h5ad')
             self.ad_files[bin_key] = ad_file
+            self.save_dataset()
 
         if not os.path.isfile(ad_file):
             uns = {
