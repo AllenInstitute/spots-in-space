@@ -248,6 +248,9 @@ class MERSCOPESection(SpatialDataset):
             self.segmentation_path = self.save_path.joinpath(self.config['segmentation_dir']) if self.config.get('segmentation_dir') is not None else None
             if self.segmentation_path is not None and not self.segmentation_path.exists():
                 self.segmentation_path.mkdir()
+            self.qc_path = self.save_path.joinpath(self.config['qc_dir']) if self.config.get('qc_dir') is not None else None
+            if self.qc_path is not None and not self.qc_path.exists():
+                self.qc_path.mkdir()
 
             self.broad_region = None
             self.get_section_metadata()
@@ -318,7 +321,15 @@ class MERSCOPESection(SpatialDataset):
             print(f'Correlation to bulk already calculated: {self.corr_to_bulk:.2f}')
         else:
             print('Correlation to bulk not calculated')
-        self.check_segmentation_status()
+
+        seg_status = self.check_segmentation_status()
+        if seg_status is None:
+            print(f'No segmentations available in {self.segmentation_path}')
+        else:
+            print('Segmentation timestamps: \t Segmentation info')
+            for ts, info in seg_status.items():
+                print(f'{ts}: \t {info}')
+
         self.get_mappings(print_output=False)
         if len(self.mappings) == 0:
             print('No mappings found')
@@ -346,15 +357,26 @@ class MERSCOPESection(SpatialDataset):
         segmentation_path = self.segmentation_path
         seg_runs = [f.name for f in os.scandir(segmentation_path) if f.is_dir()]
         if len(seg_runs) == 0:
-            print(f'No segmentations available in {segmentation_path}')
-            return
+            status = None
 
-        status = {}
-        if len(seg_runs) > 0:
+        elif len(seg_runs) > 0:
+            status = {}
             for run_name in seg_runs:
                 run_path = os.path.join(segmentation_path, run_name)
                 final_output = os.path.join(run_path, 'cell_by_gene.h5ad')
-                status[run_name] = os.path.exists(final_output)
+                seg_info = {'finished': os.path.exists(final_output)}
+                
+                try:
+                    seg_config_file = os.path.join(run_path, 'seg_meta.json')
+                    with open(seg_config_file, 'r') as f:
+                        seg_config = json.load(f)
+
+                    seg_info.update({k: seg_config[k] for k in ['subrgn', 'seg_method', 'seg_opts']})
+
+                except FileNotFoundError:
+                    pass
+
+                status[run_name] = seg_info
 
         return status
 
@@ -382,7 +404,7 @@ class MERSCOPESection(SpatialDataset):
                 metadata = pickle.load(f)
                 seg_run = MerscopeSegmentationRun(**metadata)
 
-        elif indivivdual_seg_dir.joinpath('seg_meta.json').exists():
+        elif individual_seg_dir.joinpath('seg_meta.json').exists():
             metadata_file = individual_seg_dir.joinpath('seg_meta.json')
             seg_run = MerscopeSegmentationRun.from_json(metadata_file)
 
@@ -411,11 +433,13 @@ class MERSCOPESection(SpatialDataset):
         # calculate basic qc parameters
         # more could be added here...
         # could also envision splitting into a few functions
+
         n_genes = cell_by_gene.X.getnnz(axis=1)
         n_transcripts = cell_by_gene.X.A.sum(axis=1)
-
-        blank_names = cell_by_gene.var_names.str.startswith('Blank')
-        blank_counts = cell_by_gene.X.A[:, blank_names].sum(axis=1)
+        
+        cell_by_gene.var['probe_type'] = cell_by_gene.var_names.str.startswith('Blank')
+        cell_by_gene.var['probe_type'] = cell_by_gene.var['probe_type'].replace({True: 'blank', False: 'gene'})
+        blank_counts = cell_by_gene.X.A[:, cell_by_gene.var['probe_type'] == 'blank'].sum(axis=1)
         blank_ratio = blank_counts / n_transcripts
         
         cbg_meta = cell_by_gene.obs.copy()
@@ -434,11 +458,108 @@ class MERSCOPESection(SpatialDataset):
             cbg_meta['qc_pass'] = ~cbg_meta.loc[:, use_cols].apply(np.any, axis=1)
 
         return cbg_meta  # better to return cell by gene with updated obs?
-    
+
+    def run_doublet_detection(self, cell_by_gene, output_dir, filter_col: str|None='qc_pass', threshold: float|None=None):
+        # doublet detection should be done after QC filtering
+        # for now, only SOLO is implemented, but other methods could be added in the future
+        import scvi
+        if filter_col is not None:
+            cbg_filt = cell_by_gene[cell_by_gene.obs[filter_col]].copy()
+        else:
+            cbg_filt = cell_by_gene.copy() 
+        scvi.model.SCVI.setup_anndata(cbg_filt)
+        vae = scvi.model.SCVI(cbg_filt)
+
+        # this may need a try except for that weird batch size error
+        vae.train()
+
+        solo = scvi.external.SOLO.from_scvi_model(vae)
+        solo.train()
+
+        results = solo.predict()
+        results['solo_prediction'] = solo.predict(soft=False)
+        results['doublet_score_diff'] = results.doublet - results.singlet
+        
+        if threshold is not None:
+            results['doublet_score'] = 'singlet'
+            results.loc[results['doublet_score_diff'] > threshold, 'doublet_score'] = 'doublet'
+        else:
+            results['doublet_score'] = doublet_df['solo_prediction']
+
+        csv_file = output_dir.joinpath('results.csv')
+        results.to_csv(csv_file)
+
+        # merge onto filtered cell by gene table
+        # anndata index expects strings (for some reason)
+        results.index = results.index.astype(str)
+        cbg_copy = cell_by_gene.copy()
+        cbg_copy.obs = cbg_copy.obs.merge(results['doublet_score'], how='left', right_index=True, left_index=True)
+        cbg_copy.obs['doublet_score'] = cbg_copy.obs['doublet_score'].fillna('qc_failed')
+        
+        doublet_params = {
+                'filter_col': filter_col,
+                'method': 'solo',
+                'method_args': {'threshold': threshold}
+        }
+        cbg_copy.uns.update({'doublet_params': doublet_params})
+        anndata_file = output_dir.joinpath('cell_by_gene_doublets.h5ad')
+        cbg_copy.write_h5ad(anndata_file)
+
+    def run_doublet_detection_on_hpc(self, cell_by_gene, filter_col, threshold, hpc_args: dict):
+        """Submits a job to run doublet detection on a GPU node on the HPC.
+        Results are saved into a CSV file where the index column corresponds to
+        cell_ids.
+        """
+        from sawg.hpc import run_slurm_func
+        # might make sense to put QC in its own directory with timestamps
+        # especially considering long running QC like doublet detection
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        indiv_doublet_dir = self.qc_path.joinpath(timestamp)
+        indiv_doublet_dir.mkdir()
+
+        doublet_dir = self.save_path.joinpath('doublet_detection')
+        doublet_dir.mkdir(exist_ok=True)
+        run_spec = (self.run_doublet_detection, (), {'cell_by_gene': cell_by_gene, 'output_dir': doublet_dir, 'filter_col': filter_col, 'threshold': threshold})
+
+        job_path = doublet_dir.joinpath('hpc_jobs')
+        job_path.mkdir(exist_ok=True)
+        hpc_config = {
+                'run_spec': run_spec,
+                'conda_env': '/allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/seg_tests/conda-envs/sawg_test/',
+                'hpc_host': 'hpc-login',  # change to 'localhost' if running from hpc
+                'job_path': job_path,
+                'partition': 'celltypes',
+                'job_name': 'doublet_det',
+                'nodes': 1,
+                'ntasks': 1,
+                'mincpus': 1,
+                'gpus_per_node': 1,
+                'mem': '20G',
+                'time': '02:00:00',
+                'mail_user': None,
+        }
+        hpc_config.update(**hpc_args)
+        jobs = run_slurm_func(**hpc_config)
+
+        return jobs
+
+    def load_doublet_df(self):
+        doublet_dir = self.save_path.joinpath('doublet_detection')
+        doublet_df = pd.read_csv(doublet_dir.joinpath('results.csv'), index_col=0)
+
+        return doublet_df
+
+    def load_doublet_anndata(self):
+        """Load results of doublet detection on this section."""
+        doublet_dir = self.save_path.joinpath('doublet_detection')
+        doublet_ad = ad.read_h5ad(doublet_dir.joinpath('cell_by_gene_doublets.h5ad'))
+
+        return doublet_ad
+
     def run_mapping_on_section(self, method, taxonomy=None, method_args={}, hpc_args={}):
         if method == ScrattchMapping:
             mapping = ScrattchMapping(
-                sp_data = self.anndata,
+                sp_data = self.anndata_file,
                 taxonomy_path = self.config['taxonomy_info'][taxonomy]['path'],
             )
         else:
@@ -740,9 +861,9 @@ class StereoSeqSection(SpatialDataset):
             job = mapping.run_on_hpc(ad_map_args, hpc_args_default, docker=docker)
         else:
             job = mapping.run_on_hpc(ad_map_args, hpc_args_default)
-
+        
         return job, mapping
-
+    
     def qc_mapping_results(self, ct_map, score_thresh, map_thresh=0.6):
         if type(ct_map) == str:
             ct_map = CellTypeMapping.load_from_timestamp(directory=self.mapping_path, timestamp=ct_map)

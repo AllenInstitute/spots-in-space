@@ -4,6 +4,7 @@ merscope_save_path: "//allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_sp
 stereoseq_save_path: "//allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/BGI"
 mapping_dir: "mapping"
 segmentation_dir: "segmentation"
+qc_dir: "qc_doublets"
 merscope_lims_code: "mfishMERSCOPEmacaqueAtlas"
 lims_code: "macaqueAtlas"
 bulkseq_file: "//allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/bulkseq/macaque/master_bulk_data.csv"
