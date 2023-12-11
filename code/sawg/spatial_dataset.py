@@ -291,6 +291,7 @@ class MERSCOPESection(SpatialDataset):
         macaque_dats_account = dats.get_account(name = self.config['merscope_lims_code'])
         
         merscope_expt = pts.get_process_by_id(self.merscope_expt_pts_id)
+        spec_data_collection = None
         for output in merscope_expt.outputs: 
             try:
                 dats_collection = dats.get_collection_by_id(account_id = macaque_dats_account.id, collection_id = output.external_id)
@@ -299,7 +300,8 @@ class MERSCOPESection(SpatialDataset):
                     break
             except:
                 pass
-
+        
+        assert spec_data_collection is not None, f'No Isilon Backfill collection found for {self.barcode}'
         for asset in spec_data_collection.digital_assets:
             if asset.type == 'CSV' and 'detected_transcripts' in asset.name:
                 assert len(asset.instances) == 1, f'more than one instance of asset {asset.name}'
@@ -584,7 +586,7 @@ class StereoSeqSection(SpatialDataset):
             fig.savefig( self.save_path.joinpath('gene_expression_qc.png'))
 
 
-        self.qc_widget(metric='gene_expression_qc')
+        self.qc_widget(metric='gene_expression')
     
     def qc_spatial_corr_to_bulk(self, threshold=0.6, kwargs={}):
         self.spatial_corr_to_bulk(**kwargs)
@@ -724,11 +726,19 @@ class StereoSeqSection(SpatialDataset):
         ct_map.qc_mapping(qc_params={mapping_score_col: score_thresh})
         
         self.mapping_quality = sum(ct_map.ad_map.obs[mapping_score_col] >= score_thresh)/len(ct_map.ad_map.obs)
-        self.evaluate_qc_metric('mapping_quality', 'Pass' if self.mapping_quality >= map_thresh else 'Fail')
+        self.evaluate_qc_metric('celltype_mapping', 'Pass' if self.mapping_quality >= map_thresh else 'Fail')
         ax.set_title(f'Mapping Quality: {self.mapping_quality:.2f}')
         fig.savefig(self.save_path.joinpath('mapping_qc.png'))   
         
-# class StereoSeqSectionCollection(StereoSeqSection):
+class StereoSeqSectionCollection(StereoSeqSection):
+    def __init__(self, barcode_list):
+        spd_list = []
+        for barcode in barcode_list:
+            section = StereoSeqSection.load_from_barcode(barcode)
+            if section is not None:
+                spd_list.append(section)
+
+        self.sections = spd_list
 
 # class XeniumSection(SpatialDataset):
 #     def __init__(self, barcode):
