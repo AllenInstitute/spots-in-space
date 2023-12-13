@@ -1,6 +1,5 @@
 from __future__ import annotations
 import os, json
-from pathlib import Path
 import numpy as np
 from scipy.spatial import Delaunay
 import pandas
@@ -14,29 +13,6 @@ unary_union, polygonize = optional_import('shapely.ops', ['unary_union', 'polygo
 
 from .image import ImageFile, ImageStack, ImageTransform
 from . import util
-
-def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file:str|None, cell_subset_file:str|None, result_file:str|None):
-    """Load a spot table, calculate the cell polygons (possibly on a subset of cells), and save the result.
-    """
-    # Load the spottable and the ids
-    print('Loading SpotTable...', end='')
-    spot_table = load_func(**load_args)
-    if cell_id_file is not None:
-        spot_table.cell_ids = np.load(cell_id_file)
-    print('[DONE]')
-
-    if cell_subset_file is not None:
-        cells_to_run = np.load(cell_subset_file)
-    else:
-        cells_to_run = np.unique(spot_table.cell_ids)
-        cells_to_run = np.delete(cells_to_run, np.where((cells_to_run == 0) | (cells_to_run == -1)))
-
-    print('Calculating Cell Polygons...')
-    spot_table.calculate_cell_polygons(cells_to_run=cells_to_run)
-
-    print('Saving Cell Polygons...', end='')
-    spot_table.save_cell_polygons(result_file)
-    print('[DONE]')
 
 
 class SpotTable:
@@ -76,7 +52,6 @@ class SpotTable:
                  production_cell_ids: None|np.ndarray=None,
                  pcid_to_cid: None|dict=None,
                  cid_to_pcid: None|dict=None,
-                 cell_polygons: None|dict=None,
                  parent_table: 'None|SpotTable'=None, 
                  parent_inds: None|np.ndarray=None, 
                  parent_region: None|tuple=None,
@@ -108,7 +83,7 @@ class SpotTable:
         self._cid_to_pcid = cid_to_pcid
         self._cell_index = None
         self._cell_bounds = None
-        self.cell_polygons = cell_polygons
+        self.cell_polygons = {}
 
         self.images = []
         if images is not None:
@@ -297,17 +272,6 @@ class SpotTable:
         result = load_baysor_result(file_name, **kwds)
         pos = result[['x', 'y', 'z']].view(dtype=result.dtypes.fields['x'][0]).reshape(len(result), 3)
         return SpotTable(pos=pos, gene_ids=result['gene'], cell_ids=result['cell'])
-
-    @classmethod
-    def load_pickle(cls, file_name: str):
-        """Return a new SpotTable loaded a SpotTable pickle stored on disk
-        """
-        import pickle
-
-        with open(file_name, 'rb') as f:
-            table = pickle.load(f)
-
-        return table
 
     @classmethod
     def load_merscope(cls, csv_file: str, cache_file: str|None, image_path: str|None=None, max_rows: int|None=None):
@@ -655,281 +619,125 @@ class SpotTable:
         centroids = 0.5 * (cell_bounds[:, 1::2] + cell_bounds[:, ::2])
         return centroids
 
-    # @staticmethod
-    # def cell_polygon(cell_points_array, alpha_inv):
-    #     """
-    #     get 2D alpha shape from a set of points, modified slightly from 
-    #     http://blog.thehumangeo.com/2014/05/12/drawing-boundaries-in-python/
+    @staticmethod
+    def cell_polygon(cell_points_array, alpha_inv):
+        """
+        get 2D alpha shape from a set of points, modified slightly from 
+        http://blog.thehumangeo.com/2014/05/12/drawing-boundaries-in-python/
 
-    #     args:
-    #     cell_points  numpy array of  point locations with expected columns [x,y].
-    #     alpha_inv parameter that sets the radius filter on the Delaunay triangulation.  
-    #             traditionally alpha is defined as 1/radius, 
-    #             and here the function input is inverted for slightly more intuitive use
-    #     """
-    #     tri = Delaunay(cell_points_array)
-    #     # Make a list of line segments: 
-    #     # edge_points = [ ((x1_1, y1_1), (x2_1, y2_1)),
-    #     #                 ((x1_2, y1_2), (x2_2, y2_2)),
-    #     #                 ... ]
+        args:
+        cell_points  numpy array of  point locations with expected columns [x,y].
+        alpha_inv parameter that sets the radius filter on the Delaunay triangulation.  
+                traditionally alpha is defined as 1/radius, 
+                and here the function input is inverted for slightly more intuitive use
+        """
+        tri = Delaunay(cell_points_array)
+        # Make a list of line segments: 
+        # edge_points = [ ((x1_1, y1_1), (x2_1, y2_1)),
+        #                 ((x1_2, y1_2), (x2_2, y2_2)),
+        #                 ... ]
 
-    #     edge_points = []
-    #     edges = set()
+        edge_points = []
+        edges = set()
 
-    #     def add_edge(i, j):
-    #         """Add a line between the i-th and j-th points, if not in the list already"""
-    #         if (i, j) in edges or (j, i) in edges:
-    #             # already added
-    #             return
-    #         edges.add( (i, j) )
-    #         edge_points.append(cell_points_array[ [i, j] ])
+        def add_edge(i, j):
+            """Add a line between the i-th and j-th points, if not in the list already"""
+            if (i, j) in edges or (j, i) in edges:
+                # already added
+                return
+            edges.add( (i, j) )
+            edge_points.append(cell_points_array[ [i, j] ])
 
-    #     # loop over triangles:
-    #     # ia, ib, ic = indices of corner points of the triangle
-    #     for ia, ib, ic in tri.vertices:
-    #         pa = cell_points_array[ia]
-    #         pb = cell_points_array[ib]
-    #         pc = cell_points_array[ic]
+        # loop over triangles:
+        # ia, ib, ic = indices of corner points of the triangle
+        for ia, ib, ic in tri.vertices:
+            pa = cell_points_array[ia]
+            pb = cell_points_array[ib]
+            pc = cell_points_array[ic]
 
-    #         # Lengths of sides of triangle
-    #         a = np.sqrt((pa[0]-pb[0])**2 + (pa[1]-pb[1])**2)
-    #         b = np.sqrt((pb[0]-pc[0])**2 + (pb[1]-pc[1])**2)
-    #         c = np.sqrt((pc[0]-pa[0])**2 + (pc[1]-pa[1])**2)
+            # Lengths of sides of triangle
+            a = np.sqrt((pa[0]-pb[0])**2 + (pa[1]-pb[1])**2)
+            b = np.sqrt((pb[0]-pc[0])**2 + (pb[1]-pc[1])**2)
+            c = np.sqrt((pc[0]-pa[0])**2 + (pc[1]-pa[1])**2)
 
-    #         # Semiperimeter of triangle
-    #         s = (a + b + c)/2.0
+            # Semiperimeter of triangle
+            s = (a + b + c)/2.0
 
-    #         # Area of triangle by Heron's formula
-    #         area = np.sqrt(s*(s-a)*(s-b)*(s-c))
+            # Area of triangle by Heron's formula
+            area = np.sqrt(s*(s-a)*(s-b)*(s-c))
 
-    #         circum_r = a*b*c/(4.0*area)
+            circum_r = a*b*c/(4.0*area)
 
-    #         # Here's the radius filter.
-    #         if circum_r < alpha_inv:
-    #             add_edge(ia, ib)
-    #             add_edge(ib, ic)
-    #             add_edge(ic, ia)
+            # Here's the radius filter.
+            if circum_r < alpha_inv:
+                add_edge(ia, ib)
+                add_edge(ib, ic)
+                add_edge(ic, ia)
 
-    #     m = MultiLineString(edge_points)
-    #     triangles = list(polygonize(m))
-    #     tp = unary_union(triangles)
+        m = MultiLineString(edge_points)
+        triangles = list(polygonize(m))
+        tp = unary_union(triangles)
         
-    #     return tp
+        return tp
 
     @staticmethod
-    def calculate_cell_features(cell_polygon, z_plane_thickness=1.5):
-        if isinstance(cell_polygon, dict):
-            from shapely.geometry import MultiPoint
-            area = 0
-            centroids = []
-            for polygon in cell_polygon.values():
-                area += polygon.area
-                centroids.append(polygon.centroid.coords)
-            area *= z_plane_thickness
-            centroid = np.array(MultiPoint(centroids).centroid.coords[0]) # Centroid of polygon created by centroids
-        else:
-            area = cell_polygon.area
-            centroid = np.array(cell_polygon.centroid.coords[0])
-        return {"area": area, "centroid": centroid}
+    def calculate_cell_features( cell_polygon):
+        return  {"area":cell_polygon.area, "centroid":np.array(cell_polygon.centroid.coords)}
 
-    # @staticmethod
-    # def calculate_cell_features(cell_polygon):
-    #     return  {"area":cell_polygon.area, "centroid":np.array(cell_polygon.centroid.coords)}
-    
-    def cell_polygon(self, cell_points_arr: np.ndarray):
-        from alphashape import alphashape
-        from typing import Union, Tuple, List
-        import shapely
-        import logging
-        logger = logging.getLogger() 
-        logger.disabled = True # The logger for alphashapes prints a lot of useless info
-        
-        def _testalpha(points: Union[List[Tuple[float]], np.ndarray], polygon):
-            if isinstance(polygon, shapely.geometry.polygon.Polygon):
-                if not isinstance(points, shapely.geometry.MultiPoint):
-                    points = shapely.geometry.MultiPoint(list(points))
-                return all([polygon.intersects(shapely.geometry.Point(point)) for point in points.geoms])
-            else:
-                return False
-
-        flex_alpha = 2 * 10  # we multiply by ten so we don't get float errors (we divide by 10 later)
-        alpha_step_size = 0.1 * 10
-        
-        polygon = alphashape(cell_points_arr, flex_alpha / 10)
-        # We don't want to test lower than 0
-        while flex_alpha / 10 > 0 and not _testalpha(cell_points_arr, polygon):
-            flex_alpha -= alpha_step_size
-            polygon = alphashape(cell_points_arr, flex_alpha / 10)
-
-        logger.disabled = False
-        if isinstance(polygon, shapely.geometry.polygon.Polygon):
-            return polygon
-        else:
-            return None
-
-    def calculate_cell_polygons(self, cells_to_run: np.ndarray|None=None, disable_tqdm=False):
-        from scipy.spatial import QhullError
-        
-        if cells_to_run is None: # If you only want to calculate a subset of cells
-            cells_to_run = np.unique(self.cell_ids)
-            cells_to_run = np.delete(cells_to_run, np.where((cells_to_run == 0) | (cells_to_run == -1)))
-
-        df = self.dataframe()
-        
+    def calculate_cell_polygons(self, alpha_inv=1.5):
+        # run through all cell_ids, generate polygons and add to self.cell_polygons dict 
+        # increases the alpha_inv parameter by 0.5 until a single polygon is generated
         self.cell_polygons = {}
-        for cid in tqdm(cells_to_run, disable=disable_tqdm):
-            cell_table = df[df['cell_ids'] == cid]
-            if 'z' in df.columns:
-                for z_plane in np.unique(cell_table['z']):
-                    if np.count_nonzero(cell_table['z'] == z_plane) >= 3:
-                        try:
-                            cell_points_arr = cell_table[cell_table['z'] == z_plane][['x', 'y']].to_numpy()
-                            polygon = self.cell_polygon(cell_points_arr)
-                            if polygon is not None:
-                                self.cell_polygons.setdefault(cid, {})[z_plane] = polygon
-                        except QhullError as e:
-                            pass
-            else:
-                if len(cell_table) >= 3:
-                    try:
-                        cell_points_arr = cell_table[['x', 'y']].to_numpy()
-                        polygon = self.cell_polygon(cell_points_arr)
-                        if polygon is not None:
-                            self.cell_polygons[cid] = polygon
-                    except QhullError as e:
-                        pass
+        for cid in tqdm(np.unique(self.cell_ids)):
+            inds = self.cell_indices(cid)
+            xy_pos = self.pos[inds][:, :2]
+            if xy_pos.shape[0] > 3:
+                putative_polygon = self.cell_polygon(xy_pos, alpha_inv)
+                # increase alpha_inv unti we only have 1 polygon... this should be pretty rare.
+                tries = 0
+                flex_alpha_inv = alpha_inv
+                while tries <20 and isinstance(putative_polygon, shapely.geometry.MultiPolygon  ):
+                    flex_alpha_inv += .5
+                    tries += 1
+                    putative_polygon = self.cell_polygon(xy_pos, flex_alpha_inv)
 
-        return self.cell_polygons
+                self.cell_polygons[cid] = putative_polygon
+            else:    
+                self.cell_polygons[cid] = None
 
-    # def calculate_cell_polygons(self, alpha_inv=1.5):
-    #     # run through all cell_ids, generate polygons and add to self.cell_polygons dict 
-    #     # increases the alpha_inv parameter by 0.5 until a single polygon is generated
-    #     self.cell_polygons = {}
-    #     for cid in tqdm(np.unique(self.cell_ids)):
-    #         inds = self.cell_indices(cid)
-    #         xy_pos = self.pos[inds][:, :2]
-    #         if xy_pos.shape[0] > 3:
-    #             putative_polygon = self.cell_polygon(xy_pos, alpha_inv)
-    #             # increase alpha_inv unti we only have 1 polygon... this should be pretty rare.
-    #             tries = 0
-    #             flex_alpha_inv = alpha_inv
-    #             while tries <20 and isinstance(putative_polygon, shapely.geometry.MultiPolygon  ):
-    #                 flex_alpha_inv += .5
-    #                 tries += 1
-    #                 putative_polygon = self.cell_polygon(xy_pos, flex_alpha_inv)
-
-    #             self.cell_polygons[cid] = putative_polygon
-    #         else:    
-    #             self.cell_polygons[cid] = None
-
-    def get_cell_features(self, z_plane_thickness=1.5, disable_tqdm=False):
+    def get_cell_features(self):
         # run through self.polys and calculate features
-        if self.cell_polygons is None or len(self.cell_polygons.keys()) == 0:
+        if len(self.cell_polygons.keys()) == 0:
             return None
 
         cell_features = []
-        for cid in tqdm(self.cell_polygons, disable=disable_tqdm):
+        for cid in self.cell_polygons:
             feature_info = {"cell_id":cid}
             if self.cell_polygons[cid]:
-                feature_info.update(self.calculate_cell_features(self.cell_polygons[cid], z_plane_thickness=z_plane_thickness))
+                feature_info.update(self.calculate_cell_features(self.cell_polygons[cid]))
             else:
-                feature_info.update(dict(area=0.0, centroid = None))
+                feature_info.update(dict(area=0., centroid = None))
             cell_features.append(feature_info)
 
         return pandas.DataFrame.from_records(cell_features)
 
-    # def save_cell_polygons(self, geojson_save_path):
-    #     """
-    #     save a geojson geometry collection from the cell polygons
-    #     """
-
-    #     if len(self.cell_polygons)==0:
-    #         return
-        
-    #     geojsonROIs = []
-    #     for poly_key in self.cell_polygons.keys():
-    #         if self.cell_polygons[poly_key]:
-    #             if len(self.cell_polygons[poly_key].exterior.coords) > 2:
-    #                 geojsonROIs.append(util.poly_to_geojson(self.cell_polygons[poly_key]))
-        
-    #     with open(geojson_save_path, 'w') as w:
-    #         json.dump( geojson.GeometryCollection(geojsonROIs), w)
-
-    def save_cell_polygons(self, save_path: Path|str, use_production_ids=False):
+    def save_cell_polygons(self, geojson_save_path):
         """
         save a geojson geometry collection from the cell polygons
         """
-        # Handle input errors
-        if isinstance(save_path, Path) or isinstance(save_path, str):
-            extension = Path(save_path).suffix
-            if extension != '.pkl' and extension != '.geojson':
-                raise ValueError('Invalid path extension. Please use .pkl or .geojson')
-        else:
-            raise ValueError('Invalid path type. Please use pathlib.Path or str')
 
-        # Raise error if no data
-        if self.cell_polygons is None or len(self.cell_polygons) == 0:
-            raise ValueError('No cell polygon data, cannot save file')
+        if len(self.cell_polygons)==0:
+            return
         
-        if extension == '.geojson':
-            import geojson
-            
-            all_polygons = []
-            for cid in self.cell_polygons:
-                if self.cell_polygons[cid]:
-                    if isinstance(self.cell_polygons[cid], dict):
-                        for z_plane, polygon in self.cell_polygons[cid].items():
-                            all_polygons.append(geojson.Feature(geometry=polygon, id=str(cid), z_plane=str(z_plane)))
-                    else:
-                        all_polygons.append(geojson.Feature(geometry=self.cell_polygons[cid], id=str(cid)))
-            
-            with open(save_path, "w") as f:
-                geojson.dump(geojson.FeatureCollection(all_polygons), f)
-        else:
-            import pickle
-            with open(save_path, "wb") as f:
-                pickle.dump(self.cell_polygons, f)
-
-    def load_cell_polygons(self, load_path: Path|str, reset_cache=True, disable_tqdm=False):
-        """
-        load cell polygons from a geojson feature collection file
-        """
-        # Handle input errors
-        if isinstance(load_path, Path) or isinstance(load_path, str):
-            extension = Path(load_path).suffix
-            if extension != '.pkl' and extension != '.geojson':
-                raise ValueError('Invalid path extension. Can only load .pkl or .geojson')
-        else:
-            raise ValueError('Invalid path type. Please use pathlib.Path or str')
-
-        if reset_cache or self.cell_polygons is None:
-            self.cell_polygons = {}
+        geojsonROIs = []
+        for poly_key in self.cell_polygons.keys():
+            if self.cell_polygons[poly_key]:
+                if len(self.cell_polygons[poly_key].exterior.coords) > 2:
+                    geojsonROIs.append(util.poly_to_geojson(self.cell_polygons[poly_key]))
         
-        if extension == '.geojson': 
-            import json
-            from shapely.geometry.polygon import Polygon
-            
-            with open(load_path, "r") as f:
-                polygon_json = json.load(f)
-    
-            unique_cells = np.unique(self.cell_ids)
-            cell_id_type = type(unique_cells[0])
-            z_plane_type = None if self.pos.shape[1] < 3 else type(self.pos[0, 2])
-    
-            for feature in tqdm(polygon_json['features'], disable=disable_tqdm):
-                cid = cell_id_type(feature['id'])
-                if cid in unique_cells and feature['geometry']['type'] == 'Polygon':
-                    if 'z_plane' in feature:
-                        z_plane = z_plane_type(feature['z_plane'])
-                        polygon = Polygon(feature['geometry']['coordinates'][0])
-                        self.cell_polygons.setdefault(cid, {})[z_plane] = polygon
-                    else:
-                        polygon = Polygon(feature['geometry']['coordinates'][0])
-                        self.cell_polygons[cid] = polygon
-        else:
-            import pickle
-            with open(load_path, "rb") as f:
-                self.cell_polygons.update(pickle.load(f))
+        with open(geojson_save_path, 'w') as w:
+            json.dump( geojson.GeometryCollection(geojsonROIs), w)
+
         
     def cell_indices(self, cell_ids: int | str | np.ndarray):
         """Return indices giving table location of all spots with *cell_ids*
@@ -1019,8 +827,7 @@ class SpotTable:
         gene_ids = self.gene_ids[item]
         cell_ids = None if self.cell_ids is None else self.cell_ids[item]
         production_cell_ids = None if self.production_cell_ids is None else self.production_cell_ids[item]
-        # cell_polygons is not converted because we cannot guarantee the polygons will stay the same after subsetting
-        
+
         if len(pos) > 0:
             parent_region = ((pos[:,0].min(), pos[:,0].max()), (pos[:,1].min(), pos[:,1].max()))
         else:
@@ -1052,7 +859,7 @@ class SpotTable:
             parent_region=self.parent_region,
         )
         init_kwargs.update(kwds)
-        for name in ['pos', 'gene_ids', 'gene_id_to_name', 'cell_ids', 'production_cell_ids', '_pcid_to_cid', '_cid_to_pcid', 'images', 'cell_polygons']:
+        for name in ['pos', 'gene_ids', 'gene_id_to_name', 'cell_ids', 'production_cell_ids', '_pcid_to_cid', '_cid_to_pcid', 'images']:
             if name not in init_kwargs:
                 val = getattr(self, name)
                 if deep:
