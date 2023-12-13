@@ -294,6 +294,7 @@ class MERSCOPESection(SpatialDataset):
         macaque_dats_account = dats.get_account(name = self.config['merscope_lims_code'])
         
         merscope_expt = pts.get_process_by_id(self.merscope_expt_pts_id)
+        spec_data_collection = None
         for output in merscope_expt.outputs: 
             try:
                 dats_collection = dats.get_collection_by_id(account_id = macaque_dats_account.id, collection_id = output.external_id)
@@ -302,7 +303,8 @@ class MERSCOPESection(SpatialDataset):
                     break
             except:
                 pass
-
+        
+        assert spec_data_collection is not None, f'No Isilon Backfill collection found for {self.barcode}'
         for asset in spec_data_collection.digital_assets:
             if asset.type == 'CSV' and 'detected_transcripts' in asset.name:
                 assert len(asset.instances) == 1, f'more than one instance of asset {asset.name}'
@@ -561,13 +563,13 @@ class MERSCOPESection(SpatialDataset):
             mapping = ScrattchMapping(
                 sp_data = self.anndata_file,
                 taxonomy_path = self.config['taxonomy_info'][taxonomy]['path'],
+                meta = {'taxonomy_name': taxonomy, 'taxonomy_cols': self.config['taxonomy_info'][taxonomy]['col_labels']}
             )
         else:
             print(f'Mapping method not instantiated for {method}')
             return
         
-        meta = {'taxonomy_name': taxonomy, 'taxonomy_cols': self.config['taxonomy_info'][taxonomy]['col_labels']}
-        ad_map_args = {'save_path': self.mapping_path.as_posix(), 'meta': meta}
+        ad_map_args = {'save_path': self.mapping_path.as_posix()}
         ad_map_args.update(method_args)
         
         hpc_args_default = {
@@ -587,11 +589,11 @@ class MERSCOPESection(SpatialDataset):
         
         return job, mapping    
 
-    def make_cirro(self, mapping):
-        if type(mapping) == str:
-            ct_map = CellTypeMapping.load_from_timestamp(directory=self.mapping_path, timestamp=mapping)
+    def make_cirro(self, ct_map):
+        if type(ct_map) == str:
+            ct_map = CellTypeMapping.load_from_timestamp(directory=self.mapping_path, timestamp=ct_map)
 
-        if isinstance(mapping, ScrattchMapping):
+        if isinstance(ct_map, ScrattchMapping):
             ct_map.load_scrattch_mapping_results()
         
         if 'raw_counts' in ct_map.ad_map.layers.keys():
@@ -740,7 +742,7 @@ class StereoSeqSection(SpatialDataset):
             fig.savefig( self.save_path.joinpath('gene_expression_qc.png'))
 
 
-        self.qc_widget(metric='gene_expression_qc')
+        self.qc_widget(metric='gene_expression')
     
     def qc_spatial_corr_to_bulk(self, threshold=0.6, kwargs={}):
         self.spatial_corr_to_bulk(**kwargs)
@@ -800,6 +802,7 @@ class StereoSeqSection(SpatialDataset):
         if ad_file is None:
             ad_file = Path.joinpath(self.save_path, 'ad_sp_' + bin_key + '.h5ad')
             self.ad_files[bin_key] = ad_file
+            self.save_dataset()
 
         if not os.path.isfile(ad_file):
             uns = {
@@ -879,11 +882,19 @@ class StereoSeqSection(SpatialDataset):
         ct_map.qc_mapping(qc_params={mapping_score_col: score_thresh})
         
         self.mapping_quality = sum(ct_map.ad_map.obs[mapping_score_col] >= score_thresh)/len(ct_map.ad_map.obs)
-        self.evaluate_qc_metric('mapping_quality', 'Pass' if self.mapping_quality >= map_thresh else 'Fail')
+        self.evaluate_qc_metric('celltype_mapping', 'Pass' if self.mapping_quality >= map_thresh else 'Fail')
         ax.set_title(f'Mapping Quality: {self.mapping_quality:.2f}')
         fig.savefig(self.save_path.joinpath('mapping_qc.png'))   
         
-# class StereoSeqSectionCollection(StereoSeqSection):
+class StereoSeqSectionCollection(StereoSeqSection):
+    def __init__(self, barcode_list):
+        spd_list = []
+        for barcode in barcode_list:
+            section = StereoSeqSection.load_from_barcode(barcode)
+            if section is not None:
+                spd_list.append(section)
+
+        self.sections = spd_list
 
 # class XeniumSection(SpatialDataset):
 #     def __init__(self, barcode):
