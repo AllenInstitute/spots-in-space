@@ -9,6 +9,8 @@
 version = 1
 
 from sawg.celltype_mapping import ScrattchMapping, CellTypeMapping
+from sawg.hpc import run_slurm_func
+from sawg.qc import run_doublet_detection, calc_n_transcripts, calc_n_genes, calc_n_blanks
 from sawg.segmentation import get_segmentation_region, get_tiles, create_seg_run_spec, merge_segmentation_results, MerscopeSegmentationRun
 from sawg.spot_table import SpotTable
 from sawg.util import load_config
@@ -431,23 +433,33 @@ class MERSCOPESection(SpatialDataset):
 
         return spot_table, cell_by_gene
 
-    def run_qc_on_section(self, cell_by_gene, qc_params: dict, use_cols: list[str]|None=None):
-        # calculate basic qc parameters
-        # more could be added here...
-        # could also envision splitting into a few functions
-
-        n_genes = cell_by_gene.X.getnnz(axis=1)
-        n_transcripts = cell_by_gene.X.A.sum(axis=1)
+    def calc_cell_qc_metrics(self, cell_by_gene):
+        """Calculate basic qc parameters and add them to the cell by gene
+        table.
+        """
+        cbg_copy = cell_by_gene.copy()
+        n_transcripts = calc_n_transcripts(cell_by_gene)
+        n_genes = calc_n_genes(cell_by_gene)
+        
+        n_blanks = calc_n_blanks(cell_by_gene)
+        pct_blanks = n_blanks*100 / n_transcripts
         
         cell_by_gene.var['probe_type'] = cell_by_gene.var_names.str.startswith('Blank')
-        cell_by_gene.var['probe_type'] = cell_by_gene.var['probe_type'].replace({True: 'blank', False: 'gene'})
-        blank_counts = cell_by_gene.X.A[:, cell_by_gene.var['probe_type'] == 'blank'].sum(axis=1)
-        blank_ratio = blank_counts / n_transcripts
-        
+        cbg_copy.obs['n_transcripts'] = n_transcripts
+        cbg_copy.obs['n_genes'] = n_genes
+        cbg_copy.obs['pct_counts_blank'] = pct_blanks
+
+        return cbg_copy
+
+    def run_qc_filtering_on_section(self, cell_by_gene, qc_params: dict, use_cols: list[str]|None=None):
+        """Filter cells based on defined qc params. Keys of qc_params must be
+        in the cell_by_gene.obs.
+
+        Note that the cell_by_gene table is not subset; instead, a column
+        cell_qc_pass is created that indicates whether cells passed or failed
+        any qc thresholds.
+        """
         cbg_meta = cell_by_gene.obs.copy()
-        cbg_meta['n_genes'] = n_genes
-        cbg_meta['n_transcripts'] = n_transcripts
-        cbg_meta['pct_counts_blank'] = blank_ratio*100
         for param, (lower, upper) in qc_params.items():
             cbg_meta[f'{param}_toolow_qc'] = cbg_meta[param] < lower
             cbg_meta[f'{param}_toohigh_qc'] = cbg_meta[param] > upper
@@ -461,75 +473,32 @@ class MERSCOPESection(SpatialDataset):
 
         return cbg_meta  # better to return cell by gene with updated obs?
 
-    def run_doublet_detection(self, cell_by_gene, output_dir, filter_col: str|None='qc_pass', threshold: float|None=None):
-        # doublet detection should be done after QC filtering
-        # for now, only SOLO is implemented, but other methods could be added in the future
-        import scvi
-        if filter_col is not None:
-            cbg_filt = cell_by_gene[cell_by_gene.obs[filter_col]].copy()
-        else:
-            cbg_filt = cell_by_gene.copy() 
-        scvi.model.SCVI.setup_anndata(cbg_filt)
-        vae = scvi.model.SCVI(cbg_filt)
 
-        # this may need a try except for that weird batch size error
-        vae.train()
-
-        solo = scvi.external.SOLO.from_scvi_model(vae)
-        solo.train()
-
-        results = solo.predict()
-        results['solo_prediction'] = solo.predict(soft=False)
-        results['doublet_score_diff'] = results.doublet - results.singlet
-        
-        if threshold is not None:
-            results['doublet_score'] = 'singlet'
-            results.loc[results['doublet_score_diff'] > threshold, 'doublet_score'] = 'doublet'
-        else:
-            results['doublet_score'] = doublet_df['solo_prediction']
-
-        csv_file = output_dir.joinpath('results.csv')
-        results.to_csv(csv_file)
-
-        # merge onto filtered cell by gene table
-        # anndata index expects strings (for some reason)
-        results.index = results.index.astype(str)
-        cbg_copy = cell_by_gene.copy()
-        cbg_copy.obs = cbg_copy.obs.merge(results['doublet_score'], how='left', right_index=True, left_index=True)
-        cbg_copy.obs['doublet_score'] = cbg_copy.obs['doublet_score'].fillna('qc_failed')
-        
-        doublet_params = {
-                'filter_col': filter_col,
-                'method': 'solo',
-                'method_args': {'threshold': threshold}
-        }
-        cbg_copy.uns.update({'doublet_params': doublet_params})
-        anndata_file = output_dir.joinpath('cell_by_gene_doublets.h5ad')
-        cbg_copy.write_h5ad(anndata_file)
-
-    def run_doublet_detection_on_hpc(self, cell_by_gene, filter_col, threshold, hpc_args: dict):
+    def run_doublet_detection_on_section(self, cell_by_gene, method, method_kwargs, hpc_args, filter_col):
         """Submits a job to run doublet detection on a GPU node on the HPC.
         Results are saved into a CSV file where the index column corresponds to
         cell_ids.
         """
-        from sawg.hpc import run_slurm_func
-        # might make sense to put QC in its own directory with timestamps
-        # especially considering long running QC like doublet detection
         timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
         indiv_doublet_dir = self.qc_path.joinpath(timestamp)
         indiv_doublet_dir.mkdir()
 
-        doublet_dir = self.save_path.joinpath('doublet_detection')
-        doublet_dir.mkdir(exist_ok=True)
-        run_spec = (self.run_doublet_detection, (), {'cell_by_gene': cell_by_gene, 'output_dir': doublet_dir, 'filter_col': filter_col, 'threshold': threshold})
+        run_spec = (run_doublet_detection, (), {
+            'cell_by_gene': cell_by_gene, 
+            'output_dir': f'{indiv_doublet_dir.as_posix()}/',
+            'method': method, 
+            'method_kwargs': method_kwargs,
+            'filter_col': filter_col
+            }
+        )
 
-        job_path = doublet_dir.joinpath('hpc_jobs')
+        job_path = indiv_doublet_dir.joinpath('hpc_jobs')
         job_path.mkdir(exist_ok=True)
         hpc_config = {
                 'run_spec': run_spec,
                 'conda_env': '/allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/seg_tests/conda-envs/sawg_test/',
                 'hpc_host': 'hpc-login',  # change to 'localhost' if running from hpc
-                'job_path': job_path,
+                'job_path': f'{job_path.as_posix()}/',
                 'partition': 'celltypes',
                 'job_name': 'doublet_det',
                 'nodes': 1,
@@ -545,18 +514,16 @@ class MERSCOPESection(SpatialDataset):
 
         return jobs
 
-    def load_doublet_df(self):
-        doublet_dir = self.save_path.joinpath('doublet_detection')
-        doublet_df = pd.read_csv(doublet_dir.joinpath('results.csv'), index_col=0)
 
-        return doublet_df
-
-    def load_doublet_anndata(self):
+    def load_doublet_results(self, timestamp):
         """Load results of doublet detection on this section."""
-        doublet_dir = self.save_path.joinpath('doublet_detection')
-        doublet_ad = ad.read_h5ad(doublet_dir.joinpath('cell_by_gene_doublets.h5ad'))
+        doublet_dir = self.qc_path.joinpath(timestamp)
+        doublet_df = pd.read_csv(doublet_dir.joinpath('doublet_results.csv'), index_col=0)
+        meta_file = doublet_dir.joinpath('doublet_detection_params.json')
+        with open(meta_file, 'r') as f:
+            doublet_meta = json.load(f)
 
-        return doublet_ad
+        return doublet_df, doublet_meta 
 
     def run_mapping_on_section(self, method, taxonomy=None, method_args={}, hpc_args={}):
         if method == ScrattchMapping:
