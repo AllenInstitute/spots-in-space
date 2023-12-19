@@ -6,6 +6,7 @@ import pandas as pd
 from shapely import coverage_union_all
 import anndata as ad
 import shapely
+import seaborn as sns
 
 
 
@@ -413,4 +414,7 @@ def show_cells_and_transcripts(spottable, anndata_obj,
 
 
     
- 
+def plot_cbg_centroids(cell_by_gene: ad.AnnData, ax, x='center_x', y='center_y', **kwargs):
+    g = sns.scatterplot(data=cell_by_gene.obs, x=x, y=y, ax=ax, **kwargs)
+    ax.set_aspect('equal', adjustable='box', anchor='C')
+    return g 
