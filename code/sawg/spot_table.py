@@ -591,8 +591,8 @@ class SpotTable:
         adata = anndata.AnnData(cellxgene)
         adata.obs_names = cell_ids
         adata.var_names = gene_names
-        adata.obs['x'] = centroids[:, 0]
-        adata.obs['y'] = centroids[:, 1]
+        adata.obs['center_x'] = centroids[:, 0]
+        adata.obs['center_y'] = centroids[:, 1]
         return adata
 
     def cell_bounds(self, cell_id: int | str):

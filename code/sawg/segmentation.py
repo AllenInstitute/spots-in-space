@@ -760,8 +760,7 @@ def merge_segmentation_results(spot_table: SpotTable, run_spec: dict, tiles: lis
 class SegmentationRun:
     """Base class for running segmentation on a whole section (or subregion).
     When the class is initialized, it creates the segmentation output directory
-    and saves the initialization parameters as a JSON file. It also will load
-    the spot table using loading functions/arguments defined in subclasses.
+    and saves the initialization parameters as a JSON file.
 
     Each step has defined input and output files. Steps can be run individually
     by calling their respective methods or in a defined sequence by calling the
@@ -786,9 +785,6 @@ class SegmentationRun:
         self.image_path = image_path
         self.detected_transcripts_file = dt_file
         self.detected_transcripts_cache = dt_cache 
-
-        # load the spot table corresponding to the segmentation region
-        self.spot_table = self.load_spot_table(self.subrgn)
 
         if isinstance(output_dir, str) or isinstance(output_dir, PurePath):
             output_dir = Path(output_dir)
@@ -914,6 +910,9 @@ class SegmentationRun:
         # update and save run metadata in case user updated parameters
         self.update_metadata()
         self.save_metadata()
+
+        # load the spot table corresponding to the segmentation region
+        self.spot_table = self.load_spot_table(self.subrgn)
 
         # run all steps in sequence
         tiles, regions = self.tile_seg_region()

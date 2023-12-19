@@ -393,28 +393,7 @@ class MERSCOPESection(SpatialDataset):
         seg_run = MerscopeSegmentationRun.from_spatial_dataset(self, individual_seg_dir, subrgn, seg_method, seg_opts, hpc_opts)
         spot_table, cell_by_gene = seg_run.run()
 
-        return spot_table, cell_by_gene
-
-    def resume_segmentation_on_section(self, timestamp):
-        # resume from previous segmentation
-        # Note: the resume method is not currently implemented in SegRun
-        segmentation_path = self.segmentation_path
-        individual_seg_dir = segmentation_path.joinpath(str(timestamp))
-        assert os.path.exists(individual_seg_dir)
-
-        if individual_seg_dir.joinpath('metadata.pkl').exists():
-            metadata_file = individual_seg_dir.joinpath('metadata.pkl')
-            with open(metadata_file, 'rb') as f:
-                metadata = pickle.load(f)
-                seg_run = MerscopeSegmentationRun(**metadata)
-
-        elif individual_seg_dir.joinpath('seg_meta.json').exists():
-            metadata_file = individual_seg_dir.joinpath('seg_meta.json')
-            seg_run = MerscopeSegmentationRun.from_json(metadata_file)
-
-        spot_table, cell_by_gene = seg_run.resume()
-
-        return spot_table, cell_by_gene
+        return timestamp, spot_table, cell_by_gene
 
     def load_segmentation_results(self, timestamp):
         # useful for attempting to load results from older segmentations
@@ -459,40 +438,62 @@ class MERSCOPESection(SpatialDataset):
         cell_qc_pass is created that indicates whether cells passed or failed
         any qc thresholds.
         """
-        cbg_meta = cell_by_gene.obs.copy()
+        cbg_copy = cell_by_gene.copy()
         for param, (lower, upper) in qc_params.items():
-            cbg_meta[f'{param}_toolow_qc'] = cbg_meta[param] < lower
-            cbg_meta[f'{param}_toohigh_qc'] = cbg_meta[param] > upper
+            cbg_copy.obs[f'{param}_toolow_qc'] = cbg_copy.obs[param] < lower
+            cbg_copy.obs[f'{param}_toohigh_qc'] = cbg_copy.obs[param] > upper
 
         if use_cols is None:
             # use all qc params for filtering
-            cbg_meta['qc_pass'] = ~cbg_meta.loc[:, cbg_meta.columns.str.endswith('_qc')].apply(np.any, axis=1)
+            cbg_copy.obs['cell_qc_pass'] = ~cbg_copy.obs.loc[:, cbg_copy.obs.columns.str.endswith('_qc')].apply(np.any, axis=1)
         else:
             # use only indicated columns
-            cbg_meta['qc_pass'] = ~cbg_meta.loc[:, use_cols].apply(np.any, axis=1)
+            cbg_copy.obs['cell_qc_pass'] = ~cbg_copy.obs.loc[:, use_cols].apply(np.any, axis=1)
 
-        return cbg_meta  # better to return cell by gene with updated obs?
+        cbg_copy.uns.update({'qc_params': qc_params})
 
+        return cbg_copy
+
+    def check_doublet_detection_status(self):
+        doublet_dir = self.qc_path
+        dd_runs = [f.name for f in os.scandir(doublet_dir) if f.is_dir()]
+        if len(dd_runs) == 0:
+            status = None
+
+        elif len(dd_runs) > 0:
+            status = {}
+            for run_name in dd_runs:
+                output = doublet_dir.joinpath(run_name, 'cell_by_gene_doublets.h5ad')
+                dd_info = {'finished': output.exists()}
+
+                try:
+                    dd_meta_file = doublet_dir.joinpath(run_name, 'doublet_detection_params.json')
+                    with open(dd_meta_file) as f:
+                        dd_meta = json.load(f)
+                    dd_info['doublet_params'] = dd_meta
+                except FileNotFoundError:
+                    pass
+
+                status[run_name] = dd_info
+
+        return status
 
     def run_doublet_detection_on_section(self, cell_by_gene, method, method_kwargs, hpc_args, filter_col):
-        """Submits a job to run doublet detection on a GPU node on the HPC.
-        Results are saved into a CSV file where the index column corresponds to
-        cell_ids.
-        """
+        """Submits a job to run doublet detection on a GPU node on the HPC."""
         timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-        indiv_doublet_dir = self.qc_path.joinpath(timestamp)
-        indiv_doublet_dir.mkdir()
+        doublet_dir = self.qc_path.joinpath(timestamp)
+        doublet_dir.mkdir()
 
         run_spec = (run_doublet_detection, (), {
             'cell_by_gene': cell_by_gene, 
-            'output_dir': f'{indiv_doublet_dir.as_posix()}/',
+            'output_dir': f'{doublet_dir.as_posix()}/',
             'method': method, 
             'method_kwargs': method_kwargs,
             'filter_col': filter_col
             }
         )
 
-        job_path = indiv_doublet_dir.joinpath('hpc_jobs')
+        job_path = doublet_dir.joinpath('hpc_jobs')
         job_path.mkdir(exist_ok=True)
         hpc_config = {
                 'run_spec': run_spec,
@@ -512,18 +513,32 @@ class MERSCOPESection(SpatialDataset):
         hpc_config.update(**hpc_args)
         jobs = run_slurm_func(**hpc_config)
 
-        return jobs
+        print('Job ID: ', jobs.base_job_id)
+        d_out = doublet_dir.joinpath('doublet_results.csv')
+        while not d_out.exists():
+            print(jobs.state())
+            time.sleep(60)
 
-
-    def load_doublet_results(self, timestamp):
-        """Load results of doublet detection on this section."""
-        doublet_dir = self.qc_path.joinpath(timestamp)
-        doublet_df = pd.read_csv(doublet_dir.joinpath('doublet_results.csv'), index_col=0)
+        doublet_df = pd.read_csv(d_out, index_col=0)
         meta_file = doublet_dir.joinpath('doublet_detection_params.json')
         with open(meta_file, 'r') as f:
             doublet_meta = json.load(f)
 
-        return doublet_df, doublet_meta 
+        doublet_df.index = doublet_df.index.astype(str)
+        cbg_copy = cell_by_gene.copy()
+        cbg_copy.obs = cbg_copy.obs.merge(doublet_df['doublet_score'], how='left', right_index=True, left_index=True)
+        cbg_copy.obs['doublet_score'] = cbg_copy.obs['doublet_score'].fillna('qc_failed')
+        cbg_copy.obs['doublet_score'] = pd.Categorical(cbg_copy.obs['doublet_score'], categories=['qc_failed', 'singlet', 'doublet'])
+        cbg_copy.uns.update({'doublet_timestamp': timestamp, 'doublet_params': doublet_meta}) 
+        
+        doublet_ad_path = doublet_dir.joinpath('cell_by_gene_doublets.h5ad')
+        cbg_copy.write_h5ad(doublet_ad_path)
+
+        return cbg_copy
+
+    def load_doublet_anndata(self, timestamp):
+        doublet_ad_path = self.qc_path.joinpath(timestamp, 'cell_by_gene_doublets.h5ad')
+        return ad.read_h5ad(doublet_ad_path)
 
     def run_mapping_on_section(self, method, taxonomy=None, method_args={}, hpc_args={}):
         if method == ScrattchMapping:
@@ -570,7 +585,7 @@ class MERSCOPESection(SpatialDataset):
             
         ct_map.spatial_umap(attr='ad_map')
         x_umap = ct_map.ad_map.obs[['umap_x', 'umap_y']].to_numpy()
-        spatial = ct_map.ad_map.obs[['x', 'y']].to_numpy()
+        spatial = ct_map.ad_map.obs[['center_x', 'center_y']].to_numpy()
 
         obsm = {
                 'spatial': spatial,

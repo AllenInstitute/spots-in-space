@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 import os
+from scipy import sparse
 import seaborn as sns
 import matplotlib.pyplot as plt
 import bz2
@@ -219,7 +220,7 @@ class TangramMapping(CellTypeMapping):
         
 
         discrete_mapping = discrete_mapping.merge(pd.DataFrame(max_prob), left_index=True, right_index=True)
-        discrete_mapping = discrete_mapping.merge(self.ad_sp.obs[['x', 'y']], left_index=True, right_index=True)
+        discrete_mapping = discrete_mapping.merge(self.ad_sp.obs[['center_x', 'center_y']], left_index=True, right_index=True)
         
         # fill in other levels of the hierarchy from known mappings in refence data.
         levels = [l for l in levels if l in self.ad_sc.obs.columns]
@@ -251,9 +252,9 @@ class TangramMapping(CellTypeMapping):
         if groups is not None:
             fig, ax = plt.subplots(len(groups), 1, figsize=(8, len(groups)*8))
             for i, (group_name, group) in enumerate(groups.items()):
-                sns.scatterplot(data=data, x='x', y='y', ax=ax[i], color='grey', s=3, alpha=0.1, lw=0)
+                sns.scatterplot(data=data, x='center_x', y='center_y', ax=ax[i], color='grey', s=3, alpha=0.1, lw=0)
                 subdata = data[data[level].isin(group)]
-                sns.scatterplot(data=subdata, x='x', y='y', hue=level, ax=ax[i], hue_order=group, **scatter)
+                sns.scatterplot(data=subdata, x='center_x', y='center_y', hue=level, ax=ax[i], hue_order=group, **scatter)
                 ax[i].set_title(group_name)
                 ax[i].legend(bbox_to_anchor=(1,1))
             
@@ -262,7 +263,7 @@ class TangramMapping(CellTypeMapping):
         
         else:
             fig, ax = plt.subplots(figsize=(8, 8))
-            sns.scatterplot(data=data, x='x', y='y', hue=level,ax=ax, **scatter)
+            sns.scatterplot(data=data, x='center_x', y='center_y', hue=level,ax=ax, **scatter)
             ax.legend(bbox_to_anchor=(1,1))
         
         return fig
@@ -515,9 +516,9 @@ class CKMapping(CellTypeMapping):
             if groups is not None:
                 fig, ax = plt.subplots(len(groups), 1, figsize=(8, len(groups)*6))
                 for i, (group_name, group) in enumerate(groups.items()):
-                    sns.scatterplot(data=data, x='x', y='y', ax=ax[i], color='grey', s=3, alpha=0.1, lw=0)
+                    sns.scatterplot(data=data, x='center_x', y='center_y', ax=ax[i], color='grey', s=3, alpha=0.1, lw=0)
                     subdata = data[data[level].isin(group)]
-                    sns.scatterplot(data=subdata, x='x', y='y', hue=level, ax=ax[i], hue_order=group, **scatter)
+                    sns.scatterplot(data=subdata, x='center_x', y='center_y', hue=level, ax=ax[i], hue_order=group, **scatter)
                     ax[i].set_title(group_name)
                     ax[i].legend(bbox_to_anchor=(1,1))
                 
@@ -526,7 +527,7 @@ class CKMapping(CellTypeMapping):
             
             else:
                 fig, ax = plt.subplots(figsize=(8, 8))
-                sns.scatterplot(data=data, x='x', y='y', hue=level,ax=ax, **scatter)
+                sns.scatterplot(data=data, x='center_x', y='center_y', hue=level,ax=ax, **scatter)
                 ax.legend(bbox_to_anchor=(1,1))
             
             return fig
@@ -628,8 +629,17 @@ class ScrattchMapping(CellTypeMapping):
         else:
             self.meta['counts'] = 'raw'
 
+        # Script doesn't work if AnnData contains sparse matrices, so convert 
+        if isinstance(ad_map.X, sparse.spmatrix):
+            ad_map.X = ad_map.X.toarray()
+        
+        # All layers must be converted, not just X
+        for l_name in ad_map.layers.keys():
+            if isinstance(ad_map.layers[l_name], sparse.spmatrix):
+                ad_map.layers[l_name] = ad_map.layers[l_name].toarray()
+
         if cell_qc is not None:
-            ad_map = ad_map[ad_map.obs[ad_map.obs[cell_qc]=='pass'].index.to_list(), :]
+            ad_map = ad_map[ad_map.obs[ad_map.obs[cell_qc]].index.to_list(), :]
 
         ad_map.uns['taxonomy_path'] = self.taxonomy_path
         if 'taxonomy_name' in self.meta.keys():
@@ -728,9 +738,9 @@ class ScrattchMapping(CellTypeMapping):
             if groups is not None:
                 fig, ax = plt.subplots(len(groups), 1, figsize=(8, len(groups)*6))
                 for i, (group_name, group) in enumerate(groups.items()):
-                    sns.scatterplot(data=data, x='x', y='y', ax=ax[i], color='grey', s=3, alpha=0.1, lw=0)
+                    sns.scatterplot(data=data, x='center_x', y='center_y', ax=ax[i], color='grey', s=3, alpha=0.1, lw=0)
                     subdata = data[data[level].isin(group)]
-                    sns.scatterplot(data=subdata, x='x', y='y', hue=level, ax=ax[i], hue_order=group, **scatter)
+                    sns.scatterplot(data=subdata, x='center_x', y='center_y', hue=level, ax=ax[i], hue_order=group, **scatter)
                     ax[i].set_title(group_name)
                     ax[i].legend(bbox_to_anchor=(1,1))
                 
@@ -739,7 +749,7 @@ class ScrattchMapping(CellTypeMapping):
             
             else:
                 fig, ax = plt.subplots(figsize=(8, 8))
-                sns.scatterplot(data=data, x='x', y='y', hue=level,ax=ax, **scatter)
+                sns.scatterplot(data=data, x='center_x', y='center_y', hue=level,ax=ax, **scatter)
                 ax.legend(bbox_to_anchor=(1,1))
             
             return fig
