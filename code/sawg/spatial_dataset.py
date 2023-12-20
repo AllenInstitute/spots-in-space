@@ -194,9 +194,10 @@ class SpatialDataset:
             ct_map = CellTypeMapping.load_from_timestamp(directory=self.mapping_path, timestamp=ct_map)
 
         if isinstance(ct_map, ScrattchMapping):
-            ct_map.load_scrattch_mapping_results()
             mapping_score_col = 'score.Corr'
             col_labels = [prefix + 'Corr' for prefix in self.config['taxonomy_info'][ct_map.meta['taxonomy_name']]['col_labels']]
+            if mapping_score_col not in ct_map.ad_map.obs.columns:
+                ct_map.load_scrattch_mapping_results()
 
         fig, ax = plt.subplots()
         sns.histplot(data=ct_map.ad_map.obs, x=mapping_score_col, ax=ax)
@@ -306,7 +307,7 @@ class MERSCOPESection(SpatialDataset):
             except:
                 pass
         
-        assert spec_data_collection is not None, f'No Isilon Backfill collection found for {self.barcode}'
+        assert spec_data_collection is not None, f'No Isilon Backfill collection found for {self.barcode}. Data paths cannot be determined'
         for asset in spec_data_collection.digital_assets:
             if asset.type == 'CSV' and 'detected_transcripts' in asset.name:
                 assert len(asset.instances) == 1, f'more than one instance of asset {asset.name}'
@@ -651,15 +652,15 @@ class StereoSeqSection(SpatialDataset):
                 'celltype_mapping': None,
             }
 
-            self.ad_files = {}
-            self.mappings = []
-            self.segmentations = []
-
             self.get_section_metadata()
             self.get_section_data_paths()
 
             self.save_dataset() 
         
+    def set_partner_chips(self, barcodes):
+        self.partner_chips = barcodes
+        self.save_dataset()
+
     def get_section_data_paths(self):
         # hopefully this will get integrated into Allen Services but for now, hardcode paths
         
@@ -675,7 +676,12 @@ class StereoSeqSection(SpatialDataset):
     def load_spottable(self):       
         if hasattr(self, 'detected_transcripts_cache') is False:
             self.detected_transcripts_cache = self.save_path.joinpath('detected_transcripts.npz')
-        spot_table = SpotTable.load_stereoseq(self.detected_transcripts_file, self.detected_transcripts_cache, skiprows=7)
+
+        if hasattr(self, 'image_file') and Path(self.image_file).is_file():
+            spot_table = SpotTable.load_stereoseq(self.detected_transcripts_file, self.detected_transcripts_cache, skiprows=7, image_file=self.image_file, image_channel='nuclear')
+
+        else:
+            spot_table = SpotTable.load_stereoseq(self.detected_transcripts_file, self.detected_transcripts_cache, skiprows=7)
 
         return spot_table
         
@@ -734,12 +740,8 @@ class StereoSeqSection(SpatialDataset):
     def qc_bin200(self, median_transcript_thresh=18000, base_transcript_thresh=7000, save_fig=True):
         import stereo as st
 
-        ad200_file = self.ad_files.get('bin200', None)
-        if ad200_file is None:
-            ad200_file = os.path.join(self.save_path, 'ad_sp_bin200.h5ad')
-            self.ad_files['bin200'] = ad200_file
-
-        if not os.path.isfile(ad200_file):
+        ad200_file = Path.joinpath(self.save_path, 'ad_sp_bin200.h5ad')
+        if not Path.is_file(ad200_file):
             meta = {'chip_name': self.barcode,
                     'binsize': '200',
                     'species': self.species,
@@ -759,15 +761,15 @@ class StereoSeqSection(SpatialDataset):
         self.bin200_transcript_coverage = len(ad_bin200.obs[ad_bin200.obs['total_counts']>base_transcript_thresh])/len(ad_bin200)*100
 
         self.evaluate_qc_metric('bin200_median_transcript', 'Pass' if self.bin200_median_transcript >= median_transcript_thresh else 'Fail')
-        self.evaluate_qc_metric('bin200_transcript_coverage', 'Pass' if self.bin200_transcript_coverage >= 0.8 else 'Fail')
+        self.evaluate_qc_metric('bin200_transcript_coverage', 'Pass' if self.bin200_transcript_coverage >= 80 else 'Fail')
 
         fig, ax = plt.subplots(1, 3, figsize=(12, 4))
 
         sns.violinplot(data=ad_bin200.obs, y='total_counts', ax=ax[0], cut=0)
-        ax[0].axhline(18000, color='orange', ls='--')
+        ax[0].axhline(median_transcript_thresh, color='orange', ls='--')
         ax[0].set_title(f'Median MID: {self.bin200_median_transcript}')
         sns.ecdfplot(data=ad_bin200.obs, x='total_counts', ax=ax[1])
-        ax[1].axvline(7000, color='orange', ls='--')
+        ax[1].axvline(base_transcript_thresh, color='orange', ls='--')
         ax[1].axhline(0.2, color='orange', ls='--')  
         ax[1].set_title(f'% Bins > Base MID: {self.bin200_transcript_coverage:.2f}%')
         sns.violinplot(data=ad_bin200.obs, y='n_genes_by_counts', ax=ax[2], cut=0)
@@ -780,13 +782,8 @@ class StereoSeqSection(SpatialDataset):
         import stereo as st
 
         bin_key = 'bin' + str(binsize) if binsize != 'cell' else binsize
-        ad_file = self.ad_files.get(bin_key, None)
-        if ad_file is None:
-            ad_file = Path.joinpath(self.save_path, 'ad_sp_' + bin_key + '.h5ad')
-            self.ad_files[bin_key] = ad_file
-            self.save_dataset()
-
-        if not os.path.isfile(ad_file):
+        ad_file = Path.joinpath(self.save_path, 'ad_sp_' + bin_key + '.h5ad')
+        if not Path.is_file(ad_file):
             uns = {
                 'chip_name': self.barcode,
                 'binsize': str(binsize),
@@ -867,16 +864,60 @@ class StereoSeqSection(SpatialDataset):
         self.evaluate_qc_metric('celltype_mapping', 'Pass' if self.mapping_quality >= map_thresh else 'Fail')
         ax.set_title(f'Mapping Quality: {self.mapping_quality:.2f}')
         fig.savefig(self.save_path.joinpath('mapping_qc.png'))   
+
+    def qc_corr_to_pair(self, corr_thresh=0.8):
+        if self.partner_chips is None:
+            print('No partner chips set')
+            return
+        barcodes = self.partner_chips.copy()
+        barcodes.append(self.barcode)
+        collection = StereoSeqSectionCollection(barcode_list=barcodes)
+        counts = collection.get_counts()
+        log_cols = [col for col in counts.columns if 'log' in col]
+        corr = counts[log_cols].corr()
+        self.corr_to_pair = corr.loc[f'{self.barcode} log counts'][1:].to_dict()
+        self.evaluate_qc_metric('corr_to_pair', 'Pass' if all([v >= corr_thresh for v in self.corr_to_pair.values()]) else 'Fail')
+        
+        g = sns.PairGrid(data=counts, vars=log_cols)
+        g.map_diag(sns.histplot)
+        g.map_offdiag(sns.scatterplot, s=10, alpha=0.2)
+
+        ax = g.figure.add_axes([1, 0, 1, 1])
+
+        sns.heatmap(counts[log_cols].corr(), cmap ='viridis', linewidths = 0.30, annot = True, ax=ax,
+                    cbar_kws={'label': 'Pearson Corr'})
+
+        g.savefig(self.save_path.joinpath('corr_to_pair_qc.png'))
         
 class StereoSeqSectionCollection(StereoSeqSection):
     def __init__(self, barcode_list):
         spd_list = []
         for barcode in barcode_list:
-            section = StereoSeqSection.load_from_barcode(barcode)
-            if section is not None:
-                spd_list.append(section)
+            section = SpatialDataset.load_from_barcode(barcode, StereoSeqSection)
+            if section is None:
+                section = StereoSeqSection(barcode)
+            spd_list.append(section)
 
         self.sections = spd_list
+
+    def get_counts(self):
+        total_counts_df = None
+        for section in self.sections:
+            spot_table = section.load_spottable()
+            
+            gene_ids, total_counts = np.unique(spot_table.gene_ids, return_counts=True)
+            genes = spot_table.map_gene_ids_to_names(gene_ids)
+            
+            df = pd.DataFrame({'gene': genes, f'{section.barcode} total counts': total_counts, 
+                            f'{section.barcode} log counts': np.log(total_counts)})
+            df.set_index('gene', inplace=True)
+
+            if total_counts_df is None:
+                total_counts_df = df
+            else:
+                total_counts_df = total_counts_df.merge(df, left_index=True, right_index=True, how='outer')
+        
+        return total_counts_df
 
 # class XeniumSection(SpatialDataset):
 #     def __init__(self, barcode):
