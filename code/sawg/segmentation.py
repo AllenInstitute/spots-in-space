@@ -1107,9 +1107,9 @@ class StereoSeqSegmentationRun(SegmentationRun):
     def get_load_args(self):
         """Get args to pass to loading function (e.g. when submitting jobs to hpc)."""
         load_args = {
-                'image_path': self.image_path,
-                'gem_file': self.dt_file,
-                'cache_file': self.dt_cache,
+                'image_file': self.images_path,
+                'gem_file': self.detected_transcripts_file,
+                'cache_file': self.detected_transcripts_cache,
         }
 
         for k, v in load_args.items():
