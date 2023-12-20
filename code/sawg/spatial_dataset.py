@@ -528,7 +528,7 @@ class StereoSeqSection(SpatialDataset):
         
         self.detected_transcripts_file  = self.save_path.joinpath('gem_files', (self.barcode + '.tissue.gem'))
         self.bin_file =  self.save_path.joinpath('gem_files', (self.barcode + '.tissue.gef'))
-        self.cellbin_file =  self.save_path.joinpath('gem_files', (self.barcode + '.tissue.gef'))
+        self.cellbin_file =  self.save_path.joinpath('gem_files', (self.barcode + '.cellbin.gef'))
     
     def get_section_metadata(self):
         # hopefully this will get integrated into Allen Services but for now, hardcode 
