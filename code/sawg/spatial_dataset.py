@@ -289,6 +289,14 @@ class MERSCOPESection(SpatialDataset):
 #         self.z_coord # this will probably require some math and grabbing of parent z_coord - nothing currently in BERS 
 #         self.parent_z_coord
         
+    def _filter_dats_instances(self, instances):
+        if len(instances) > 1:
+            for instance in instances:
+                if instance.storage['storage_provider'] == 'Isilon::POSIX':
+                    return instance.download_url
+        else:
+            return instances[0].download_url
+
     def get_section_data_paths(self):
         platform = sys.platform # don't like this but need to edit the file names to be read by Windows
         #dats
@@ -310,13 +318,11 @@ class MERSCOPESection(SpatialDataset):
         assert spec_data_collection is not None, f'No Isilon Backfill collection found for {self.barcode}. Data paths cannot be determined'
         for asset in spec_data_collection.digital_assets:
             if asset.type == 'CSV' and 'detected_transcripts' in asset.name:
-                assert len(asset.instances) == 1, f'more than one instance of asset {asset.name}'
-                self.detected_transcripts_file = asset.instances[0].download_url
+                self.detected_transcripts_file = self._filter_dats_instances(asset.instances)
                 if platform.startswith('win'):
                     self.detected_transcripts_file = '/' + self.detected_transcripts_file
             if asset.type == 'Directory' and 'images' in asset.name:
-                assert len(asset.instances) == 1, f'more than one instance of asset {asset.name}'
-                self.images_path = asset.instances[0].download_url
+                self.images_path = self._filter_dats_instances(asset.instances)
                 if platform.startswith('win'):
                     self.images_path = '/' + self.images_path
                 
@@ -666,7 +672,7 @@ class StereoSeqSection(SpatialDataset):
         
         self.detected_transcripts_file  = self.save_path.joinpath('gem_files', (self.barcode + '.tissue.gem'))
         self.bin_file =  self.save_path.joinpath('gem_files', (self.barcode + '.tissue.gef'))
-        self.cellbin_file =  self.save_path.joinpath('gem_files', (self.barcode + '.tissue.gef'))
+        self.cellbin_file =  self.save_path.joinpath('gem_files', (self.barcode + '.cellbin.gef'))
     
     def get_section_metadata(self):
         # hopefully this will get integrated into Allen Services but for now, hardcode 
