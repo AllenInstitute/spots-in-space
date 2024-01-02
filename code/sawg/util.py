@@ -6,6 +6,11 @@ from scipy.io import mmwrite,mmread
 import gzip
 import shutil
 from zipfile import ZipFile
+from matplotlib import pyplot as plt
+import geopandas as gpd
+from shapely import coverage_union_all
+import shapely
+
 
 def reduce_expression(data, umap_args):
     import umap
@@ -184,3 +189,293 @@ def package_for_10x(anndata_object,
         
     else:
         return features_tsv
+
+def plot_genes(spottable,  gene_list, 
+               min_counts,highlight_list = [], 
+               subsample=1,
+               figsize=[15,15], 
+               transpose_plot = True, fontsize=20, color_background =[.65,.65,.65],
+               markersize_background = 1.5, markersize_highlight=5,
+               color_start =0, incoming_ax = None ):
+    
+    
+    first_background = True
+    no_gray = list(plt.cm.tab10.colors[:7])
+    no_gray.extend(plt.cm.tab10.colors[8:])
+    no_gray = list(np.roll(np.array(no_gray),[color_start,0], axis = [0,1]))
+    
+    if incoming_ax:
+        ax= incoming_ax
+    else:
+        plt.figure(figsize=figsize)
+        ax = plt.gca()
+    
+    
+    ax.set_prop_cycle('color', no_gray)
+
+    for g in gene_list:
+        gmask = spottable.gene_names==g
+
+        if np.sum(gmask) >min_counts:
+            if g not in highlight_list:
+                if transpose_plot:
+                    toploty = spottable.x[gmask][::subsample]
+                    toplotx = spottable.y[gmask][::subsample]
+                else:
+                    toplotx = spottable.x[gmask][::subsample]
+                    toploty = spottable.y[gmask][::subsample]                   
+                if first_background:
+                    plt.plot(toplotx, toploty, 'x', color = color_background,markersize=markersize_background, label = "other_genes")
+                    first_background = False
+                else:
+                    plt.plot(toplotx, toploty, 'x', color = color_background,markersize=markersize_background, label = None)
+    for g in gene_list:
+        gmask = spottable.gene_names==g
+
+        if np.sum(gmask) >min_counts:
+            if g in highlight_list:
+                if transpose_plot:
+                    toploty = spottable.x[gmask][::subsample]
+                    toplotx = spottable.y[gmask][::subsample]
+                else:
+                    toplotx = spottable.x[gmask][::subsample]
+                    toploty = spottable.y[gmask][::subsample] 
+                plt.plot(toplotx, toploty, '.', label = g, markersize=markersize_highlight)
+
+    plt.axis('equal')
+    plt.legend(fontsize=fontsize, markerscale=4)
+
+
+
+    
+def show_cells_and_transcripts(spottable, anndata_obj,
+                               segmentation_geopandas,
+                               genes_to_highlight=[],
+                               cell_annotation_category = "supertype_scANVI_leiden",
+                               cell_annotation_values = None,
+                               cell_annotation_values_background = None,
+                               cell_annotation_colormapping= None,
+                               plot_blanks =False,
+                               loaded_image_array = None,
+                               loaded_image_extent = None,
+                               initial_figsize=[20,20],
+                               fontsize=20, image_cmap="Greys",
+                               selected_cell_outline_weight = 1.0,
+                               plot_patches=False,skip_genes=False,
+                               **kwargs):
+    """
+    Parameters:
+    
+    loaded_image_array
+    
+    will take a 2D numpy array and use it for background. otherwise a maximum projection of image data from the SpotTable is created and used.
+    
+    cell_annotation_category
+    
+    column in anndata_obj.obs to get annotation information from
+    
+    
+    cell_annotation_values 
+    
+    values in `cell_annotation_category` to show
+    
+    
+    **kwargs are passed to `plot_genes`
+    
+    """
+    
+
+    no_gray2 = list(plt.cm.tab10.colors[1:7])
+    no_gray2.extend(plt.cm.tab10.colors[8:])
+    np.roll(np.array(no_gray2),[2,0], [0,1])
+
+
+
+
+    # get image data and show it.
+    plot_image = False
+    if isinstance(loaded_image_array,type(None)):
+
+        spot_table_im =spottable.get_image(channel="DAPI")
+
+        image_data = spot_table_im.get_data()
+        # return max projection over z, transposed and flipped vertically for display
+        loaded_image_array = np.max(image_data,axis=0).T[::-1,:]
+        loaded_image_extent = np.array(spot_table_im.bounds())[::-1,:].ravel()
+        plot_image = True
+    else:
+        # check input types pls
+        pass
+
+    
+    fig = plt.figure(figsize=initial_figsize)
+    if plot_image:
+        plt.imshow(loaded_image_array, extent=loaded_image_extent, cmap=image_cmap, vmax = 0.8*np.max(loaded_image_array))   
+
+    ax = plt.gca()
+    targets = np.unique(spottable.gene_names)
+
+    if plot_blanks:
+        gene_list = list(targets)
+    else:
+        gene_list = [g for g in targets if "Blank-" not in g]
+
+    if not skip_genes:
+        plot_genes(spottable,gene_list, 1,
+               highlight_list =genes_to_highlight,figsize=initial_figsize, incoming_ax=ax, **kwargs)
+    plt.axis('equal')
+    plt.gca().invert_yaxis()
+
+
+
+    # plot cell perimeters and gather centroids along the way
+    # this particular case (2D segmentation on 3d data) means that we have 7 copies of each segmentation polygon (and 7 centroids for each cell)
+    # to deal with this, I'm going to take only the 0th polygon for each unique cell id.
+    # in the case where there is full 3D segmentation, it should show up plotted below and the centroids should still be reasonably accurate
+
+
+
+
+
+
+    # add mapped cell identities:
+    # suboptimal copy here
+    if type(anndata_obj) == ad.AnnData:
+        anno = anndata_obj.obs.copy()
+        anno["cell_id"] = anno.index.values.astype(int)   
+
+
+
+
+
+    if cell_annotation_colormapping is None:
+        plotted_categories={pc:{"plotted":False,
+                                "color":no_gray2[ii],
+                                "linewidth":selected_cell_outline_weight,
+                               "edgecolor":'k'} for ii,pc in enumerate(cell_annotation_values)}
+    else:
+        plotted_categories={pc:{"plotted":False,
+                                "color":cell_annotation_colormapping[pc][0],
+                               "linewidth":cell_annotation_colormapping[pc][1],
+                               "edgecolor":cell_annotation_colormapping[pc][2]}
+                            for ii,pc in enumerate(list(anno[cell_annotation_category].unique()))}
+
+
+    if type(segmentation_geopandas) == gpd.geodataframe.GeoDataFrame :
+
+
+        for cellid in segmentation_geopandas.loc[segmentation_geopandas.EntityID.isin(spottable.cell_ids),["EntityID","Geometry"]].EntityID.unique():
+            cellinfo = segmentation_geopandas.loc[segmentation_geopandas.EntityID==cellid,"Geometry"].values[0]
+            tg = coverage_union_all(cellinfo)
+            try:
+                if  isinstance(tg, shapely.Polygon):
+                    x_coords = list(tg.boundary.coords.xy[1])
+                    y_coords = list(tg.boundary.coords.xy[0])
+                elif isinstance(tg, shapely.MultiPolygon):
+                    # these are multiple polygons. take the largest. TODO: find out how this happens...
+                    geo_list = [g for g in tg.geoms]
+                    largest = np.argmax([g.area for g in geo_list])
+                    x_coords = list(geo_list[largest].boundary.coords.xy[1])
+                    y_coords = list(geo_list[largest].boundary.coords.xy[0])                
+                else:
+                    print(str(cellid)+"   is neither Polygon nor MultiPolygon")
+                    continue
+            except:
+                print(str(cellid)+"   failed decomposition")
+                continue               
+  
+            if cellid in list(anno.loc[anno[cell_annotation_category].isin(cell_annotation_values),"cell_id"]):
+                for ii,anno_value in enumerate(cell_annotation_values):
+                    anno_list = list(anno.loc[anno[cell_annotation_category]==anno_value,"cell_id"])
+                    if cellid in anno_list :
+                        if not plotted_categories[anno_value]["plotted"]:
+                            # first time through, include label for legend
+                            if plot_patches:
+                                plt.fill(x_coords, y_coords, 
+                                    facecolor=plotted_categories[anno_value]["color"],
+                                         linewidth=plotted_categories[anno_value]["linewidth"],
+                                         edgecolor=plotted_categories[anno_value]["edgecolor"],
+                                         label = anno_value)
+                                # with thin boundary
+                                plt.plot(x_coords, y_coords,
+                                         color=[.2,.2,.2],linewidth=.5)
+                            else:
+                                plt.plot(x_coords, y_coords, 
+                                    color=plotted_categories[anno_value]["color"],
+                                    linewidth=plotted_categories[anno_value]["linewidth"],
+                                    label = anno_value)
+                            plotted_categories[anno_value]["plotted"]=True
+                        else:
+                            # other times through, do not include label for legend
+                            if plot_patches:
+                                plt.fill(x_coords, y_coords, 
+                                 facecolor=plotted_categories[anno_value]["color"],
+                                         linewidth=plotted_categories[anno_value]["linewidth"],
+                                         edgecolor=plotted_categories[anno_value]["edgecolor"],
+                                         label = None)
+                                # with added thin boundary
+                                plt.plot(x_coords, y_coords,
+                                         color=[.2,.2,.2],linewidth=1)
+                            else:
+
+                                plt.plot(x_coords, y_coords, 
+                                 color=plotted_categories[anno_value]["color"],
+                                         linewidth=plotted_categories[anno_value]["linewidth"],
+                                         label = None)
+
+
+            elif cellid in list(anno.loc[anno[cell_annotation_category].isin(cell_annotation_values_background),"cell_id"]):
+                for ii,anno_value in enumerate(cell_annotation_values_background):
+                    anno_list = list(anno.loc[anno[cell_annotation_category]==anno_value,"cell_id"])
+                    if cellid in anno_list :
+                        if not plotted_categories[anno_value]["plotted"]:
+                            # first time through, include label for legend
+                            if plot_patches:
+                                plt.fill(x_coords, y_coords, 
+                                    facecolor=plotted_categories[anno_value]["color"],
+                                         linewidth=0,
+                                         edgecolor=plotted_categories[anno_value]["edgecolor"],
+                                         label = anno_value)
+
+                            else:
+                                plt.plot(x_coords, y_coords, 
+                                    color=plotted_categories[anno_value]["color"],
+                                    linewidth=plotted_categories[anno_value]["linewidth"],
+                                    label = anno_value)
+                            plotted_categories[anno_value]["plotted"]=True
+                        else:
+                            # other times through, do not include label for legend
+                            if plot_patches:
+                                plt.fill(x_coords, y_coords, 
+                                 facecolor=plotted_categories[anno_value]["color"],
+                                         linewidth=0,
+                                         edgecolor=plotted_categories[anno_value]["edgecolor"],
+                                         label = None)
+
+                            else:
+
+                                plt.plot(x_coords, y_coords, 
+                                 color=plotted_categories[anno_value]["color"],
+                                         linewidth=plotted_categories[anno_value]["linewidth"],
+                                         label = None)
+
+
+            #add thin outlines to everything?
+
+            else:
+                plt.plot(x_coords, y_coords,
+                         color=[.2,.2,.2],linewidth=.5)
+#             except:
+#                 print("skipping plot of "+str(cellid))
+    plt.legend()
+    # could be useful at some point: get polygons from spotdata:
+    # for k in list(mini.cell_polygons.keys()):
+    #     if mini.cell_polygons[k] == None:
+    #         continue
+    #     if mini.cell_polygons[k].boundary == None:
+    #         continue
+    #     plt.plot(list(mini.cell_polygons[k].boundary.coords.xy[1]), list(mini.cell_polygons[k].boundary.coords.xy[0]))
+
+
+    
+ 

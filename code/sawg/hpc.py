@@ -29,13 +29,15 @@ def hpc_worker():
     """Invoked when running `python -m sawg.hpc`
     """
     pkl_file = sys.argv[1]
-    array_id = int(sys.argv[2])
-    print(f"Started HPC worker {array_id} from {sys.executable}")
-    print(f"Call spec file: {pkl_file}")
     run_specs = pickle.load(open(pkl_file, 'rb'))
     if isinstance(run_specs, dict):
+        array_id = int(sys.argv[2])
+        print(f"Started HPC worker {array_id} from {sys.executable}")
+        print(f"Call spec file: {pkl_file}")
         func, args, kwargs = run_specs[array_id]
     else:
+        print(f"Started {sys.executable}")
+        print(f"Call spec file: {pkl_file}")
         func, args, kwargs = run_specs
     print(f"Invoking callback: {func}")
     print("-----------------------------")
