@@ -5,7 +5,7 @@ dependencies:
   - python=3
   - pip
   - numpy
-  - scipy
+  - scipy>=1.11.0
   - jupyter
   - h5py
   - pillow
