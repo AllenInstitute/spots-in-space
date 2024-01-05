@@ -6,7 +6,7 @@
 ## utilizes new Allen Services for data grabbing 
 ## spatial_config.yml to store datapaths and other configurable properties
 
-version = 1
+version = 2
 
 from sawg.celltype_mapping import ScrattchMapping, CellTypeMapping
 from sawg.hpc import run_slurm_func
