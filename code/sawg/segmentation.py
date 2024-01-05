@@ -17,6 +17,7 @@ from abc import abstractmethod
 from typing import Union
 import pandas as pd
 import anndata as ad
+import sawg
 # used for type hint but it causes a circular import error
 # from sawg.spatial_dataset import SpatialDataset
 
@@ -1046,7 +1047,7 @@ class SegmentationRun:
         if isinstance(config['subrgn'], list):
             config['subrgn'] = tuple([tuple(l) for l in config['subrgn']])
 
-        return cls(config)
+        return cls(**config)
 
 
 class MerscopeSegmentationRun(SegmentationRun):
