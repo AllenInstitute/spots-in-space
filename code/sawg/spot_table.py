@@ -631,7 +631,7 @@ class SpotTable:
                 traditionally alpha is defined as 1/radius, 
                 and here the function input is inverted for slightly more intuitive use
         """
-        tri = Delaunay(cell_points_array)
+        tri = Delaunay(cell_points_array, qhull_options="QJ")
         # Make a list of line segments: 
         # edge_points = [ ((x1_1, y1_1), (x2_1, y2_1)),
         #                 ((x1_2, y1_2), (x2_2, y2_2)),
@@ -650,7 +650,7 @@ class SpotTable:
 
         # loop over triangles:
         # ia, ib, ic = indices of corner points of the triangle
-        for ia, ib, ic in tri.vertices:
+        for ia, ib, ic in tri.simplices:
             pa = cell_points_array[ia]
             pb = cell_points_array[ib]
             pc = cell_points_array[ic]
@@ -685,6 +685,15 @@ class SpotTable:
         return  {"area":cell_polygon.area, "centroid":np.array(cell_polygon.centroid.coords)}
 
     def calculate_cell_polygons(self, alpha_inv=1.5):
+        # Helper function to test if an alphashape is a polygon and contains all points
+        def _test_polygon(points, polygon):
+            if isinstance(polygon, shapely.geometry.polygon.Polygon):
+                if not isinstance(points, shapely.geometry.MultiPoint):
+                    points = shapely.geometry.MultiPoint(list(points))
+                return all([polygon.intersects(shapely.geometry.Point(point)) for point in points.geoms])
+            else:
+                return False
+        
         # run through all cell_ids, generate polygons and add to self.cell_polygons dict 
         # increases the alpha_inv parameter by 0.5 until a single polygon is generated
         self.cell_polygons = {}
@@ -696,7 +705,7 @@ class SpotTable:
                 # increase alpha_inv unti we only have 1 polygon... this should be pretty rare.
                 tries = 0
                 flex_alpha_inv = alpha_inv
-                while tries <20 and isinstance(putative_polygon, shapely.geometry.MultiPolygon  ):
+                while tries < 100 and not _test_polygon(xy_pos, putative_polygon):
                     flex_alpha_inv += .5
                     tries += 1
                     putative_polygon = self.cell_polygon(xy_pos, flex_alpha_inv)
