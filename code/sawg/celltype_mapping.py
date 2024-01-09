@@ -708,16 +708,17 @@ class ScrattchMapping(CellTypeMapping):
             for i, (group_name, group) in enumerate(groups.items()):
                 subdata = data[data[level].isin(group)]
 
-                sns.violinplot(data=subdata, x=level, y='score.Corr', ax=ax[i], order=group, **violin)
+                sns.violinplot(data=subdata, x=level, y='score.Corr', ax=ax[i], hue=level, order=group, **violin)
                 ax[i].set_ylabel('Avg Correlation')
                 ax[i].set_xticklabels(ax[i].get_xticklabels(), rotation = 45, ha='right')
                 ax[i].set_title(group_name)
+                ax[i].set_aspect('equal', adjustable='box', anchor='C')
 
             fig.set_tight_layout(True)
 
         else:
             fig, ax = plt.subplots(figsize=(15, 3))
-            sns.violinplot(data=data, x=level, y= 'score.Corr', ax=ax, sort=True, **violin)
+            sns.violinplot(data=data, x=level, y= 'score.Corr', ax=ax, **violin)
             ax.set_ylabel('Avg Correlation')
             ax.set_xticklabels(ax.get_xticklabels(), rotation = 45, ha='right')
 
@@ -753,7 +754,44 @@ class ScrattchMapping(CellTypeMapping):
                 ax.legend(bbox_to_anchor=(1,1))
             
             return fig
-    
+
+    def plot_class_proportions(self, level, groups=None, args={}, qc_pass=True):
+
+        if qc_pass is True and 'mapping_qc' in self.ad_map.obs.columns:
+            data = self.ad_map.obs[self.ad_map.obs['mapping_qc']=='pass']
+        else:
+            data = self.ad_map.obs
+        
+        if groups is not None:
+            cls_prop = None
+            for group_name, group in groups.items():
+                subdata = data[data[level].isin(group)]
+                total_count = len(subdata)
+                level_counts = subdata.groupby(level).count()
+                level_counts['Prop of Class'] = level_counts.apply(lambda x: x['score.Corr'] / total_count, axis=1)
+                level_counts['Class'] = group_name
+
+                if cls_prop is None:
+                    cls_prop = level_counts[['Prop of Class', 'Class']]
+                else:
+                    cls_prop = cls_prop.append(level_counts[['Prop of Class', 'Class']])
+            pivot = cls_prop.pivot_table(index=cls_prop.index, columns='Class', values='Prop of Class')
+            pivot = pivot.loc[cls_prop.index]
+            fig, ax = plt.subplots(figsize=(5,5))
+            _ = pivot.T.plot.bar(stacked=True, ax=ax, **args)
+            ax.set_ylabel('Proportion of Class')
+            ax.legend(loc='upper left', bbox_to_anchor=(1, 1))
+        else:
+            total_count = len(data)
+            level_counts = data.groupby(level).count()
+            level_counts['Prop of Cells'] = level_counts.apply(lambda x: x['score.Corr'] / total_count, axis=1)
+            fig, ax = plt.subplots(figsize=(5,5))
+            _ = level_counts['Prop of Cells'].T.plot.bar(ax=ax, **args)
+            ax.set_ylabel('Proportion of Cells')
+            ax.legend(loc='upper left', bbox_to_anchor=(1, 1))
+        
+        return fig
+        
     def get_confusion_matrix(self, pivot_cols, norm=True):
         from sawg.expression_dataset import norm_confusion_matrix
         if type(pivot_cols)==dict:

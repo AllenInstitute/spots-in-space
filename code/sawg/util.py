@@ -1,11 +1,17 @@
+from __future__ import annotations
 import numpy as np
-from matplotlib import pyplot as plt
-
-import geopandas as gpd
-import pandas as pd
-from shapely import coverage_union_all
 import anndata as ad
+import pandas as pd
+import pathlib
+from scipy.io import mmwrite,mmread
+import gzip
+import shutil
+from zipfile import ZipFile
+from matplotlib import pyplot as plt
+import geopandas as gpd
+from shapely import coverage_union_all
 import shapely
+from matplotlib import pyplot as plt
 import seaborn as sns
 
 
@@ -124,6 +130,87 @@ def load_config(configfile=None):
     else:
         config = {}
     return config
+
+def package_for_10x(anndata_object,
+                    output_directory,
+                    gene_id_var_list, 
+                    dry_run = False,
+                    exist_ok =False,
+                   annotation_category="Supertype"):
+    """
+    takes a reference dataset as anndata object and writes a reference file that can be uploaded
+    to 10x as a reference for  Xenium  gene panel selection
+    see https://www.10xgenomics.com/support/in-situ-gene-expression/documentation/steps/panel-design/xenium-panel-getting-started#input-ref-anno
+
+
+    keyword arguments dry_run and exist_ok may help you avoid overwriting something important
+    """
+    # organize some paths:
+    pathlib.Path(output_directory).mkdir(exist_ok=exist_ok)
+    zip_path = pathlib.Path(output_directory).parent.joinpath(output_directory.stem+"_to_zip")
+    zip_path.mkdir(exist_ok = exist_ok)
+    matrix_output_path = output_directory.joinpath( "matrix.mtx")
+    barcodes_output_path = output_directory.joinpath( "barcodes.tsv")
+    features_output_path = output_directory.joinpath( "features.tsv" )
+    annotation_output_path =output_directory.joinpath("annotation.csv")
+    # Going for MEX format here:
+
+    # confirmed this matches after reading it back in, although the read in is float64
+
+    # barcodes.tsv
+
+
+    # features.tsv.gz
+    # The file is expected to conform to the specification outlined under MEX format here, namely:
+
+    #     Tab delimited
+    #     No header column
+    #     Ensembl IDs, followed by gene symbols, optionally followed by a feature type
+    # 
+    # ENSG00000141510       TP53         Gene Expression
+    # ENSG00000012048       BRCA1        Gene Expression
+    # ENSG00000139687       RB1          Gene Expression
+
+
+
+    features_tsv = pd.DataFrame(anndata_object.var_names, columns=["Gene Symbol"])
+    features_tsv["Ensembl IDs"] = gene_id_var_list
+    features_tsv = features_tsv.loc[:,["Ensembl IDs","Gene Symbol"]]
+    # annotations.csv  needs #barcode column and #annotation column:
+    tout_annotations = anndata_object.obs.copy()
+    tout_annotations["barcode"]= tout_annotations.index.values
+    tout_annotations["annotation"]= tout_annotations[annotation_category].values
+    
+    #actual writing to files:
+    
+    if not dry_run:
+        # matrix.mtx.gz
+        mmwrite(matrix_output_path, anndata_object.layers["UMIs"].T)
+
+        pd.DataFrame(anndata_object.obs.index).to_csv(barcodes_output_path, sep = "\t", index = False, header=False)
+        features_tsv.to_csv(features_output_path,   sep = "\t", index=False, header=False)
+        tout_annotations.loc[:,["barcode","annotation"]].to_csv(annotation_output_path,index=False)
+        
+        
+        # compress individual files:
+        files_in_target = []
+        for file in [barcodes_output_path, features_output_path, matrix_output_path]:
+            file_in_target = str(zip_path.joinpath(file.name))+".gz"
+            with open(file,'rb') as to_zip:
+                with gzip.open(file_in_target, 'wb') as zip_out:
+                    shutil.copyfileobj(to_zip, zip_out)
+                    files_in_target.append(file_in_target)
+        # copy over the annotation:
+        shutil.copyfile(annotation_output_path, str(zip_path.joinpath(annotation_output_path.name)))
+        files_in_target.append(str(zip_path.joinpath(annotation_output_path.name)))
+        # then zip the whole directory:
+        with ZipFile(str(zip_path)+".zip", 'w') as final_zip:
+            for f in files_in_target:
+                final_zip.write(f, arcname = pathlib.Path(f).name)
+                
+        
+    else:
+        return features_tsv
 
 
 def plot_genes(spottable,  gene_list, 
