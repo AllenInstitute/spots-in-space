@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 ## Class SpatialDataset to organize spatial datasets from variety of platforms
 ## includes subclasses for each platform to encompass data processing steps
 ## use to version data processing
@@ -66,6 +68,8 @@ class SpatialDataset:
             file.close()
             dataset._convert_str_to_paths()
             print(f'SpatialDataset {data_path} loaded...')
+            if dataset.version != version:
+                print(f'Warning: SpatialDataset version {dataset.version} does not match current version {version}')
         return dataset
 
     def save_dataset(self, file_name: str='spatial_dataset'):
@@ -400,6 +404,13 @@ class MERSCOPESection(SpatialDataset):
         seg_run = MerscopeSegmentationRun.from_spatial_dataset(self, individual_seg_dir, subrgn, seg_method, seg_opts, hpc_opts)
         spot_table, cell_by_gene = seg_run.run()
 
+        cell_by_gene.uns.update(
+        {
+        'seg_timestamp': timestamp,
+        'seg_params': self.check_segmentation_status()[timestamp],
+        }
+        )
+
         return timestamp, spot_table, cell_by_gene
 
     def load_segmentation_results(self, timestamp):
@@ -541,11 +552,17 @@ class MERSCOPESection(SpatialDataset):
         doublet_ad_path = doublet_dir.joinpath('cell_by_gene_doublets.h5ad')
         cbg_copy.write_h5ad(doublet_ad_path)
 
-        return cbg_copy
+        return cbg_copy, timestamp
 
     def load_doublet_anndata(self, timestamp):
         doublet_ad_path = self.qc_path.joinpath(timestamp, 'cell_by_gene_doublets.h5ad')
         return ad.read_h5ad(doublet_ad_path)
+
+    def make_anndata(self, cell_by_gene, file_name='sp_anndata.h5ad'):
+        sp_anndata_path = self.save_path.joinpath(file_name)
+        cell_by_gene.write_h5ad(sp_anndata_path)
+        self.anndata_file = sp_anndata_path
+        self.save_dataset()
 
     def run_mapping_on_section(self, method, taxonomy=None, method_args={}, hpc_args={}):
         if method == ScrattchMapping:
@@ -583,7 +600,8 @@ class MERSCOPESection(SpatialDataset):
             ct_map = CellTypeMapping.load_from_timestamp(directory=self.mapping_path, timestamp=ct_map)
 
         if isinstance(ct_map, ScrattchMapping):
-            ct_map.load_scrattch_mapping_results()
+            if hasattr(ct_map, 'ad_map') is False:
+                ct_map.load_scrattch_mapping_results()
         
         if 'raw_counts' in ct_map.ad_map.layers.keys():
             raw_dat = ct_map.ad_map.to_df(layer='raw_counts')
@@ -673,6 +691,10 @@ class StereoSeqSection(SpatialDataset):
         self.detected_transcripts_file  = self.save_path.joinpath('gem_files', (self.barcode + '.tissue.gem'))
         self.bin_file =  self.save_path.joinpath('gem_files', (self.barcode + '.tissue.gef'))
         self.cellbin_file =  self.save_path.joinpath('gem_files', (self.barcode + '.cellbin.gef'))
+        image_file = self.save_path.joinpath(f'ssDNA_{self.barcode}_regist.tif')
+        # we might not always download the image file:
+        if Path.is_file(image_file):
+            self.image_file = image_file
     
     def get_section_metadata(self):
         # hopefully this will get integrated into Allen Services but for now, hardcode 
@@ -759,6 +781,8 @@ class StereoSeqSection(SpatialDataset):
             bin200_data.tl.cal_qc()
             ad_bin200 = st.io.stereo_to_anndata(bin200_data, flavor='scanpy', reindex=True, output= ad200_file)
             ad_bin200.uns.update(meta)
+            ad_bin200.obs['x'] *= self.xyscale
+            ad_bin200.obs['y'] *= self.xyscale
             ad_bin200.write_h5ad(ad200_file)
         else:
             ad_bin200 = ad.read_h5ad(ad200_file)
@@ -808,6 +832,8 @@ class StereoSeqSection(SpatialDataset):
             ad_data = st.io.stereo_to_anndata(data, flavor='scanpy', reindex=True, output= ad_file)
             ad_data.uns.update(uns)
             ad_data.layers['logcounts'] = np.log1p(ad_data.X)
+            ad_data.obs['x'] *= self.xyscale
+            ad_data.obs['y'] *= self.xyscale
             ad_data.write_h5ad(ad_file)
         else:
             ad_data = ad.read_h5ad(ad_file)
@@ -888,7 +914,7 @@ class StereoSeqSection(SpatialDataset):
         g.map_diag(sns.histplot)
         g.map_offdiag(sns.scatterplot, s=10, alpha=0.2)
 
-        ax = g.figure.add_axes([1, 0, 1, 1])
+        ax = g.fig.add_axes([1, 0, 1, 1])
 
         sns.heatmap(counts[log_cols].corr(), cmap ='viridis', linewidths = 0.30, annot = True, ax=ax,
                     cbar_kws={'label': 'Pearson Corr'})
