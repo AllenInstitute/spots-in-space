@@ -2,7 +2,7 @@ from __future__ import annotations
 import os, tempfile, pickle, traceback
 import scipy.ndimage, scipy.interpolate
 import numpy as np
-from tqdm.notebook import tqdm
+from tqdm.autonotebook import tqdm
 from .hpc import run_slurm_func
 from .spot_table import SpotTable
 from .image import Image, ImageBase, ImageTransform

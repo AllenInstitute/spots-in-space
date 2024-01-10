@@ -602,7 +602,7 @@ class ScrattchMapping(CellTypeMapping):
                     this data resides. If None it will be assumed the data is ad_sp.X otherwise identify
                     key for ad_sp.layers
         training_genes: list of genes to use for mapping, if None will use all genes in ad_sp.var_names
-        cell_qc: column to use in ad_sp.obs to filter cells for mapping. Values in column must be `pass` or `fail`. If None all cells will be used
+        cell_qc: column to use in ad_sp.obs to filter cells for mapping. Values in column must be boolean. If None all cells will be used
         """
         if training_genes is not None:
             genes = [tg for tg in training_genes if tg in self.ad_sp.var_names]
