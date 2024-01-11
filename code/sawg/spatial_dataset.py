@@ -832,8 +832,8 @@ class StereoSeqSection(SpatialDataset):
             ad_data = st.io.stereo_to_anndata(data, flavor='scanpy', reindex=True, output= ad_file)
             ad_data.uns.update(uns)
             ad_data.layers['logcounts'] = np.log1p(ad_data.X)
-            ad_data.obs['x'] *= self.xyscale
-            ad_data.obs['y'] *= self.xyscale
+            ad_data.obs['center_x'] *= self.xyscale
+            ad_data.obs['center_y'] *= self.xyscale 
             ad_data.write_h5ad(ad_file)
         else:
             ad_data = ad.read_h5ad(ad_file)
