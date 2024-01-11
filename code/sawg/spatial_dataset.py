@@ -106,7 +106,11 @@ class SpatialDataset:
  
     def get_mappings(self, print_output=True):
         mappings = {}
-        mapping_dir = self.save_path.joinpath(self.config['mapping_dir'])
+        mapping_dir = hasattr(self, 'mapping_path')
+        if mapping_dir is False:
+            print('No mapping directory specified')
+            return mappings
+        mapping_dir = self.mapping_path
         for mapping in mapping_dir.iterdir():
             ts = mapping.name
             try:
@@ -119,8 +123,8 @@ class SpatialDataset:
                 mappings[ts] = None
                 if print_output is True:
                     print(f'{ts}: None')
-        self.mappings = mappings
-        self.save_dataset()
+        
+        return mappings
         
     def spatial_corr_to_bulk(self, spot_table=None, save_fig=True):
         if spot_table is None:
@@ -345,12 +349,12 @@ class MERSCOPESection(SpatialDataset):
             for ts, info in seg_status.items():
                 print(f'{ts}: \t {info}')
 
-        self.get_mappings(print_output=False)
-        if len(self.mappings) == 0:
+        mappings = self.get_mappings(print_output=False)
+        if len(mappings) == 0:
             print('No mappings found')
         else:
             print('Mapping timestamps: \t Mapping info')
-            for ts, info in self.mappings.items():
+            for ts, info in mappings.items():
                 print(f'{ts}: \t {info}')
 
     def load_spottable(self):
