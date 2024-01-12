@@ -841,7 +841,7 @@ class SpotTable:
             with open(save_path, "wb") as f:
                 pickle.dump(self.cell_polygons, f)
 
-
+    
     def load_cell_polygons(self, load_path: Path|str, reset_cache=True, disable_tqdm=False):
         """
         load cell polygons from a geojson feature collection file
@@ -853,37 +853,47 @@ class SpotTable:
                 raise ValueError('Invalid path extension. Can only load .pkl or .geojson')
         else:
             raise ValueError('Invalid path type. Please use pathlib.Path or str')
-
+    
         if reset_cache or self.cell_polygons is None:
             self.cell_polygons = {}
-
+    
         if extension == '.geojson': 
             import json
             from shapely.geometry.polygon import Polygon
-
+    
             with open(load_path, "r") as f:
                 polygon_json = json.load(f)
-
+    
             unique_cells = np.unique(self.cell_ids)
+            unique_cells = np.delete(unique_cells, np.where((unique_cells == 0) | (unique_cells == -1)))
             cell_id_type = type(unique_cells[0])
             z_plane_type = None if self.pos.shape[1] < 3 else type(self.pos[0, 2])
-
-            for feature in tqdm(polygon_json['features'], disable=disable_tqdm):
-                cid = cell_id_type(feature['id'])
-                if cid in unique_cells and feature['geometry'] and feature['geometry']['type'] == 'Polygon':
-                    if 'z_plane' in feature:
+    
+            if polygon_json['type'] == 'FeatureCollection':
+                for feature in tqdm(polygon_json['features'], disable=disable_tqdm):
+                    cid = cell_id_type(feature['id'])
+                    if cid in unique_cells and feature['geometry'] and feature['geometry']['type'] == 'Polygon':
                         z_plane = z_plane_type(feature['z_plane'])
                         polygon = Polygon(feature['geometry']['coordinates'][0])
                         self.cell_polygons.setdefault(cid, {})[z_plane] = polygon
-                    else:
-                        polygon = Polygon(feature['geometry']['coordinates'][0])
+            elif polygon_json['type'] == 'GeometryCollection':
+                if len(unique_cells) < len(polygon_json['geometries']):
+                    raise ValueError("Number of cells in input file exceeds SpotTable")
+
+                valid_cells = [cid for cid in unique_cells if len(self.cell_indices(cid)) > 3]
+
+                for cid, geometry in tqdm(zip(valid_cells, polygon_json['geometries']), disable=disable_tqdm):
+                    if geometry and geometry['type'] == 'Polygon':
+                        polygon = Polygon(geometry['coordinates'][0])
                         self.cell_polygons[cid] = polygon
+            else:
+                raise ValueError('geojson type must be FeatureCollection or GeometryCollection')
         else:
             import pickle
             with open(load_path, "rb") as f:
                 self.cell_polygons.update(pickle.load(f))
-        
 
+    
     def cell_indices(self, cell_ids: int | str | np.ndarray):
         """Return indices giving table location of all spots with *cell_ids*
         """
