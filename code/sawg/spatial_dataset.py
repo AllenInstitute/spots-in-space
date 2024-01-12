@@ -785,8 +785,9 @@ class StereoSeqSection(SpatialDataset):
             bin200_data.tl.cal_qc()
             ad_bin200 = st.io.stereo_to_anndata(bin200_data, flavor='scanpy', reindex=True, output= ad200_file)
             ad_bin200.uns.update(meta)
-            ad_bin200.obs['x'] *= self.xyscale
-            ad_bin200.obs['y'] *= self.xyscale
+            ad_bin200.obs.rename(columns={'x': 'center_x', 'y': 'center_y'}, inplace=True)
+            ad_bin200.obs['center_x'] *= self.xyscale
+            ad_bin200.obs['center_y'] *= self.xyscale
             ad_bin200.write_h5ad(ad200_file)
         else:
             ad_bin200 = ad.read_h5ad(ad200_file)
@@ -836,6 +837,7 @@ class StereoSeqSection(SpatialDataset):
             ad_data = st.io.stereo_to_anndata(data, flavor='scanpy', reindex=True, output= ad_file)
             ad_data.uns.update(uns)
             ad_data.layers['logcounts'] = np.log1p(ad_data.X)
+            ad_data.obs.rename(columns={'x': 'center_x', 'y': 'center_y'}, inplace=True)
             ad_data.obs['center_x'] *= self.xyscale
             ad_data.obs['center_y'] *= self.xyscale 
             ad_data.write_h5ad(ad_file)
