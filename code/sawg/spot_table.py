@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os, json
+from pathlib import Path
 import numpy as np
 from scipy.spatial import Delaunay
 import pandas
@@ -13,6 +14,30 @@ unary_union, polygonize = optional_import('shapely.ops', ['unary_union', 'polygo
 
 from .image import ImageFile, ImageStack, ImageTransform
 from . import util
+
+
+def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file:str|None, cell_subset_file:str|None, result_file:str|None, alpha_inv_coeff: float=1):
+    """Load a spot table, calculate the cell polygons (possibly on a subset of cells), and save the result.
+    """
+    # Load the spottable and the ids
+    print('Loading SpotTable...', end='')
+    spot_table = load_func(**load_args)
+    if cell_id_file is not None:
+        spot_table.cell_ids = np.load(cell_id_file)
+    print('[DONE]')
+
+    if cell_subset_file is not None:
+        cells_to_run = np.load(cell_subset_file)
+    else:
+        cells_to_run = np.unique(spot_table.cell_ids)
+        cells_to_run = np.delete(cells_to_run, np.where((cells_to_run == 0) | (cells_to_run == -1)))
+
+    print('Calculating Cell Polygons...')
+    spot_table.calculate_cell_polygons(cells_to_run=cells_to_run, alpha_inv_coeff=alpha_inv_coeff)
+
+    print('Saving Cell Polygons...', end='')
+    spot_table.save_cell_polygons(result_file)
+    print('[DONE]')
 
 
 class SpotTable:
@@ -52,6 +77,7 @@ class SpotTable:
                  production_cell_ids: None|np.ndarray=None,
                  pcid_to_cid: None|dict=None,
                  cid_to_pcid: None|dict=None,
+                 cell_polygons: None|dict=None,
                  parent_table: 'None|SpotTable'=None, 
                  parent_inds: None|np.ndarray=None, 
                  parent_region: None|tuple=None,
@@ -83,7 +109,7 @@ class SpotTable:
         self._cid_to_pcid = cid_to_pcid
         self._cell_index = None
         self._cell_bounds = None
-        self.cell_polygons = {}
+        self.cell_polygons = cell_polygons
 
         self.images = []
         if images is not None:
@@ -264,6 +290,16 @@ class SpotTable:
         sub_table = self[json_data['parent_inds']]
         sub_table.parent_region = json_data['parent_region']
         return sub_table
+
+    @classmethod
+    def load_pickle(cls, file_name: str):
+        """Return a new SpotTable loaded a SpotTable pickle stored on disk
+        """
+        import pickle
+
+        with open(file_name, 'rb') as f:
+            table = pickle.load(f)
+        return table
 
     @classmethod
     def load_baysor(cls, file_name: str, **kwds):
@@ -681,10 +717,7 @@ class SpotTable:
         return tp
 
     @staticmethod
-    def calculate_cell_features( cell_polygon):
-        return  {"area":cell_polygon.area, "centroid":np.array(cell_polygon.centroid.coords)}
-
-    def calculate_cell_polygons(self, alpha_inv=1.5):
+    def calculate_optimal_polygon(xy_pos, alpha_inv, alpha_inv_coeff: float=1):
         # Helper function to test if an alphashape is a polygon and contains all points
         def _test_polygon(points, polygon):
             if isinstance(polygon, shapely.geometry.polygon.Polygon):
@@ -693,61 +726,191 @@ class SpotTable:
                 return all([polygon.intersects(shapely.geometry.Point(point)) for point in points.geoms])
             else:
                 return False
-        
+
+        if xy_pos.shape[0] > 3: # If there are <= 3 points cannot do delaunay
+            putative_polygon = SpotTable.cell_polygon(xy_pos, alpha_inv)
+            # increase alpha_inv until we only have 1 polygon which contains all points
+            tries = 0
+            flex_alpha_inv = alpha_inv
+            while tries < 200 and not _test_polygon(xy_pos, putative_polygon):
+                flex_alpha_inv += .5
+                tries += 1
+                putative_polygon = SpotTable.cell_polygon(xy_pos, flex_alpha_inv)
+
+            # Final check to see if we got it in the number of tries
+            if _test_polygon(xy_pos, putative_polygon):
+                if alpha_inv_coeff != 1:
+                    putative_polygon = SpotTable.cell_polygon(xy_pos, alpha_inv_coeff * flex_alpha_inv)
+                return putative_polygon
+            else: # If not, we return the convex hull (only approximately by using massive alpha_inv)
+                return SpotTable.cell_polygon(xy_pos, 1000000)
+        else:    
+            return None
+
+    def calculate_cell_polygons(self, alpha_inv=1.5, separate_z_planes=True, cells_to_run: np.ndarray|None=None, alpha_inv_coeff: float=1, disable_tqdm=False):
+        if cells_to_run is None: # If you only want to calculate a subset of cells
+            cells_to_run = np.unique(self.cell_ids)
+            cells_to_run = np.delete(cells_to_run, np.where((cells_to_run == 0) | (cells_to_run == -1)))
+
         # run through all cell_ids, generate polygons and add to self.cell_polygons dict 
         # increases the alpha_inv parameter by 0.5 until a single polygon is generated
         self.cell_polygons = {}
-        for cid in tqdm(np.unique(self.cell_ids)):
+        for cid in tqdm(cells_to_run, disable=disable_tqdm):
             inds = self.cell_indices(cid)
-            xy_pos = self.pos[inds][:, :2]
-            if xy_pos.shape[0] > 3:
-                putative_polygon = self.cell_polygon(xy_pos, alpha_inv)
-                # increase alpha_inv unti we only have 1 polygon... this should be pretty rare.
-                tries = 0
-                flex_alpha_inv = alpha_inv
-                while tries < 100 and not _test_polygon(xy_pos, putative_polygon):
-                    flex_alpha_inv += .5
-                    tries += 1
-                    putative_polygon = self.cell_polygon(xy_pos, flex_alpha_inv)
 
-                self.cell_polygons[cid] = putative_polygon
-            else:    
-                self.cell_polygons[cid] = None
+            if separate_z_planes:
+                xyz_pos = self.pos[inds]
+                for z_plane in np.unique(xyz_pos[:, 2]):
+                    xy_pos = xyz_pos[xyz_pos[:, 2] == z_plane][:, :2]
+                    optimal_poly = self.calculate_optimal_polygon(xy_pos, alpha_inv, alpha_inv_coeff=alpha_inv_coeff)
+                    if optimal_poly: # Only record a polygon if a plane had a polygon (i.e. don't store None)
+                        self.cell_polygons.setdefault(cid, {})[z_plane] = optimal_poly
+                self.cell_polygons.setdefault(cid, None) # If none of the z-planes had a polygon, set to None
+            else:
+                xy_pos = self.pos[inds][:, :2]
+                self.cell_polygons[cid] = self.calculate_optimal_polygon(xy_pos, alpha_inv, alpha_inv_coeff=alpha_inv_coeff)
 
-    def get_cell_features(self):
+
+    @staticmethod
+    def calculate_cell_features(cell_polygon, z_plane_thickness=1.5):
+        if isinstance(cell_polygon, dict): # If we have separate polygons for each z-plane
+            from shapely.geometry import MultiPoint
+            volume = 0
+            centroids = []
+            for polygon in cell_polygon.values():
+                if polygon:
+                    volume += polygon.area
+                    centroids.append(polygon.centroid.coords)
+            volume *= z_plane_thickness
+            centroid = np.array(MultiPoint(centroids).centroid.coords) # we define centroid as centroid of centroids
+            return {"volume": volume, "centroid": centroid}
+        else: # If we have one polygon for each cell (either one representing all z-planes or just one z-plane)
+            return {"area": cell_polygon.area, "centroid": np.array(cell_polygon.centroid.coords)}
+        
+    
+    def get_cell_features(self, z_plane_thickness=1.5, disable_tqdm=False):
         # run through self.polys and calculate features
-        if len(self.cell_polygons.keys()) == 0:
+        if self.cell_polygons is None or len(self.cell_polygons.keys()) == 0:
             return None
 
         cell_features = []
-        for cid in self.cell_polygons:
+        for cid in tqdm(self.cell_polygons, disable=disable_tqdm):
             feature_info = {"cell_id":cid}
             if self.cell_polygons[cid]:
-                feature_info.update(self.calculate_cell_features(self.cell_polygons[cid]))
+                feature_info.update(self.calculate_cell_features(self.cell_polygons[cid], z_plane_thickness=z_plane_thickness))
             else:
-                feature_info.update(dict(area=0., centroid = None))
+                feature_info.update(dict(area=0.0, centroid = None))
             cell_features.append(feature_info)
 
         return pandas.DataFrame.from_records(cell_features)
 
-    def save_cell_polygons(self, geojson_save_path):
+    def save_cell_polygons(self, save_path: Path|str, use_production_ids=False):
         """
         save a geojson geometry collection from the cell polygons
         """
+        # Handle input errors
+        if isinstance(save_path, Path) or isinstance(save_path, str):
+            extension = Path(save_path).suffix
+            if extension != '.pkl' and extension != '.geojson':
+                raise ValueError('Invalid path extension. Please use .pkl or .geojson')
+        else:
+            raise ValueError('Invalid path type. Please use pathlib.Path or str')
 
-        if len(self.cell_polygons)==0:
-            return
+        # Raise error if no data
+        if self.cell_polygons is None or len(self.cell_polygons) == 0:
+            raise ValueError('No cell polygon data, cannot save file')
         
-        geojsonROIs = []
-        for poly_key in self.cell_polygons.keys():
-            if self.cell_polygons[poly_key]:
-                if len(self.cell_polygons[poly_key].exterior.coords) > 2:
-                    geojsonROIs.append(util.poly_to_geojson(self.cell_polygons[poly_key]))
-        
-        with open(geojson_save_path, 'w') as w:
-            json.dump( geojson.GeometryCollection(geojsonROIs), w)
+        if extension == '.geojson':
+            if dict in set(type(k) for k in self.cell_polygons.values()): # if cell polygons are separated by z-plane use feature collection which stores z-plane info
+                all_polygons = []
+                for cid in self.cell_polygons:
+                    if self.cell_polygons[cid]:
+                        for z_plane, polygon in self.cell_polygons[cid].items():
+                            # Each z-plane is a separate feature
+                            all_polygons.append(geojson.Feature(geometry=polygon, id=str(cid), z_plane=str(z_plane)))
+                    else:
+                        all_polygons.append(geojson.Feature(geometry=None, id=str(cid), z_plane=None))
 
-        
+                with open(save_path, "w") as f:
+                    geojson.dump(geojson.FeatureCollection(all_polygons), f)
+
+            else: # If cell polygons are not separated by z-plane, use previous implementation
+                geojsonROIs = []
+                for poly_key in self.cell_polygons.keys():
+                    if self.cell_polygons[poly_key]:
+                        if len(self.cell_polygons[poly_key].exterior.coords) > 2:
+                            geojsonROIs.append(util.poly_to_geojson(self.cell_polygons[poly_key]))
+                    else:
+                        geojsonROIs.append(None)
+                
+                with open(save_path, 'w') as w:
+                    json.dump(geojson.GeometryCollection(geojsonROIs), w)
+        else:
+            import pickle
+            with open(save_path, "wb") as f:
+                pickle.dump(self.cell_polygons, f)
+
+    
+    def load_cell_polygons(self, load_path: Path|str, reset_cache=True, disable_tqdm=False):
+        """
+        load cell polygons from a geojson feature collection file
+        """
+        # Handle input errors
+        if isinstance(load_path, Path) or isinstance(load_path, str):
+            extension = Path(load_path).suffix
+            if extension != '.pkl' and extension != '.geojson':
+                raise ValueError('Invalid path extension. Can only load .pkl or .geojson')
+        else:
+            raise ValueError('Invalid path type. Please use pathlib.Path or str')
+    
+        if reset_cache or self.cell_polygons is None:
+            self.cell_polygons = {}
+    
+        if extension == '.geojson': 
+            import json
+            from shapely.geometry.polygon import Polygon
+    
+            with open(load_path, "r") as f:
+                polygon_json = json.load(f)
+    
+            unique_cells = np.unique(self.cell_ids)
+            unique_cells = np.delete(unique_cells, np.where((unique_cells == 0) | (unique_cells == -1)))
+            cell_id_type = type(unique_cells[0])
+            z_plane_type = None if self.pos.shape[1] < 3 else type(self.pos[0, 2])
+    
+            if polygon_json['type'] == 'FeatureCollection':
+                for feature in tqdm(polygon_json['features'], disable=disable_tqdm):
+                    cid = cell_id_type(feature['id'])
+                    if cid in unique_cells:
+                        # Make sure it is a polygon or None otherwise we don't read it
+                        if feature['geometry'] and feature['geometry']['type'] == 'Polygon': 
+                            z_plane = z_plane_type(feature['z_plane'])
+                            polygon = Polygon(feature['geometry']['coordinates'][0])
+                            self.cell_polygons.setdefault(cid, {})[z_plane] = polygon
+                        elif not feature['geometry']:
+                            self.cell_polygons[cid] = feature['geometry']
+            elif polygon_json['type'] == 'GeometryCollection':
+                if len(unique_cells) < len(polygon_json['geometries']):
+                    raise ValueError("Number of cells in input file exceeds SpotTable")
+
+                # This method ensure compatibility with both JSONs which store None and those which dont
+                valid_cells = [cid for cid in unique_cells if len(self.cell_indices(cid)) > 3]
+                invalid_cells = [cid for cid in unique_cells if len(self.cell_indices(cid)) <= 3]
+                
+                for geometry in tqdm(polygon_json['geometries'], disable=disable_tqdm):
+                    if geometry and geometry['type'] == 'Polygon':
+                        polygon = Polygon(geometry['coordinates'][0])
+                        self.cell_polygons[valid_cells.pop(0)] = polygon
+                    elif not geometry:
+                        self.cell_polygons[invalid_cells.pop(0)] = geometry
+            else:
+                raise ValueError('geojson type must be FeatureCollection or GeometryCollection')
+        else:
+            import pickle
+            with open(load_path, "rb") as f:
+                self.cell_polygons.update(pickle.load(f))
+
+    
     def cell_indices(self, cell_ids: int | str | np.ndarray):
         """Return indices giving table location of all spots with *cell_ids*
         """
@@ -836,6 +999,7 @@ class SpotTable:
         gene_ids = self.gene_ids[item]
         cell_ids = None if self.cell_ids is None else self.cell_ids[item]
         production_cell_ids = None if self.production_cell_ids is None else self.production_cell_ids[item]
+         # cell_polygons is not converted because we cannot guarantee the polygons will stay the same after subsetting
 
         if len(pos) > 0:
             parent_region = ((pos[:,0].min(), pos[:,0].max()), (pos[:,1].min(), pos[:,1].max()))
@@ -868,7 +1032,7 @@ class SpotTable:
             parent_region=self.parent_region,
         )
         init_kwargs.update(kwds)
-        for name in ['pos', 'gene_ids', 'gene_id_to_name', 'cell_ids', 'production_cell_ids', '_pcid_to_cid', '_cid_to_pcid', 'images']:
+        for name in ['pos', 'gene_ids', 'gene_id_to_name', 'cell_ids', 'production_cell_ids', '_pcid_to_cid', '_cid_to_pcid', 'images', 'cell_polygons']:
             if name not in init_kwargs:
                 val = getattr(self, name)
                 if deep:
