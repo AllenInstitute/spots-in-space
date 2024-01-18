@@ -884,9 +884,9 @@ class SpotTable:
                         if feature['geometry'] and feature['geometry']['type'] == 'Polygon': 
                             z_plane = z_plane_type(feature['z_plane'])
                             polygon = Polygon(feature['geometry']['coordinates'][0])
-                            subtable.cell_polygons.setdefault(cid, {})[z_plane] = polygon
+                            self.cell_polygons.setdefault(cid, {})[z_plane] = polygon
                         elif not feature['geometry']:
-                            subtable.cell_polygons[cid] = feature['geometry']
+                            self.cell_polygons[cid] = feature['geometry']
             elif polygon_json['type'] == 'GeometryCollection':
                 if len(unique_cells) < len(polygon_json['geometries']):
                     raise ValueError("Number of cells in input file exceeds SpotTable")
