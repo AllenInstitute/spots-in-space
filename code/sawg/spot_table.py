@@ -16,7 +16,7 @@ from .image import ImageFile, ImageStack, ImageTransform
 from . import util
 
 
-def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file:str|None, cell_subset_file:str|None, result_file:str|None):
+def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file:str|None, cell_subset_file:str|None, result_file:str|None, alpha_inv_coeff: float=1):
     """Load a spot table, calculate the cell polygons (possibly on a subset of cells), and save the result.
     """
     # Load the spottable and the ids
@@ -33,7 +33,7 @@ def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file:str|Non
         cells_to_run = np.delete(cells_to_run, np.where((cells_to_run == 0) | (cells_to_run == -1)))
 
     print('Calculating Cell Polygons...')
-    spot_table.calculate_cell_polygons(cells_to_run=cells_to_run)
+    spot_table.calculate_cell_polygons(cells_to_run=cells_to_run, alpha_inv_coeff=alpha_inv_coeff)
 
     print('Saving Cell Polygons...', end='')
     spot_table.save_cell_polygons(result_file)
@@ -717,7 +717,7 @@ class SpotTable:
         return tp
 
     @staticmethod
-    def calculate_optimal_polygon(xy_pos, alpha_inv):
+    def calculate_optimal_polygon(xy_pos, alpha_inv, alpha_inv_coeff: float=1):
         # Helper function to test if an alphashape is a polygon and contains all points
         def _test_polygon(points, polygon):
             if isinstance(polygon, shapely.geometry.polygon.Polygon):
@@ -739,13 +739,15 @@ class SpotTable:
 
             # Final check to see if we got it in the number of tries
             if _test_polygon(xy_pos, putative_polygon):
+                if alpha_inv_coeff != 1:
+                    putative_polygon = SpotTable.cell_polygon(xy_pos, alpha_inv_coeff * flex_alpha_inv)
                 return putative_polygon
             else: # If not, we return the convex hull (only approximately by using massive alpha_inv)
                 return SpotTable.cell_polygon(xy_pos, 1000000)
         else:    
             return None
 
-    def calculate_cell_polygons(self, alpha_inv=1.5, separate_z_planes=True, cells_to_run: np.ndarray|None=None, disable_tqdm=False):
+    def calculate_cell_polygons(self, alpha_inv=1.5, separate_z_planes=True, cells_to_run: np.ndarray|None=None, alpha_inv_coeff: float=1, disable_tqdm=False):
         if cells_to_run is None: # If you only want to calculate a subset of cells
             cells_to_run = np.unique(self.cell_ids)
             cells_to_run = np.delete(cells_to_run, np.where((cells_to_run == 0) | (cells_to_run == -1)))
@@ -760,13 +762,13 @@ class SpotTable:
                 xyz_pos = self.pos[inds]
                 for z_plane in np.unique(xyz_pos[:, 2]):
                     xy_pos = xyz_pos[xyz_pos[:, 2] == z_plane][:, :2]
-                    optimal_poly = self.calculate_optimal_polygon(xy_pos, alpha_inv)
+                    optimal_poly = self.calculate_optimal_polygon(xy_pos, alpha_inv, alpha_inv_coeff=alpha_inv_coeff)
                     if optimal_poly: # Only record a polygon if a plane had a polygon (i.e. don't store None)
                         self.cell_polygons.setdefault(cid, {})[z_plane] = optimal_poly
                 self.cell_polygons.setdefault(cid, None) # If none of the z-planes had a polygon, set to None
             else:
                 xy_pos = self.pos[inds][:, :2]
-                self.cell_polygons[cid] = self.calculate_optimal_polygon(xy_pos, alpha_inv)
+                self.cell_polygons[cid] = self.calculate_optimal_polygon(xy_pos, alpha_inv, alpha_inv_coeff=alpha_inv_coeff)
 
 
     @staticmethod
@@ -877,7 +879,7 @@ class SpotTable:
             z_plane_type = None if self.pos.shape[1] < 3 else type(self.pos[0, 2])
     
             if polygon_json['type'] == 'FeatureCollection':
-                for feature in tqdm(polygon_json['features']):
+                for feature in tqdm(polygon_json['features'], disable=disable_tqdm):
                     cid = cell_id_type(feature['id'])
                     if cid in unique_cells:
                         # Make sure it is a polygon or None otherwise we don't read it
