@@ -559,17 +559,20 @@ class SpotTable:
         cells = cells[mask]
         return self[np.isin(self.cell_ids, cells)]
 
-    def cell_by_gene_dataframe(self, use_production_ids: bool=False):
+    def cell_by_gene_dataframe(self, use_production_ids: bool=False, use_both_ids: bool=False):
         """Return a pandas dataframe containing a cell-by-gene table derived from this spot table.
         """
-        spot_df = pandas.DataFrame({'cell': self.production_cell_ids if use_production_ids else self.cell_ids, 'gene': self.gene_ids})
+        spot_df = pandas.DataFrame({'cell': self.production_cell_ids if use_production_ids or use_both_ids else self.cell_ids, 'gene': self.gene_ids})
         cell_by_gene_df = pandas.pivot_table(spot_df, columns='gene', index='cell', aggfunc=len, fill_value=0)
         cell_by_gene_df.columns = self.map_gene_ids_to_names(cell_by_gene_df.columns)
 
-        if use_production_ids: # Since the production ids are strings, we want to use natsort to sort by the integer part of the strings rather than sort the ids as strings
+        if use_production_ids or use_both_ids: # Since the production ids are strings, we want to use natsort to sort by the integer part of the strings rather than sort the ids as strings
             from natsort import index_natsorted, ns
             cell_by_gene_df.sort_index(key=lambda col: np.argsort(index_natsorted(col, alg=ns.REAL)), inplace=True)
-            
+
+        if use_both_ids:
+            cell_by_gene_df['cell_id'] = [self.convert_cell_id(id) for id in cell_by_gene_df.index]
+        
         return cell_by_gene_df
 
     def cell_by_gene_sparse_matrix(self, dtype='uint16'):
@@ -610,7 +613,7 @@ class SpotTable:
         cellxgene = scipy.sparse.csr_matrix((data, (rowind, colind)), dtype=dtype)
         return cellxgene, cell_ids, gene_ids
 
-    def cell_by_gene_anndata(self, use_production_ids: bool=False, x_dtype='uint16'):
+    def cell_by_gene_anndata(self, use_production_ids: bool=False, use_both_ids: bool=False, x_dtype='uint16'):
         """Return a cell x gene table in AnnData format with cell centroids in x,y obs columns.
         """
         import anndata
@@ -620,13 +623,15 @@ class SpotTable:
         print("Calculating cell centroids...")
         centroids = self.cell_centroids()
 
-        if use_production_ids:
+        if use_production_ids or use_both_ids:
             from natsort import natsorted, ns
             cell_ids = natsorted(np.unique(self.production_cell_ids), alg=ns.REAL)
 
         adata = anndata.AnnData(cellxgene)
         adata.obs_names = cell_ids
         adata.var_names = gene_names
+        if use_both_ids:
+            adata.obs['cell_id'] = [self.convert_cell_id(id) for id in cell_ids]
         adata.obs['x'] = centroids[:, 0]
         adata.obs['y'] = centroids[:, 1]
         return adata
@@ -827,9 +832,9 @@ class SpotTable:
                     if self.cell_polygons[cid]:
                         for z_plane, polygon in self.cell_polygons[cid].items():
                             # Each z-plane is a separate feature
-                            all_polygons.append(geojson.Feature(geometry=polygon, id=str(cid), z_plane=str(z_plane)))
+                            all_polygons.append(geojson.Feature(geometry=polygon, id=self.convert_cell_id(cid) if use_production_ids else str(cid), z_plane=str(z_plane)))
                     else:
-                        all_polygons.append(geojson.Feature(geometry=None, id=str(cid), z_plane=None))
+                        all_polygons.append(geojson.Feature(geometry=None, id=self.convert_cell_id(cid) if use_production_ids else str(cid), z_plane=None))
 
                 with open(save_path, "w") as f:
                     geojson.dump(geojson.FeatureCollection(all_polygons), f)
