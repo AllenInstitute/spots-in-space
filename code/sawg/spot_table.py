@@ -760,7 +760,10 @@ class SpotTable:
                 xyz_pos = self.pos[inds]
                 for z_plane in np.unique(xyz_pos[:, 2]):
                     xy_pos = xyz_pos[xyz_pos[:, 2] == z_plane][:, :2]
-                    self.cell_polygons.setdefault(cid, {})[z_plane] = self.calculate_optimal_polygon(xy_pos, alpha_inv)
+                    optimal_poly = self.calculate_optimal_polygon(xy_pos, alpha_inv)
+                    if optimal_poly: # Only record a polygon if a plane had a polygon (i.e. don't store None)
+                        self.cell_polygons.setdefault(cid, {})[z_plane] = optimal_poly
+                self.cell_polygons.setdefault(cid, None) # If none of the z-planes had a polygon, set to None
             else:
                 xy_pos = self.pos[inds][:, :2]
                 self.cell_polygons[cid] = self.calculate_optimal_polygon(xy_pos, alpha_inv)
@@ -823,6 +826,8 @@ class SpotTable:
                         for z_plane, polygon in self.cell_polygons[cid].items():
                             # Each z-plane is a separate feature
                             all_polygons.append(geojson.Feature(geometry=polygon, id=str(cid), z_plane=str(z_plane)))
+                    else:
+                        all_polygons.append(geojson.Feature(geometry=None, id=str(cid), z_plane=None))
 
                 with open(save_path, "w") as f:
                     geojson.dump(geojson.FeatureCollection(all_polygons), f)
@@ -833,6 +838,8 @@ class SpotTable:
                     if self.cell_polygons[poly_key]:
                         if len(self.cell_polygons[poly_key].exterior.coords) > 2:
                             geojsonROIs.append(util.poly_to_geojson(self.cell_polygons[poly_key]))
+                    else:
+                        geojsonROIs.append(None)
                 
                 with open(save_path, 'w') as w:
                     json.dump(geojson.GeometryCollection(geojsonROIs), w)
@@ -870,22 +877,30 @@ class SpotTable:
             z_plane_type = None if self.pos.shape[1] < 3 else type(self.pos[0, 2])
     
             if polygon_json['type'] == 'FeatureCollection':
-                for feature in tqdm(polygon_json['features'], disable=disable_tqdm):
+                for feature in tqdm(polygon_json['features']):
                     cid = cell_id_type(feature['id'])
-                    if cid in unique_cells and feature['geometry'] and feature['geometry']['type'] == 'Polygon':
-                        z_plane = z_plane_type(feature['z_plane'])
-                        polygon = Polygon(feature['geometry']['coordinates'][0])
-                        self.cell_polygons.setdefault(cid, {})[z_plane] = polygon
+                    if cid in unique_cells:
+                        # Make sure it is a polygon or None otherwise we don't read it
+                        if feature['geometry'] and feature['geometry']['type'] == 'Polygon': 
+                            z_plane = z_plane_type(feature['z_plane'])
+                            polygon = Polygon(feature['geometry']['coordinates'][0])
+                            subtable.cell_polygons.setdefault(cid, {})[z_plane] = polygon
+                        elif not feature['geometry']:
+                            subtable.cell_polygons[cid] = feature['geometry']
             elif polygon_json['type'] == 'GeometryCollection':
                 if len(unique_cells) < len(polygon_json['geometries']):
                     raise ValueError("Number of cells in input file exceeds SpotTable")
 
+                # This method ensure compatibility with both JSONs which store None and those which dont
                 valid_cells = [cid for cid in unique_cells if len(self.cell_indices(cid)) > 3]
-
-                for cid, geometry in tqdm(zip(valid_cells, polygon_json['geometries']), disable=disable_tqdm):
+                invalid_cells = [cid for cid in unique_cells if len(self.cell_indices(cid)) <= 3]
+                
+                for geometry in tqdm(polygon_json['geometries'], disable=disable_tqdm):
                     if geometry and geometry['type'] == 'Polygon':
                         polygon = Polygon(geometry['coordinates'][0])
-                        self.cell_polygons[cid] = polygon
+                        self.cell_polygons[valid_cells.pop(0)] = polygon
+                    elif not geometry:
+                        self.cell_polygons[invalid_cells.pop(0)] = geometry
             else:
                 raise ValueError('geojson type must be FeatureCollection or GeometryCollection')
         else:
