@@ -15,7 +15,6 @@ from matplotlib import pyplot as plt
 import seaborn as sns
 
 
-
 def reduce_expression(data, umap_args):
     import umap
     from sklearn.preprocessing import StandardScaler
@@ -131,6 +130,7 @@ def load_config(configfile=None):
         config = {}
     return config
 
+
 def package_for_10x(anndata_object,
                     output_directory,
                     gene_id_var_list, 
@@ -211,7 +211,6 @@ def package_for_10x(anndata_object,
         
     else:
         return features_tsv
-
 
 def plot_genes(spottable,  gene_list, 
                min_counts,highlight_list = [], 
