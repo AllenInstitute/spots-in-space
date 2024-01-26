@@ -10,16 +10,11 @@ from .image import Image, ImageBase, ImageTransform
 import inspect
 import json
 from pathlib import Path, PurePath
-import datetime
-import glob
 import time
 from abc import abstractmethod
-from typing import Union
 import pandas as pd
 import anndata as ad
 import sawg
-# used for type hint but it causes a circular import error
-# from sawg.spatial_dataset import SpatialDataset
 
 
 def run_segmentation(load_func, load_args:dict, subregion:dict|None, method_class, method_args:dict, result_file:str|None, cell_id_file:str|None):
@@ -761,14 +756,39 @@ def merge_segmentation_results(spot_table: SpotTable, run_spec: dict, tiles: lis
 class SegmentationRun:
     """Base class for running segmentation on a whole section (or subregion).
     When the class is initialized, it creates the segmentation output directory
-    and saves the initialization parameters as a JSON file.
+    and sets paths for intermediate files.
 
     Each step has defined input and output files. Steps can be run individually
     by calling their respective methods or in a defined sequence by calling the
     run() method.
 
-    The final output is an updated SpotTable corresponding to the segmentation 
-    region with cell_ids and a cell by gene table in AnnData format.
+    Parameters
+    ----------
+    dt_file: str or Path
+        Path to the detected transcripts file.
+    
+    image_path: str or Path
+        Path to the images.
+
+    output_dir: str or Path
+        Where to save output files.
+
+    dt_cache: str or Path, optional
+        Path to the detected transcripts cache file. Used for faster loading.
+
+    subrgn: str or tuple
+        The subregion to segment. Set to a string, e.g. 'DAPI', to segment the 
+        full region bounded by an associated image channel. To segment a 
+        smaller region, set to a tuple corresponding to a bounding box.
+
+    seg_method: SegmentationMethod
+        The segmentation method to use. Must be found in sawg.segmentation.
+
+    seg_opts: dict
+        Options to pass to seg_method.
+
+    hpc_opts: dict
+        Options to use for segmenting tiles on the hpc.
     """
     def __init__(
             self, 
@@ -915,11 +935,33 @@ class SegmentationRun:
         subtable = get_segmentation_region(table, subregion)
         return subtable
 
-    def run(self, overwrite=False):
-        """Run all steps. Set overwrite to True to enable overwriting outputs
-        from previous runs in the output directory.
+    def run(self, use_prod_cids: bool=True, prefix: str='', suffix: str='', overwrite: bool=False):
+        """Run all steps to perform tiled segmentation.
+
+        Parameters
+        ----------
+        use_prod_cids: bool, optional
+            If True, generate production cell ids and use them to index cells
+            in the cell by gene table. Default True.
+
+        prefix: str, optional
+            The string to prepend to all production cell ids.
+
+        suffix: str, optional
+            The string to append to all production cell ids.
+
+        overwrite: bool, optional
+            Whether to allow overwriting of output files. Default False.
+
+        Returns
+        -------
+        SpotTable
+            The segmented spot table.
+
+        AnnData
+            The cell by gene table.
         """
-        
+ 
         # update and save run metadata in case user updated parameters
         self.update_metadata()
         self.save_metadata(overwrite)
@@ -931,17 +973,17 @@ class SegmentationRun:
         tiles, regions = self.tile_seg_region(overwrite)
         run_spec = self.get_seg_run_spec(regions, overwrite)
         jobs = self.submit_seg_jobs(run_spec, overwrite)
-        cell_ids, merge_results, skipped = self.merge_segmented_tiles(run_spec, overwrite)
-        cell_by_gene = self.create_cell_by_gene(self.spot_table, overwrite=overwrite)
+        cell_ids, merge_results, skipped = self.merge_segmented_tiles(run_spec=run_spec, overwrite=overwrite)
+        cell_by_gene = self.create_cell_by_gene(use_prod_cids=use_prod_cids, prefix=prefix, suffix=suffix, overwrite=overwrite)
 
         return self.spot_table, cell_by_gene
 
     def resume(self):
         raise NotImplementedError('Resuming from previous segmentation not implemented.')
-    
+
     def load_results(self):
         """Load the results of a finished segmentation."""
-        self.spot_table.cell_ids = self.load_cell_ids
+        self.spot_table.cell_ids = self.load_cell_ids()
         cell_by_gene = self.load_cbg()
         return self.spot_table, cell_by_gene
     
@@ -965,7 +1007,7 @@ class SegmentationRun:
         print('Tiling segmentation region...')
         subtable = self.spot_table
         tiles, regions = get_tiles(subtable, **kwargs)
-        
+
         # save regions
         self.save_regions(regions, overwrite)
 
@@ -1016,10 +1058,10 @@ class SegmentationRun:
     def merge_segmented_tiles(self, run_spec=None, overwrite=False):
         if run_spec is None:
             run_spec = self.load_run_spec()
-        
-        subtable = self.spot_table
+
         print('Merging tiles...')
-        cell_ids, merge_results, skipped = merge_segmentation_results(subtable, run_spec, None)
+        # Merging updates the spot table cell_ids in place
+        cell_ids, merge_results, skipped = merge_segmentation_results(self.spot_table, run_spec, None)
 
         if len(run_spec) == len(skipped):
             raise RuntimeError('All tiles were skipped, check error logs.')
@@ -1032,16 +1074,19 @@ class SegmentationRun:
 
         return cell_ids, merge_results, skipped
 
-    def create_cell_by_gene(self, spot_table=None, remove_bg=True, overwrite=False):
-        # to be updated with volume and other metadata calculation when done
-        if spot_table is None:
-            subtable = self.spot_table.copy()
-        else:
-            subtable = spot_table
+    def create_cell_by_gene(self, remove_bg=True, use_prod_cids=True, prefix='', suffix='', overwrite=False):
+        """Create and save a cell by gene file in Anndata format using 
+        the attached spot table.
+        """
+        if not use_prod_cids and (prefix != '' or suffix != ''):
+            print('Warning: Prefix and/or suffix have been set, but production cell ids are not being used.')
 
-        subtable = subtable.filter_cells(real_cells = remove_bg)
+        if use_prod_cids:
+            self.spot_table.generate_production_cell_ids(prefix=prefix, suffix=suffix)
 
-        cell_by_gene = subtable.cell_by_gene_anndata()
+        subtable = self.spot_table.filter_cells(real_cells=remove_bg)
+
+        cell_by_gene = subtable.cell_by_gene_anndata(use_both_ids=use_prod_cids)
         self.save_cbg(cell_by_gene, overwrite)
 
         return cell_by_gene
@@ -1073,10 +1118,10 @@ class SegmentationRun:
 
 class MerscopeSegmentationRun(SegmentationRun):
     def __init__(
-            self, 
-            dt_file: Path|str, 
-            image_path: Path|str, 
-            output_dir: Path|str, 
+            self,
+            dt_file: Path|str,
+            image_path: Path|str,
+            output_dir: Path|str,
             dt_cache: Path|str|None,
             subrgn: str|tuple,
             seg_method: SegmentationMethod,
@@ -1104,18 +1149,19 @@ class MerscopeSegmentationRun(SegmentationRun):
 
         return load_args
 
+
 class StereoSeqSegmentationRun(SegmentationRun):
     def __init__(
-            self, 
-            dt_file: Path|str, 
-            image_path: Path|str, 
-            output_dir: Path|str, 
+            self,
+            dt_file: Path|str,
+            image_path: Path|str,
+            output_dir: Path|str,
             dt_cache: Path|str|None,
             subrgn: str|tuple,
             seg_method: SegmentationMethod,
             seg_opts: dict,
             hpc_opts: dict,
-        ):
+            ):
         super().__init__(dt_file, image_path, output_dir, dt_cache, subrgn, seg_method, seg_opts, hpc_opts)
 
     def get_load_func(self):
