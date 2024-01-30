@@ -13,7 +13,7 @@ version = 2
 from sawg.celltype_mapping import ScrattchMapping, CellTypeMapping
 from sawg.hpc import run_slurm_func
 from sawg.qc import run_doublet_detection, calc_n_transcripts, calc_n_genes, calc_n_blanks
-from sawg.segmentation import get_segmentation_region, get_tiles, create_seg_run_spec, merge_segmentation_results, MerscopeSegmentationRun
+from sawg.segmentation import MerscopeSegmentationRun
 from sawg.spot_table import SpotTable
 from sawg.util import load_config
 import anndata as ad
