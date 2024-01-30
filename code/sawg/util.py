@@ -3,6 +3,7 @@ import numpy as np
 import anndata as ad
 import pandas as pd
 import pathlib
+from pathlib import Path
 from scipy.io import mmwrite,mmread
 import gzip
 import shutil
@@ -111,14 +112,25 @@ def poly_to_geojson(polygon):
     return geojson.Polygon([[(poly_array[i,0], poly_array[i,1]) for i in range(poly_array.shape[0])]])
 
 
-def load_config(configfile=None):
-    import yaml
-    import os
+def load_config(configfile: str|Path|None=None):
+    """
+    loads configuration yaml file for spatial analysis. If no file is found, returns empty dict
 
-    if configfile is None:
-        configfile = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'spatial_config.yml'))
+    Args:
+        configfile: path to yaml file. If None, will look for spatial_config.yml in the directory above this file 
+    Returns:
+        dict of configuration parameters
+    """
+    import yaml
+
+    if isinstance(configfile, str):
+        configfile = Path(configfile)
+
+    elif configfile is None:
+        configfile = Path(__file__).parents[1].joinpath('spatial_config.yml').resolve()
+        print(configfile)
         
-    if os.path.isfile(configfile):
+    if configfile.is_file():
         if hasattr(yaml, 'FullLoader'):
             # pyyaml new API
             config = yaml.load(open(configfile, 'rb'), Loader=yaml.FullLoader)
