@@ -113,13 +113,20 @@ def poly_to_geojson(polygon):
 
 
 def load_config(configfile=None):
+    """
+    loads configuration yaml file for spatial analysis. If no file is found, returns empty dict
+
+    Args:
+        configfile: path to yaml file. If None, will look for spatial_config.yml in the directory above this file 
+    Returns:
+        dict of configuration parameters
+    """
     import yaml
-    import os
 
     if configfile is None:
-        configfile = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'spatial_config.yml'))
+        configfile = pathlib.Path.absolute(pathlib.Path.joinpath(pathlib.Path(__file__).parent, '..', 'spatial_config.yml'))
         
-    if os.path.isfile(configfile):
+    if configfile.is_file():
         if hasattr(yaml, 'FullLoader'):
             # pyyaml new API
             config = yaml.load(open(configfile, 'rb'), Loader=yaml.FullLoader)
