@@ -1,7 +1,9 @@
+from __future__ import annotations
 import numpy as np
 import anndata as ad
 import pandas as pd
 import pathlib
+from pathlib import Path
 from scipy.io import mmwrite,mmread
 import gzip
 import shutil
@@ -10,6 +12,8 @@ from matplotlib import pyplot as plt
 import geopandas as gpd
 from shapely import coverage_union_all
 import shapely
+from matplotlib import pyplot as plt
+import seaborn as sns
 
 
 def reduce_expression(data, umap_args):
@@ -107,6 +111,36 @@ def poly_to_geojson(polygon):
 
     return geojson.Polygon([[(poly_array[i,0], poly_array[i,1]) for i in range(poly_array.shape[0])]])
 
+
+def load_config(configfile: str|Path|None=None):
+    """
+    loads configuration yaml file for spatial analysis. If no file is found, returns empty dict
+
+    Args:
+        configfile: path to yaml file. If None, will look for spatial_config.yml in the directory above this file 
+    Returns:
+        dict of configuration parameters
+    """
+    import yaml
+
+    if isinstance(configfile, str):
+        configfile = Path(configfile)
+
+    elif configfile is None:
+        configfile = Path(__file__).parents[1].joinpath('spatial_config.yml').resolve()
+        print(configfile)
+        
+    if configfile.is_file():
+        if hasattr(yaml, 'FullLoader'):
+            # pyyaml new API
+            config = yaml.load(open(configfile, 'rb'), Loader=yaml.FullLoader)
+        else:
+            # pyyaml old API
+            config = yaml.load(open(configfile, 'rb'))
+
+    else:
+        config = {}
+    return config
 
 
 def package_for_10x(anndata_object,
@@ -478,4 +512,7 @@ def show_cells_and_transcripts(spottable, anndata_obj,
 
 
     
- 
+def plot_cbg_centroids(cell_by_gene: ad.AnnData, ax, x='center_x', y='center_y', **kwargs):
+    g = sns.scatterplot(data=cell_by_gene.obs, x=x, y=y, ax=ax, **kwargs)
+    ax.set_aspect('equal', adjustable='box', anchor='C')
+    return g 

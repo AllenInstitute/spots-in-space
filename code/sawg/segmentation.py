@@ -2,8 +2,19 @@ from __future__ import annotations
 import os, tempfile, pickle, traceback
 import scipy.ndimage, scipy.interpolate
 import numpy as np
+from tqdm.autonotebook import tqdm
+from .hpc import run_slurm_func
 from .spot_table import SpotTable
 from .image import Image, ImageBase, ImageTransform
+
+import inspect
+import json
+from pathlib import Path, PurePath
+import time
+from abc import abstractmethod
+import pandas as pd
+import anndata as ad
+import sawg
 
 
 def run_segmentation(load_func, load_args:dict, subregion:dict|None, method_class, method_args:dict, result_file:str|None, cell_id_file:str|None):
@@ -554,3 +565,525 @@ def dilate_labels(img, radius):
     interpolated[~dilated_mask] = 0
 
     return interpolated
+
+
+def merge_segmentation_results(spot_table: SpotTable, run_spec: dict, tiles: list[SpotTable]|None = None):
+    """Merge results of a tiled segmentation, updating spot_table.cell_ids in place.
+
+    Parameters
+    ----------
+    spot_table: SpotTable
+        The entire spot table to which to assign cell_ids.
+    run_spec: dict
+        The specifications provided to segment each tile on the hpc.
+    tiles: list[SpotTable]|None
+        The individual tiles that were segmented.
+        If not provided, will be generated from spot_table and run_spec.
+
+    Returns
+    ------- 
+    cell_ids
+        The cell_ids assigned to each spot in spot_table.
+    merge_results
+        Information about conflicts collected during tile merging.
+    skipped
+        Indices of tiles skipped during segmentation.
+    """
+
+    spot_table.cell_ids = np.empty(len(spot_table), dtype=int)
+    spot_table.cell_ids[:] = -1
+
+    merge_results = []
+    skipped = []
+    for i, tile_spec in enumerate(tqdm(run_spec.values())):
+        cell_id_file = tile_spec[2]['cell_id_file']
+        if not os.path.exists(cell_id_file):
+            print(f"Skipping tile {i} : no cell ID file generated")
+            skipped.append(i)
+            continue
+
+        if tiles is not None:
+            # Use tiles in memory
+            tile = tiles[i]
+
+        else:
+            # Recreate each tile from spot_table and run_spec
+            tile_rgn = tile_spec[2]['subregion']
+            tile = spot_table.get_subregion(xlim = tile_rgn[0], ylim = tile_rgn[1])
+
+        tile.cell_ids = np.load(cell_id_file)
+        result = spot_table.merge_cells(tile, padding=5)
+        merge_results.append(result)
+
+    cell_ids = spot_table.cell_ids
+
+    return cell_ids, merge_results, skipped
+
+
+class SegmentationRun:
+    """Base class for running segmentation on a whole section (or subregion).
+    When the class is initialized, it creates the segmentation output directory
+    and sets paths for intermediate files.
+
+    Each step has defined input and output files. Steps can be run individually
+    by calling their respective methods or in a defined sequence by calling the
+    run() method.
+
+    Parameters
+    ----------
+    dt_file: str or Path
+        Path to the detected transcripts file.
+ 
+    image_path: str or Path
+        Path to the images.
+
+    output_dir: str or Path
+        Where to save output files.
+
+    dt_cache: str or Path, optional
+        Path to the detected transcripts cache file. Used for faster loading.
+
+    subrgn: str or tuple
+        The subregion to segment. Set to a string, e.g. 'DAPI', to segment the 
+        full region bounded by an associated image channel. To segment a 
+        smaller region, set to a tuple corresponding to a bounding box.
+
+    seg_method: SegmentationMethod
+        The segmentation method to use. Must be found in sawg.segmentation.
+
+    seg_opts: dict
+        Options to pass to seg_method.
+
+    hpc_opts: dict
+        Options to use for segmenting tiles on the hpc.
+    """
+    def __init__(
+            self, 
+            dt_file: Path|str,
+            image_path: Path|str,
+            output_dir: Path|str,
+            dt_cache: Path|str|None,
+            subrgn: str|tuple,
+            seg_method: SegmentationMethod,
+            seg_opts: dict,
+            hpc_opts: dict
+            ):
+
+        # input/output paths
+        self.image_path = image_path
+        self.detected_transcripts_file = dt_file
+        self.detected_transcripts_cache = dt_cache 
+
+        if isinstance(output_dir, str) or isinstance(output_dir, PurePath):
+            output_dir = Path(output_dir)
+        self.output_dir = output_dir
+        self.output_dir.mkdir(exist_ok=True)
+
+        # intermediate file paths
+        self.set_intermediate_file_paths()
+
+        # segmentation parameters
+        self.subrgn = subrgn
+        self.seg_method = seg_method
+        self.seg_opts = seg_opts
+        self.hpc_opts = hpc_opts
+
+        # metadata dict of initial parameters
+        self.meta_path = output_dir.joinpath('seg_meta.json')
+        self.update_metadata()
+
+    @abstractmethod
+    def get_load_func(self):
+        return
+
+    @abstractmethod
+    def get_load_args(self):
+        return
+
+    def set_intermediate_file_paths(self):
+        output_dir = self.output_dir
+        self.regions_path = output_dir.joinpath('regions.json')
+        self.run_spec_path = output_dir.joinpath('run_spec.pkl')
+        self.tile_save_path = output_dir.joinpath('seg_tiles/')
+        self.cid_path = output_dir.joinpath('segmentation.npy')
+        self.cbg_path = output_dir.joinpath('cell_by_gene.h5ad')
+
+    def update_metadata(self):
+        self.meta = {
+                'dt_file': self.detected_transcripts_file,
+                'image_path': self.image_path,
+                'output_dir': self.output_dir,
+                'dt_cache': self.detected_transcripts_cache,
+                'subrgn': self.subrgn,
+                'seg_method': self.seg_method,
+                'seg_opts': self.seg_opts,
+                'hpc_opts': self.hpc_opts
+            }
+
+    def save_metadata(self, overwrite=False):
+        if not overwrite and self.meta_path.exists():
+            raise FileExistsError('Metadata already saved and overwriting is not enabled.')
+
+        else:
+            metadata_cl = self.meta.copy()
+            for k, v in self.meta.items():
+                if isinstance(v, PurePath):
+                    metadata_cl[k] = v.as_posix()
+                elif inspect.isclass(v):
+                    metadata_cl[k] = v.__module__ + '.' + v.__name__
+                elif not isinstance(v, str|tuple):
+                    metadata_cl[k] = str(v)
+
+            with open(self.meta_path, 'w') as f:
+                json.dump(metadata_cl, f)
+
+    def load_metadata(self):
+        with open(self.meta_path, 'r') as f:
+            meta = json.load(f)
+ 
+        return meta
+
+    def save_regions(self, regions, overwrite=False):
+        regions_df = pd.DataFrame(regions, columns=['xlim', 'ylim'])
+        if not overwrite and self.regions_path.exists():
+            raise FileExistsError('Regions are already saved and overwriting is not enabled.')
+
+        else:
+            regions_df.to_json(self.regions_path)
+
+    def load_regions(self):
+        assert self.regions_path.exists()
+        regions = pd.read_json(self.regions_path).values
+        regions = [tuple(r) for r in regions]
+        return regions
+
+    def save_run_spec(self, run_spec, overwrite=False):
+        if not overwrite and self.run_spec_path.exists():
+            raise FileExistsError('Run spec already saved and overwriting is not enabled.')
+
+        else:
+            with open(self.run_spec_path, 'wb') as f:
+                pickle.dump(run_spec, f)
+
+    def load_run_spec(self):
+        with open(self.run_spec_path, 'rb') as f:
+            run_spec = pickle.load(f)
+
+        return run_spec
+
+    def save_cell_ids(self, cell_ids, overwrite=False):
+        if not overwrite and self.cid_path.exists():
+            raise FileExistsError('Cell ids already saved and overwriting is not enabled.')
+
+        else:
+            np.save(self.cid_path, cell_ids)
+
+    def load_cell_ids(self):
+        assert self.cid_path.exists()
+        cell_ids = np.load(self.cid_path)
+        return cell_ids
+
+    def save_cbg(self, cell_by_gene, overwrite=False):
+        if not overwrite and self.cbg_path.exists():
+            raise FileExistsError('Cell by gene already saved and overwriting is not enabled.')
+
+        else:
+            cell_by_gene.write(self.cbg_path)
+
+    def load_cbg(self):
+        assert self.cbg_path.exists()
+        cell_by_gene = ad.read_h5ad(self.cbg_path)
+        return cell_by_gene
+
+    def load_spot_table(self):
+        load_func = self.get_load_func()
+        load_args = self.get_load_args()
+        table = load_func(**load_args)
+        
+        if isinstance(self.subrgn, str):
+            subrgn = table.get_image(channel=self.subrgn).bounds()
+
+        else:
+            subrgn = self.subrgn 
+
+        subtable = table.get_subregion(xlim=subrgn[0], ylim=subrgn[1])
+
+        return subtable
+
+    def run(self, use_prod_cids: bool=True, prefix: str='', suffix: str='', overwrite: bool=False):
+        """Run all steps to perform tiled segmentation.
+
+        Parameters
+        ----------
+        use_prod_cids: bool, optional
+            If True, generate production cell ids and use them to index cells
+            in the cell by gene table. Default True.
+
+        prefix: str, optional
+            The string to prepend to all production cell ids.
+
+        suffix: str, optional
+            The string to append to all production cell ids.
+
+        overwrite: bool, optional
+            Whether to allow overwriting of output files. Default False.
+
+        Returns
+        -------
+        SpotTable
+            The segmented spot table.
+
+        AnnData
+            The cell by gene table.
+        """
+
+        # update and save run metadata in case user updated parameters
+        self.update_metadata()
+        self.save_metadata(overwrite)
+
+        # load the spot table corresponding to the segmentation region
+        self.spot_table = self.load_spot_table()
+
+        # run all steps in sequence
+        tiles, regions = self.tile_seg_region(overwrite)
+        run_spec = self.get_seg_run_spec(regions, overwrite)
+        jobs = self.submit_seg_jobs(run_spec, overwrite)
+        cell_ids, merge_results, skipped = self.merge_segmented_tiles(run_spec=run_spec, overwrite=overwrite)
+        cell_by_gene = self.create_cell_by_gene(use_prod_cids=use_prod_cids, prefix=prefix, suffix=suffix, overwrite=overwrite)
+
+        return self.spot_table, cell_by_gene
+
+    def resume(self):
+        raise NotImplementedError('Resuming from previous segmentation not implemented.')
+
+    def load_results(self):
+        """Load the results of a finished segmentation."""
+        self.spot_table.cell_ids = self.load_cell_ids()
+        cell_by_gene = self.load_cbg()
+        return self.spot_table, cell_by_gene
+
+    def track_job_progress(self, jobs, run_spec):
+        """Track progress of segmentation jobs. Will not complete until all
+        cell id files have been saved.
+        """
+        saved_cid_files = [os.path.exists(v[2]['cell_id_file']) for v in run_spec.values()]
+        timeout = time.time() + 60*30  # 30 min, the standard time for one job
+        with tqdm(total=len(jobs)) as pbar:
+            while not all(saved_cid_files):
+                saved_cid_files = [os.path.exists(v[2]['cell_id_file']) for v in run_spec.values()]
+                n_saved = saved_cid_files.count(True)
+                pbar.update(n_saved - pbar.n)
+                if not any(saved_cid_files) and time.time() > timeout:
+                    jobs.cancel()
+                    raise RuntimeError('No cell id files found within the timeout period. Jobs canceled. Check error logs.')
+                time.sleep(60)
+
+    def tile_seg_region(self, overwrite=False, max_tile_size: int=200, overlap: int=30):
+        print('Tiling segmentation region...')
+        subtable = self.spot_table
+
+        tiles = subtable.grid_tiles(max_tile_size=max_tile_size, overlap=overlap)
+        regions = [tile.parent_region for tile in tiles]
+
+        # save regions
+        self.save_regions(regions, overwrite)
+
+        return tiles, regions
+
+    def get_seg_run_spec(self, regions=None, overwrite=False):
+        if regions is None:
+            regions = self.load_regions()
+        self.tile_save_path.mkdir(exist_ok=True)
+
+        run_spec = {}
+        for i, region in enumerate(regions):
+            run_spec[i] = (
+                run_segmentation,
+                (),
+                dict(
+                    load_func=self.get_load_func(),
+                    load_args=self.get_load_args(),
+                    subregion=region,
+                    method_class=self.seg_method,
+                    method_args=self.seg_opts,
+                    result_file=os.path.join(f'{self.tile_save_path.as_posix()}/', f'segmentation_result_{i}.pkl'),
+                    cell_id_file=os.path.join(f'{self.tile_save_path.as_posix()}/', f'segmentation_result_{i}.npy'),
+                )
+            )
+        print(f"Generated segmentation spec for {len(run_spec)} tiles")
+
+        # save run_spec
+        self.save_run_spec(run_spec, overwrite)
+
+        return run_spec
+
+    def submit_seg_jobs(self, run_spec=None, overwrite=False):
+        if run_spec is None:
+            run_spec = self.load_run_spec()
+        hpc_opts = self.hpc_opts
+        conda_env = hpc_opts['conda_env']
+        hpc_host = hpc_opts['hpc_host']
+        job_path = self.output_dir.joinpath('hpc-jobs')
+        job_path.mkdir(exist_ok=True)
+        hpc_opts.update({'job_path': f'{job_path.as_posix()}/'})
+
+        if overwrite and any(self.tile_save_path.glob('segmentation_result*')):
+            print('Deleting saved tiles from previous run...')
+            for tile_path in self.tile_save_path.glob('segmentation_result*'):
+                if tile_path.is_file():
+                    tile_path.unlink()
+
+        elif not overwrite and any(self.tile_save_path.glob('segmentation_result*')):
+            raise RuntimeError('Saved tiles detected in directory and overwriting is disabled.')
+
+        hpc_config = {
+            'run_spec': run_spec,
+            'conda_env': conda_env,
+            'hpc_host': hpc_host,
+            'job_path': job_path,
+            'partition': 'celltypes',
+            'job_name': 'segment',
+            'nodes': 1,
+            'ntasks': 1,
+            'array': f'0-{len(run_spec)-1}',
+            'mincpus': 1,
+            'gpus_per_node': 1,
+            'mem': '20G',
+            'time': '0:30:00',
+            'mail_user': None,
+        }
+
+        hpc_config.update(**hpc_opts)
+        jobs = run_slurm_func(**hpc_config)
+        self.track_job_progress(jobs, run_spec)
+
+        return jobs
+
+    def merge_segmented_tiles(self, run_spec=None, overwrite=False):
+        if run_spec is None:
+            run_spec = self.load_run_spec()
+
+        print('Merging tiles...')
+        # Merging updates the spot table cell_ids in place
+        cell_ids, merge_results, skipped = merge_segmentation_results(self.spot_table, run_spec, None)
+
+        if len(run_spec) == len(skipped):
+            raise RuntimeError('All tiles were skipped, check error logs.')
+
+        if len(skipped) > 0:
+            print('Warning: Some tiles were skipped.')
+
+        # save cell_ids
+        self.save_cell_ids(cell_ids, overwrite)
+
+        return cell_ids, merge_results, skipped
+
+    def create_cell_by_gene(self, remove_bg=True, use_prod_cids=True, prefix='', suffix='', overwrite=False):
+        """Create and save a cell by gene file in Anndata format using 
+        the attached spot table.
+        """
+        if not use_prod_cids and (prefix != '' or suffix != ''):
+            print('Warning: Prefix and/or suffix have been set, but production cell ids are not being used.')
+
+        if use_prod_cids:
+            self.spot_table.generate_production_cell_ids(prefix=prefix, suffix=suffix)
+
+        subtable = self.spot_table.filter_cells(real_cells=remove_bg)
+
+        cell_by_gene = subtable.cell_by_gene_anndata(use_both_ids=use_prod_cids)
+        self.save_cbg(cell_by_gene, overwrite)
+
+        return cell_by_gene
+
+    @classmethod
+    def from_spatial_dataset(cls, sp_dataset, output_dir, subrgn, seg_method, seg_opts, hpc_opts):
+        """Alternate constructor to load from a SpatialDataset"""
+        image_path = sp_dataset.images_path
+        csv_file = sp_dataset.detected_transcripts_file
+        cache_file = sp_dataset.detected_transcripts_cache
+
+        return cls(csv_file, image_path, output_dir, cache_file, subrgn, seg_method, seg_opts, hpc_opts)
+
+    @classmethod
+    def from_json(cls, json_file):
+        """Load a run from a json file"""
+        with open(json_file, 'r') as f:
+            config = json.load(f)
+        seg_method_name = config['seg_method'].rpartition('.')[-1]
+        if seg_method_name == 'CellposeSegmentationMethod':
+            config['seg_method'] = sawg.segmentation.CellposeSegmentationMethod
+        else:
+            raise NotImplementedError(f'Segmentation method {seg_method_name} not implemented.')
+        if isinstance(config['subrgn'], list):
+            config['subrgn'] = tuple([tuple(l) for l in config['subrgn']])
+
+        return cls(**config)
+
+
+class MerscopeSegmentationRun(SegmentationRun):
+    def __init__(
+            self,
+            dt_file: Path|str,
+            image_path: Path|str,
+            output_dir: Path|str,
+            dt_cache: Path|str|None,
+            subrgn: str|tuple,
+            seg_method: SegmentationMethod,
+            seg_opts: dict,
+            hpc_opts: dict,
+            ):
+        super().__init__(dt_file, image_path, output_dir, dt_cache, subrgn, seg_method, seg_opts, hpc_opts)
+
+    def get_load_func(self):
+        """Get the function to load a spot table."""
+        return SpotTable.load_merscope
+
+    def get_load_args(self):
+        """Get args to pass to loading function (e.g. when submitting jobs to hpc)."""
+        load_args = {
+                'image_path': self.image_path,
+                'csv_file': self.detected_transcripts_file,
+                'cache_file': self.detected_transcripts_cache,
+        }
+        for k, v in load_args.items():
+            if isinstance(v, Path):
+                load_args[k] = v.as_posix()
+
+        load_args['max_rows'] = None
+
+        return load_args
+
+
+class StereoSeqSegmentationRun(SegmentationRun):
+    def __init__(
+            self,
+            dt_file: Path|str,
+            image_path: Path|str,
+            output_dir: Path|str,
+            dt_cache: Path|str|None,
+            subrgn: str|tuple,
+            seg_method: SegmentationMethod,
+            seg_opts: dict,
+            hpc_opts: dict,
+            ):
+        super().__init__(dt_file, image_path, output_dir, dt_cache, subrgn, seg_method, seg_opts, hpc_opts)
+
+    def get_load_func(self):
+        """Get the function to load a spot table."""
+        return SpotTable.load_stereoseq
+
+    def get_load_args(self):
+        """Get args to pass to loading function (e.g. when submitting jobs to hpc)."""
+        load_args = {
+                'image_file': self.images_path,
+                'gem_file': self.detected_transcripts_file,
+                'cache_file': self.detected_transcripts_cache,
+        }
+
+        for k, v in load_args.items():
+            if isinstance(v, Path):
+                load_args[k] = v.as_posix()
+
+        load_args.update({'skiprows': 7, 'image_channel': 'nuclear'})
+
+        return load_args

@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 import os
+from scipy import sparse
 import seaborn as sns
 import matplotlib.pyplot as plt
 import bz2
@@ -34,6 +35,7 @@ class CellTypeMapping():
         dir_ts = '{:0.3f}'.format(datetime.now().timestamp())
         self.run_directory = os.path.join(save_path, dir_ts)
         os.mkdir(self.run_directory)
+        print(f'Mapping UID: {dir_ts}')
 
     def _set_run_directory(self, save_path):
         self.run_directory = save_path
@@ -49,7 +51,6 @@ class CellTypeMapping():
             json.dump(self.meta, f)
         with bz2.BZ2File(os.path.join(self.run_directory, file_name + '.pbz2'), 'w') as f: 
             cPickle.dump(self, f)
-        print(f'analysis UID: {os.path.basename(self.run_directory)}')
 
     @classmethod
     def load_from_timestamp(cls, directory: str, timestamp: str, file_name: str='mapping', meta_only=False):
@@ -68,19 +69,24 @@ class CellTypeMapping():
 
         return ct_map
     
+    def reset_qc(self):
+        # reset qc status 
+        self.ad_map.obs['mapping_qc'] = 'pass'
+        self.ad_map.uns['qc_params'] = None
+
     def qc_mapping(self, qc_params: dict):
         # QC mapping results using thresholds for various performance metrics in self.ad_map.obs
 
         qc_mask = None
+        self.reset_qc()
         for param, thresh in qc_params.items():
             if qc_mask is None:
-                qc_mask = (self.ad_map.obs[param] > thresh)
+                qc_mask = (self.ad_map.obs[param] < thresh)
             else:
-                qc_mask = qc_mask & (self.ad_map.obs[param] > thresh)
+                qc_mask = qc_mask & (self.ad_map.obs[param] < thresh)
             
-        filtered = self.ad_map[qc_mask]
+        self.ad_map.obs.loc[qc_mask, 'mapping_qc'] = 'fail'
         self.ad_map.uns['qc_params'] = qc_params
-        self.ad_map = filtered
     
     def spatial_umap(self, attr: str='ad_sp', umap_args: dict|None=None):
         # UMAP spatial gene expression. Assumes X of anndata object is a cell x gene
@@ -214,7 +220,7 @@ class TangramMapping(CellTypeMapping):
         
 
         discrete_mapping = discrete_mapping.merge(pd.DataFrame(max_prob), left_index=True, right_index=True)
-        discrete_mapping = discrete_mapping.merge(self.ad_sp.obs[['x', 'y']], left_index=True, right_index=True)
+        discrete_mapping = discrete_mapping.merge(self.ad_sp.obs[['center_x', 'center_y']], left_index=True, right_index=True)
         
         # fill in other levels of the hierarchy from known mappings in refence data.
         levels = [l for l in levels if l in self.ad_sc.obs.columns]
@@ -246,9 +252,9 @@ class TangramMapping(CellTypeMapping):
         if groups is not None:
             fig, ax = plt.subplots(len(groups), 1, figsize=(8, len(groups)*8))
             for i, (group_name, group) in enumerate(groups.items()):
-                sns.scatterplot(data=data, x='x', y='y', ax=ax[i], color='grey', s=3, alpha=0.1, lw=0)
+                sns.scatterplot(data=data, x='center_x', y='center_y', ax=ax[i], color='grey', s=3, alpha=0.1, lw=0)
                 subdata = data[data[level].isin(group)]
-                sns.scatterplot(data=subdata, x='x', y='y', hue=level, ax=ax[i], hue_order=group, **scatter)
+                sns.scatterplot(data=subdata, x='center_x', y='center_y', hue=level, ax=ax[i], hue_order=group, **scatter)
                 ax[i].set_title(group_name)
                 ax[i].legend(bbox_to_anchor=(1,1))
             
@@ -257,7 +263,7 @@ class TangramMapping(CellTypeMapping):
         
         else:
             fig, ax = plt.subplots(figsize=(8, 8))
-            sns.scatterplot(data=data, x='x', y='y', hue=level,ax=ax, **scatter)
+            sns.scatterplot(data=data, x='center_x', y='center_y', hue=level,ax=ax, **scatter)
             ax.legend(bbox_to_anchor=(1,1))
         
         return fig
@@ -510,9 +516,9 @@ class CKMapping(CellTypeMapping):
             if groups is not None:
                 fig, ax = plt.subplots(len(groups), 1, figsize=(8, len(groups)*6))
                 for i, (group_name, group) in enumerate(groups.items()):
-                    sns.scatterplot(data=data, x='x', y='y', ax=ax[i], color='grey', s=3, alpha=0.1, lw=0)
+                    sns.scatterplot(data=data, x='center_x', y='center_y', ax=ax[i], color='grey', s=3, alpha=0.1, lw=0)
                     subdata = data[data[level].isin(group)]
-                    sns.scatterplot(data=subdata, x='x', y='y', hue=level, ax=ax[i], hue_order=group, **scatter)
+                    sns.scatterplot(data=subdata, x='center_x', y='center_y', hue=level, ax=ax[i], hue_order=group, **scatter)
                     ax[i].set_title(group_name)
                     ax[i].legend(bbox_to_anchor=(1,1))
                 
@@ -521,7 +527,7 @@ class CKMapping(CellTypeMapping):
             
             else:
                 fig, ax = plt.subplots(figsize=(8, 8))
-                sns.scatterplot(data=data, x='x', y='y', hue=level,ax=ax, **scatter)
+                sns.scatterplot(data=data, x='center_x', y='center_y', hue=level,ax=ax, **scatter)
                 ax.legend(bbox_to_anchor=(1,1))
             
             return fig
@@ -534,7 +540,7 @@ class ScrattchMapping(CellTypeMapping):
         sc_data: AnnData object or filename of AnnData object representing reference RNAseq data
         """
            
-        if isinstance(sp_data, str):
+        if not isinstance(sp_data, ad.AnnData):
             print(f'loading spatial data from {sp_data}...')
             ad_sp = ad.read_h5ad(sp_data)
         else:
@@ -575,10 +581,12 @@ class ScrattchMapping(CellTypeMapping):
 
         hpc_default.update(hpc_args)
         
+        dat_path = self.run_directory.replace('\\', '/') # make sure format is correct for linux
+
         command = f"""
                 cd {job_path}
 
-                {docker} Rscript {r_script} --dat_path {self.run_directory}
+                {docker} Rscript {r_script} --dat_path {dat_path}
         """
         
         assert 'command' not in hpc_args
@@ -587,13 +595,14 @@ class ScrattchMapping(CellTypeMapping):
         print(job.state(), job.job_id)
         return job
     
-    def make_mapping_anndata(self, save_path: str, ad_sp_layer: str|None=None, training_genes: list|None=None, meta: dict={}):
+    def make_mapping_anndata(self, save_path: str|None=None, ad_sp_layer: str|None=None, training_genes: list|None=None, cell_qc: str|None=None, meta: dict={}):
         """
         save_path: where to save out mapping anndata object to load into R script
         ad_sp_layer: scrattch_mapping requires log normalized data, identify where in the ad_sp object
                     this data resides. If None it will be assumed the data is ad_sp.X otherwise identify
                     key for ad_sp.layers
         training_genes: list of genes to use for mapping, if None will use all genes in ad_sp.var_names
+        cell_qc: column to use in ad_sp.obs to filter cells for mapping. Values in column must be boolean. If None all cells will be used
         """
         if training_genes is not None:
             genes = [tg for tg in training_genes if tg in self.ad_sp.var_names]
@@ -616,81 +625,123 @@ class ScrattchMapping(CellTypeMapping):
         if ad_sp_layer is not None:
             ad_map.layers['raw_counts'] = ad_map.X
             ad_map.X = ad_map.layers[ad_sp_layer]
+            self.meta['counts'] = ad_sp_layer
+        else:
+            self.meta['counts'] = 'raw'
 
-        ad_map.uns.update({'taxonomy_path': self.taxonomy_path})
+        # Script doesn't work if AnnData contains sparse matrices, so convert 
+        if isinstance(ad_map.X, sparse.spmatrix):
+            ad_map.X = ad_map.X.toarray()
+        
+        # All layers must be converted, not just X
+        for l_name in ad_map.layers.keys():
+            if isinstance(ad_map.layers[l_name], sparse.spmatrix):
+                ad_map.layers[l_name] = ad_map.layers[l_name].toarray()
+
+        if cell_qc is not None:
+            ad_map = ad_map[ad_map.obs[ad_map.obs[cell_qc]].index.to_list(), :]
+
+        ad_map.uns['taxonomy_path'] = self.taxonomy_path
+        if 'taxonomy_name' in self.meta.keys():
+            ad_map.uns['taxonomy_name'] = self.meta['taxonomy_name']
+        if 'taxonomy_cols' in self.meta.keys():
+            ad_map.uns['taxonomy_cols'] = [prefix + 'label' for prefix in self.meta['taxonomy_cols']]
         
         self.meta.update(meta)
         self.ad_map = ad_map
-        if self.run_directory is None:
+        if save_path is None and self.run_directory is None:
+            print('Must set a save path')
+        if save_path is not None:
+            print(f'Setting run directory to {save_path}')
             self._create_run_directory(save_path)
+
         ad_map.write_h5ad(os.path.join(self.run_directory, 'scrattch_map_temp.h5ad'))
 
     def load_scrattch_mapping_results(self):
         # use to load scrattch mapping results back in for analysis
         # results will be saved in obsm field of anndata in R script
         print('loading results...')
-        scrattch_map_results = ad.read_h5ad(os.path.join(self.run_directory, 'scrattch_map_temp.h5ad'))
-        self.ad_map.obs = self.ad_map.obs.merge(scrattch_map_results.obsm['mapping_results'], left_index=True, right_index=True, suffixes=('_drop', ''))
-        self.ad_map.obs.drop([col for col in self.ad_map.obs.columns if 'drop' in col], axis=1, inplace=True)
-        self.ad_map.uns.update(scrattch_map_results.uns)
-        self.save_mapping(save_path=self.run_directory, replace=True)
-        # delete saved out anndata file
-        print('deleting scrattch-mapping temp file...')
-        os.remove(os.path.join(self.run_directory, 'scrattch_map_temp.h5ad'))
+        results_file = os.path.join(self.run_directory, 'scrattch_map_temp.h5ad')
+        if os.path.exists(results_file) is False:
+            print('No scrattch_map_temp.h5ad file found in run directory, checking for previously saved results...')
+            try:
+                mapping = ScrattchMapping.load_from_timestamp(os.path.dirname(self.run_directory), timestamp=os.path.basename(self.run_directory))
+                self = mapping
+            except:
+                pass
+        else:
+            scrattch_map_results = ad.read_h5ad(results_file)
+            if 'mapping_results' not in scrattch_map_results.obsm.keys():
+                print('No mapping_results found check hpc logs for errors')
+                return
+            self.ad_map.obs = self.ad_map.obs.merge(scrattch_map_results.obsm['mapping_results'], left_index=True, right_index=True, suffixes=('_drop', ''))
+            self.ad_map.obs.drop([col for col in self.ad_map.obs.columns if 'drop' in col], axis=1, inplace=True)
+            self.ad_map.uns.update(scrattch_map_results.uns)
+            self.save_mapping(save_path=self.run_directory, replace=True)
+            # delete saved out anndata file
+            print('deleting scrattch-mapping temp file...')
+            os.remove(os.path.join(self.run_directory, 'scrattch_map_temp.h5ad'))
     
     def load_taxonomy_anndata(self):
-        # the taxonomy anndatas are pretty big, only load if necessary. 
+        # the taxonomy anndatas are pretty big, only load if necessary and backed so no changes inadvertantly get made. 
         taxonomy_files = [os.path.join(dirpath,filename) for dirpath, _, filenames in os.walk(self.taxonomy_path) for filename in filenames if filename.endswith('taxonomy.h5ad')]
         if len(taxonomy_files) == 1:
-            self.ad_sc = ad.read_h5ad(taxonomy_files[0])
+            self.ad_sc = ad.read_h5ad(taxonomy_files[0], backed='r')
         elif len(taxonomy_files)==0:
             print(f'No taxonomy.h5ad file found that ends in path: {self.taxonomy_path}')
         else:
             print(f'Multiple taxonomy.h5ad files found:')
             _ = [print(f'{file}') for file in taxonomy_files]
 
-    def plot_best_mapping_corr(self, level: str, groups: dict|None=None, args: dict={}):
+    def plot_best_mapping_corr(self, level: str, groups: dict|None=None, args: dict={}, qc_pass=True):
 
         violin = {'cut': 0}
         violin.update(args)
 
-        data = self.ad_map.obs
+        if qc_pass is True and 'mapping_qc' in self.ad_map.obs.columns:
+            data = self.ad_map.obs[self.ad_map.obs['mapping_qc']=='pass']
+        else:
+            data = self.ad_map.obs
 
         if groups is not None:
             fig, ax = plt.subplots(len(groups), 1, figsize=(15, len(groups)*4))
             for i, (group_name, group) in enumerate(groups.items()):
                 subdata = data[data[level].isin(group)]
 
-                sns.violinplot(data=subdata, x=level, y='score.Corr', ax=ax[i], order=group, **violin)
+                sns.violinplot(data=subdata, x=level, y='score.Corr', ax=ax[i], hue=level, order=group, **violin)
                 ax[i].set_ylabel('Avg Correlation')
                 ax[i].set_xticklabels(ax[i].get_xticklabels(), rotation = 45, ha='right')
                 ax[i].set_title(group_name)
+                ax[i].set_aspect('equal', adjustable='box', anchor='C')
 
             fig.set_tight_layout(True)
 
         else:
             fig, ax = plt.subplots(figsize=(15, 3))
-            sns.violinplot(data=data, x=level, y= 'score.Corr', ax=ax, sort=True, **violin)
+            sns.violinplot(data=data, x=level, y= 'score.Corr', ax=ax, **violin)
             ax.set_ylabel('Avg Correlation')
             ax.set_xticklabels(ax.get_xticklabels(), rotation = 45, ha='right')
 
         return fig
 
-    def plot_best_mapping(self, level: str, groups: dict|None=None, args: dict={}):
+    def plot_best_mapping(self, level: str, groups: dict|None=None, args: dict={}, qc_pass=True):
             """Plot the best mapping at particular heirarchy level. Optionally provide a dictionary with keys specifying group
             names and keys a list of labels to plot separately for easier visualization.  
             """
             scatter = {'s': 10, 'alpha': 0.7, 'linewidth': 0}
             scatter.update(args)
 
-            data = self.ad_map.obs
+            if qc_pass is True and 'mapping_qc' in self.ad_map.obs.columns:
+                data = self.ad_map.obs[self.ad_map.obs['mapping_qc']=='pass']
+            else:
+                data = self.ad_map.obs
 
             if groups is not None:
                 fig, ax = plt.subplots(len(groups), 1, figsize=(8, len(groups)*6))
                 for i, (group_name, group) in enumerate(groups.items()):
-                    sns.scatterplot(data=data, x='x', y='y', ax=ax[i], color='grey', s=3, alpha=0.1, lw=0)
+                    sns.scatterplot(data=data, x='center_x', y='center_y', ax=ax[i], color='grey', s=3, alpha=0.1, lw=0)
                     subdata = data[data[level].isin(group)]
-                    sns.scatterplot(data=subdata, x='x', y='y', hue=level, ax=ax[i], hue_order=group, **scatter)
+                    sns.scatterplot(data=subdata, x='center_x', y='center_y', hue=level, ax=ax[i], hue_order=group, **scatter)
                     ax[i].set_title(group_name)
                     ax[i].legend(bbox_to_anchor=(1,1))
                 
@@ -699,11 +750,48 @@ class ScrattchMapping(CellTypeMapping):
             
             else:
                 fig, ax = plt.subplots(figsize=(8, 8))
-                sns.scatterplot(data=data, x='x', y='y', hue=level,ax=ax, **scatter)
+                sns.scatterplot(data=data, x='center_x', y='center_y', hue=level,ax=ax, **scatter)
                 ax.legend(bbox_to_anchor=(1,1))
             
             return fig
-    
+
+    def plot_class_proportions(self, level, groups=None, args={}, qc_pass=True):
+
+        if qc_pass is True and 'mapping_qc' in self.ad_map.obs.columns:
+            data = self.ad_map.obs[self.ad_map.obs['mapping_qc']=='pass']
+        else:
+            data = self.ad_map.obs
+        
+        if groups is not None:
+            cls_prop = None
+            for group_name, group in groups.items():
+                subdata = data[data[level].isin(group)]
+                total_count = len(subdata)
+                level_counts = subdata.groupby(level).count()
+                level_counts['Prop of Class'] = level_counts.apply(lambda x: x['score.Corr'] / total_count, axis=1)
+                level_counts['Class'] = group_name
+
+                if cls_prop is None:
+                    cls_prop = level_counts[['Prop of Class', 'Class']]
+                else:
+                    cls_prop = cls_prop.append(level_counts[['Prop of Class', 'Class']])
+            pivot = cls_prop.pivot_table(index=cls_prop.index, columns='Class', values='Prop of Class')
+            pivot = pivot.loc[cls_prop.index]
+            fig, ax = plt.subplots(figsize=(5,5))
+            _ = pivot.T.plot.bar(stacked=True, ax=ax, **args)
+            ax.set_ylabel('Proportion of Class')
+            ax.legend(loc='upper left', bbox_to_anchor=(1, 1))
+        else:
+            total_count = len(data)
+            level_counts = data.groupby(level).count()
+            level_counts['Prop of Cells'] = level_counts.apply(lambda x: x['score.Corr'] / total_count, axis=1)
+            fig, ax = plt.subplots(figsize=(5,5))
+            _ = level_counts['Prop of Cells'].T.plot.bar(ax=ax, **args)
+            ax.set_ylabel('Proportion of Cells')
+            ax.legend(loc='upper left', bbox_to_anchor=(1, 1))
+        
+        return fig
+        
     def get_confusion_matrix(self, pivot_cols, norm=True):
         from sawg.expression_dataset import norm_confusion_matrix
         if type(pivot_cols)==dict:
@@ -728,93 +816,3 @@ class ScrattchMapping(CellTypeMapping):
             return conf_matrix
     
 
-def convert_to_anndata(sc_data: ExpressionDataset|None=None, sp_data: SpotTable|None=None, binsize:int|None=None, 
-                       annotation_levels:dict={'cluster': 'cluster_label', 'subclass': 'subclass_label', 'class':'class_label'}):
-    """Convert RNAseq and/or spatial data to AnnData format. 
-    Parameters:
-    -----------
-    sc_data: ExpressionDataset|None
-        ExpressionDataset containing RNAseq data formatted with cells as rows and genes as columns
-    sp_data: SpotTable|None
-        SpotTable describing spatial transcriptomics data with x, y position
-    binsize: int|None
-        bin size to use for creating "cell" by gene table of spatial data
-    annotation_levels: dict
-        annotations to collect from rnaSeq data. Keys are label you want for the new AnnData structure, values are labels from
-        ExpressionDataset.annotation_data columns
-    """
-    import anndata as ad
-    
-    ad_sc = None
-    ad_sp = None
-    
-    if sc_data is not None:
-        exp_matrix = sc_data.expression_data.to_numpy(dtype='float64')
-        ad_sc = ad.AnnData(exp_matrix)
-        cells = sc_data.expression_data.index.to_numpy(dtype='object')
-        genes = sc_data.expression_data.columns.to_numpy(dtype='object')
-        
-        ad_sc.obs_names = cells
-        ad_sc.var_names = genes
-        
-        for label1, label2 in annotation_levels.items():
-            ad_sc.obs[label1] = sc_data.annotation_data[label2]
-        
-    if sp_data is not None and binsize is not None:
-        bin_by_gene, xys = bin_gene_table(sp_data, binsize=binsize)
-        
-        ad_sp = ad.AnnData(bin_by_gene, dtype=float)
-        bin_names = [f'bin:{int(x)}_{int(y)}' for x, y in xys]
-        genes = sp_data.gene_id_to_name
-        
-        ad_sp.obs_names = bin_names
-        ad_sp.var_names = genes
-        ad_sp.obs['x'] = xys[:, 0]
-        ad_sp.obs['y'] = xys[:, 1]
-        ad_sp.obs['n_transcripts'] = ad_sp.X.sum(axis=1)
-        ad_sp.obs['n_genes'] = np.count_nonzero(ad_sp.X, axis=1)
-
-        ad_sp.uns = {'binsize':binsize}
-        
-    return ad_sc, ad_sp
-
-def bin_gene_table(table, binsize:int =100):
-    from tqdm.notebook import tqdm
-    """Construct bin by gene table from SpotTable at binsize resolution
-    """
-
-    x = table.x
-    y = table.y
-    gene = table.gene_ids
-
-    xrange = x.min(), x.max()
-    yrange = y.min(), y.max()
-    gene_inds = len(table.gene_id_to_name)
-
-    x_bins = int(np.ceil((xrange[1] - xrange[0]) / binsize))
-    y_bins = int(np.ceil((yrange[1] - yrange[0]) / binsize))
-    n_cells = (x_bins*y_bins)
-
-    bin_by_gene = np.zeros((n_cells, gene_inds), dtype='uint32')
-    bins = np.empty((n_cells, 2))
-    row = 0
-    print(f'Binning SpotTable at bin size {binsize}..')
-    for i in tqdm(range(x_bins)):
-        xbin = (xrange[0] + i * binsize), (xrange[0] + (i+1) * binsize)
-        xmask = (x > xbin[0]) & (x < xbin[1])
-        y2 = y[xmask]
-        g2 = gene[xmask]
-        for j in range(y_bins):
-            ybin = (yrange[0] + j * binsize), (yrange[0] + (j+1) * binsize)
-            ymask = (y2 > ybin[0]) & (y2 < ybin[1])
-            g3 = g2[ymask]
-            bins[row] = [xbin[0], ybin[0]]
-            for g, c in zip(*np.unique(g3, return_counts=True)):
-                bin_by_gene[row][g] = c
-            row += 1    
-
-    mask = np.where(bin_by_gene.any(axis=1))[0]
-    bin_gene = bin_by_gene[mask]
-    bins2 = bins[mask]
-
-    return bin_gene, bins2

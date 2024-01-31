@@ -632,8 +632,8 @@ class SpotTable:
         adata.var_names = gene_names
         if use_both_ids:
             adata.obs['cell_id'] = [self.convert_cell_id(id) for id in cell_ids]
-        adata.obs['x'] = centroids[:, 0]
-        adata.obs['y'] = centroids[:, 1]
+        adata.obs['center_x'] = centroids[:, 0]
+        adata.obs['center_y'] = centroids[:, 1]
         return adata
 
     def cell_bounds(self, cell_id: int | str):
@@ -1402,7 +1402,7 @@ class SpotTable:
 
         return bec, (xbins, ybins, gbins), (reduced,)
 
-    def show_image(self, ax, image_size=300, log=True):
+    def show_binned_heatmap(self, ax, image_size=300, log=True):
         """Show an image of binned spot positions.
         """
         xbins = np.linspace(self.x.min(), self.x.max(), image_size)

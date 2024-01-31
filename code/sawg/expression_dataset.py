@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ast import Expr
 from calendar import c
 from operator import ne
@@ -55,7 +56,7 @@ class ExpressionDataset:
         self.run_directory = None
 
         if target_cells is not None and target_label is not None:
-            self.expression_data = self.subsamble_by_type(target_cells, target_label) 
+            self.expression_data = self.subsample_by_type(target_cells, target_label) 
 
         if save_path is not None:
             #initiate save directory and dump ExpressionDataset
@@ -167,7 +168,7 @@ class ExpressionDataset:
         exp_data.run_directory = self.run_directory
         return exp_data
 
-    def subsamble_by_type(self, target_cells, label):
+    def subsample_by_type(self, target_cells, label):
         import scanpy as sc
         exp_data = self.copy(expression_data=self.expression_data)
         adatas = [exp_data.expression_data[exp_data.expression_data.obs[label]==clust] for clust in exp_data.expression_data.obs[label].unique()]
