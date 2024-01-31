@@ -370,13 +370,13 @@ class MERSCOPESection(SpatialDataset):
         for output in merscope_expt.outputs: 
             try:
                 dats_collection = dats.get_collection_by_id(account_id = macaque_dats_account.id, collection_id = output.external_id)
-                if dats_collection.description == 'Isilon Backfill' and dats_collection.type == 'File Bundle':
+                if dats_collection.description == 'merfish_output' and dats_collection.type == 'File Bundle':
                     spec_data_collection = dats_collection
                     break
             except:
                 pass
         
-        assert spec_data_collection is not None, f'No Isilon Backfill collection found for {self.barcode}. Data paths cannot be determined'
+        assert spec_data_collection is not None, f'No merfish_output collection found for {self.barcode} with Isilon instances. Data paths cannot be determined'
         for asset in spec_data_collection.digital_assets:
             if asset.type == 'CSV' and 'detected_transcripts' in asset.name:
                 self.detected_transcripts_file = self._filter_dats_instances(asset.instances)
