@@ -13,7 +13,7 @@ version = 2
 from sawg.celltype_mapping import ScrattchMapping, CellTypeMapping
 from sawg.hpc import run_slurm_func
 from sawg.qc import run_doublet_detection, calc_n_transcripts, calc_n_genes, calc_n_blanks
-from sawg.segmentation import get_segmentation_region, get_tiles, create_seg_run_spec, merge_segmentation_results, MerscopeSegmentationRun
+from sawg.segmentation import MerscopeSegmentationRun
 from sawg.spot_table import SpotTable
 from sawg.util import load_config
 import anndata as ad
@@ -104,6 +104,59 @@ class SpatialDataset:
             assert isinstance(path, str)
             setattr(self, attr, Path(path))
  
+    def get_analysis_status(self):
+        # check for segmentation and mapping files
+        if hasattr(self, 'corr_to_bulk'):
+            print(f'Correlation to bulk already calculated: {self.corr_to_bulk:.2f}')
+        else:
+            print('Correlation to bulk not calculated')
+
+        seg_status = self.check_segmentation_status()
+        if seg_status is None:
+            print(f'No segmentations available in {self.segmentation_path}')
+        else:
+            print('Segmentation timestamps: \t Segmentation info')
+            for ts, info in seg_status.items():
+                print(f'{ts}: \t {info}')
+
+        mappings = self.get_mappings(print_output=False)
+        if len(mappings) == 0:
+            print('No mappings found')
+        else:
+            print('Mapping timestamps: \t Mapping info')
+            for ts, info in mappings.items():
+                print(f'{ts}: \t {info}')
+
+    def check_segmentation_status(self):
+        # Get all subdirectories in segmentation directory
+        # Each should correspond to a segmentation run... unless there are
+        # weird random folders that shouldn't be there...
+        segmentation_path = self.segmentation_path
+        seg_runs = [f.name for f in os.scandir(segmentation_path) if f.is_dir()]
+        if len(seg_runs) == 0:
+            status = None
+
+        elif len(seg_runs) > 0:
+            status = {}
+            for run_name in seg_runs:
+                run_path = os.path.join(segmentation_path, run_name)
+                final_output = os.path.join(run_path, 'cell_by_gene.h5ad')
+                seg_info = {'finished': os.path.exists(final_output)}
+                
+                try:
+                    seg_config_file = os.path.join(run_path, 'seg_meta.json')
+                    with open(seg_config_file, 'r') as f:
+                        seg_config = json.load(f)
+
+                    seg_info.update({k: seg_config[k] for k in ['subrgn', 'seg_method', 'seg_opts']})
+
+                except FileNotFoundError:
+                    pass
+
+                status[run_name] = seg_info
+
+        return status
+
     def get_mappings(self, print_output=True):
         mappings = {}
         mapping_dir = hasattr(self, 'mapping_path')
@@ -334,29 +387,6 @@ class MERSCOPESection(SpatialDataset):
                 if platform.startswith('win'):
                     self.images_path = '/' + self.images_path
                 
-    def get_analysis_status(self):
-        # check for segmentation and mapping files
-        if hasattr(self, 'corr_to_bulk'):
-            print(f'Correlation to bulk already calculated: {self.corr_to_bulk:.2f}')
-        else:
-            print('Correlation to bulk not calculated')
-
-        seg_status = self.check_segmentation_status()
-        if seg_status is None:
-            print(f'No segmentations available in {self.segmentation_path}')
-        else:
-            print('Segmentation timestamps: \t Segmentation info')
-            for ts, info in seg_status.items():
-                print(f'{ts}: \t {info}')
-
-        mappings = self.get_mappings(print_output=False)
-        if len(mappings) == 0:
-            print('No mappings found')
-        else:
-            print('Mapping timestamps: \t Mapping info')
-            for ts, info in mappings.items():
-                print(f'{ts}: \t {info}')
-
     def load_spottable(self):
         if hasattr(self, 'detected_transcripts_cache') is False:
             self.detected_transcripts_cache = self.save_path.joinpath('detected_transcripts.npz')
@@ -369,36 +399,6 @@ class MERSCOPESection(SpatialDataset):
 
         return spot_table
 
-    def check_segmentation_status(self):
-        # Get all subdirectories in segmentation directory
-        # Each should correspond to a segmentation run... unless there are
-        # weird random folders that shouldn't be there...
-        segmentation_path = self.segmentation_path
-        seg_runs = [f.name for f in os.scandir(segmentation_path) if f.is_dir()]
-        if len(seg_runs) == 0:
-            status = None
-
-        elif len(seg_runs) > 0:
-            status = {}
-            for run_name in seg_runs:
-                run_path = os.path.join(segmentation_path, run_name)
-                final_output = os.path.join(run_path, 'cell_by_gene.h5ad')
-                seg_info = {'finished': os.path.exists(final_output)}
-                
-                try:
-                    seg_config_file = os.path.join(run_path, 'seg_meta.json')
-                    with open(seg_config_file, 'r') as f:
-                        seg_config = json.load(f)
-
-                    seg_info.update({k: seg_config[k] for k in ['subrgn', 'seg_method', 'seg_opts']})
-
-                except FileNotFoundError:
-                    pass
-
-                status[run_name] = seg_info
-
-        return status
-
     def run_segmentation_on_section(self, subrgn, seg_method, seg_opts, hpc_opts):
         # generate a new timestamp for segmentation
         timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -406,14 +406,12 @@ class MERSCOPESection(SpatialDataset):
         individual_seg_dir = segmentation_path.joinpath(str(timestamp))
         assert not os.path.exists(individual_seg_dir)
         seg_run = MerscopeSegmentationRun.from_spatial_dataset(self, individual_seg_dir, subrgn, seg_method, seg_opts, hpc_opts)
-        spot_table, cell_by_gene = seg_run.run()
+        spot_table, cell_by_gene = seg_run.run(use_prod_cids=False)
 
-        cell_by_gene.uns.update(
-        {
-        'seg_timestamp': timestamp,
-        'seg_params': self.check_segmentation_status()[timestamp],
-        }
-        )
+        cell_by_gene.uns.update({
+                    'seg_timestamp': timestamp,
+                    'seg_params': self.check_segmentation_status()[timestamp],
+                    })
 
         return timestamp, spot_table, cell_by_gene
 

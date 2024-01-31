@@ -3,6 +3,7 @@ import numpy as np
 import anndata as ad
 import pandas as pd
 import pathlib
+from pathlib import Path
 from scipy.io import mmwrite,mmread
 import gzip
 import shutil
@@ -13,7 +14,6 @@ from shapely import coverage_union_all
 import shapely
 from matplotlib import pyplot as plt
 import seaborn as sns
-
 
 
 def reduce_expression(data, umap_args):
@@ -112,7 +112,7 @@ def poly_to_geojson(polygon):
     return geojson.Polygon([[(poly_array[i,0], poly_array[i,1]) for i in range(poly_array.shape[0])]])
 
 
-def load_config(configfile=None):
+def load_config(configfile: str|Path|None=None):
     """
     loads configuration yaml file for spatial analysis. If no file is found, returns empty dict
 
@@ -123,8 +123,12 @@ def load_config(configfile=None):
     """
     import yaml
 
-    if configfile is None:
-        configfile = pathlib.Path.absolute(pathlib.Path.joinpath(pathlib.Path(__file__).parent, '..', 'spatial_config.yml'))
+    if isinstance(configfile, str):
+        configfile = Path(configfile)
+
+    elif configfile is None:
+        configfile = Path(__file__).parents[1].joinpath('spatial_config.yml').resolve()
+        print(configfile)
         
     if configfile.is_file():
         if hasattr(yaml, 'FullLoader'):
@@ -137,6 +141,7 @@ def load_config(configfile=None):
     else:
         config = {}
     return config
+
 
 def package_for_10x(anndata_object,
                     output_directory,
@@ -218,7 +223,6 @@ def package_for_10x(anndata_object,
         
     else:
         return features_tsv
-
 
 def plot_genes(spottable,  gene_list, 
                min_counts,highlight_list = [], 
