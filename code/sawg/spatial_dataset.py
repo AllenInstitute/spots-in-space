@@ -358,7 +358,7 @@ class MERSCOPESection(SpatialDataset):
         else:
             return instances[0].download_url
 
-    def get_section_data_paths(self):
+    def get_section_data_paths(self):      
         platform = sys.platform # don't like this but need to edit the file names to be read by Windows
         #dats
         dats = DatsClient()
@@ -370,13 +370,13 @@ class MERSCOPESection(SpatialDataset):
         for output in merscope_expt.outputs: 
             try:
                 dats_collection = dats.get_collection_by_id(account_id = macaque_dats_account.id, collection_id = output.external_id)
-                if dats_collection.description == 'Isilon Backfill' and dats_collection.type == 'File Bundle':
+                if dats_collection.description == 'merfish_output' and dats_collection.type == 'File Bundle':
                     spec_data_collection = dats_collection
                     break
             except:
                 pass
         
-        assert spec_data_collection is not None, f'No Isilon Backfill collection found for {self.barcode}. Data paths cannot be determined'
+        assert spec_data_collection is not None, f'No merfish_output collection found for {self.barcode} with Isilon instances. Data paths cannot be determined'
         for asset in spec_data_collection.digital_assets:
             if asset.type == 'CSV' and 'detected_transcripts' in asset.name:
                 self.detected_transcripts_file = self._filter_dats_instances(asset.instances)
@@ -386,6 +386,8 @@ class MERSCOPESection(SpatialDataset):
                 self.images_path = self._filter_dats_instances(asset.instances)
                 if platform.startswith('win'):
                     self.images_path = '/' + self.images_path
+
+        assert hasattr(self, 'detected_transcripts_file') and hasattr(self, 'images_path'), f'No detected_transcripts or images found for {self.barcode}, check Allen Services query'
                 
     def load_spottable(self):
         if hasattr(self, 'detected_transcripts_cache') is False:
@@ -692,11 +694,13 @@ class StereoSeqSection(SpatialDataset):
         
         self.detected_transcripts_file  = self.save_path.joinpath('gem_files', (self.barcode + '.tissue.gem'))
         self.bin_file =  self.save_path.joinpath('gem_files', (self.barcode + '.tissue.gef'))
-        self.cellbin_file =  self.save_path.joinpath('gem_files', (self.barcode + '.cellbin.gef'))
+        cellbin_file =  self.save_path.joinpath('gem_files', (self.barcode + '.cellbin.gef'))
         image_file = self.save_path.joinpath(f'ssDNA_{self.barcode}_regist.tif')
-        # we might not always download the image file:
-        if Path.is_file(image_file):
+        # we might not always download the image file or the cellbin file:
+        if image_file.is_file():
             self.image_file = image_file
+        if cellbin_file.is_file():
+            self.cellbin_file = cellbin_file
     
     def get_section_metadata(self):
         # hopefully this will get integrated into Allen Services but for now, hardcode 
