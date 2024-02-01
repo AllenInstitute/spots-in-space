@@ -697,9 +697,9 @@ class StereoSeqSection(SpatialDataset):
         cellbin_file =  self.save_path.joinpath('gem_files', (self.barcode + '.cellbin.gef'))
         image_file = self.save_path.joinpath(f'ssDNA_{self.barcode}_regist.tif')
         # we might not always download the image file or the cellbin file:
-        if Path.is_file(image_file):
+        if image_file.is_file():
             self.image_file = image_file
-        if Path.is_file(cellbin_file):
+        if cellbin_file.is_file():
             self.cellbin_file = cellbin_file
     
     def get_section_metadata(self):
