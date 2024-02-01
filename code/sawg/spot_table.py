@@ -557,7 +557,11 @@ class SpotTable:
             mask &= m
 
         cells = cells[mask]
-        return self[np.isin(self.cell_ids, cells)]
+        filtered_table = self[np.isin(self.cell_ids, cells)]
+        # We can copy the cell polygons over because individual cells do not change
+        # We are only adding or removing cells
+        filtered_table.cell_polygons = {cid: self.cell_polygons[cid] for cid in cells}
+        return filtered_table
 
     def cell_by_gene_dataframe(self, use_production_ids: bool=False, use_both_ids: bool=False):
         """Return a pandas dataframe containing a cell-by-gene table derived from this spot table.
