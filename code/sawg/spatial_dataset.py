@@ -358,7 +358,7 @@ class MERSCOPESection(SpatialDataset):
         else:
             return instances[0].download_url
 
-    def get_section_data_paths(self):
+    def get_section_data_paths(self):      
         platform = sys.platform # don't like this but need to edit the file names to be read by Windows
         #dats
         dats = DatsClient()
@@ -386,6 +386,8 @@ class MERSCOPESection(SpatialDataset):
                 self.images_path = self._filter_dats_instances(asset.instances)
                 if platform.startswith('win'):
                     self.images_path = '/' + self.images_path
+
+        assert hasattr(self, 'detected_transcripts_file') and hasattr(self, 'images_path'), f'No detected_transcripts or images found for {self.barcode}, check Allen Services query'
                 
     def load_spottable(self):
         if hasattr(self, 'detected_transcripts_cache') is False:
