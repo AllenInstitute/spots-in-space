@@ -826,7 +826,7 @@ class SegmentationRun:
 
         return subtable
 
-    def run(self, use_prod_cids: bool=True, prefix: str='', suffix: str='', overwrite: bool=False):
+    def run(self, use_prod_cids: bool=True, prefix: str='', suffix: str='', overwrite: bool=False, clean_up=True):
         """Run all steps to perform tiled segmentation.
 
         Parameters
@@ -862,13 +862,16 @@ class SegmentationRun:
 
         # run all steps in sequence
         tiles, regions = self.tile_seg_region(overwrite)
-        seg_run_spec = self.get_seg_run_spec(regions, overwrite)
+        seg_run_spec = self.get_seg_run_spec(regions=regions, overwrite=overwrite, result_files=False if clean_up else True)
         jobs = self.submit_jobs('segmentation', seg_run_spec, overwrite)
         cell_ids, merge_results, seg_skipped = self.merge_segmented_tiles(run_spec=seg_run_spec, overwrite=overwrite)
         polygon_run_spec = self.get_polygon_run_spec(overwrite)
         jobs = self.submit_jobs('cell_polygons', polygon_run_spec, overwrite)
         cell_polygons, cell_polygons_skipped = self.merge_cell_polygons(run_spec=polygon_run_spec, overwrite=overwrite)
         cell_by_gene = self.create_cell_by_gene(use_prod_cids=use_prod_cids, prefix=prefix, suffix=suffix, overwrite=overwrite)
+
+        if clean_up:
+            self.clean_up()
 
         return self.spot_table, cell_by_gene
 
@@ -881,21 +884,17 @@ class SegmentationRun:
         cell_by_gene = self.load_cbg()
         return self.spot_table, cell_by_gene
 
-    def track_job_progress(self, jobs, run_spec, check_file):
-        """Track progress of hpc jobs. Will not complete until all check_files (files in runspec which indicate the job finished) have been saved.
+    def track_job_progress(self, jobs):
+        """Track progress of hpc jobs. until all jobs have ended
         """
         print(f'Job IDs: {jobs[0].job_id}-{jobs[-1].job_id.split("_")[-1]}')
-        saved_check_files = [os.path.exists(v[2][check_file]) for v in run_spec.values()]
-        timeout = time.time() + 60*30  # 30 min, the standard time for one job
         with tqdm(total=len(jobs)) as pbar:
-            while not all(saved_check_files):
-                saved_check_files = [os.path.exists(v[2][check_file]) for v in run_spec.values()]
-                n_saved = saved_check_files.count(True)
-                pbar.update(n_saved - pbar.n)
-                if not any(saved_check_files) and time.time() > timeout:
-                    jobs.cancel()
-                    raise RuntimeError('No cell id files found within the timeout period. Jobs canceled. Check error logs.')
+            while not jobs.is_done():
                 time.sleep(60)
+                n_done = int(np.sum([1 for job in jobs.jobs if job.is_done()]))
+                pbar.update(n_done - pbar.n)
+        if not np.any([job.state().state == "COMPLETED" for job in jobs.jobs]):
+            raise RuntimeError(f'All jobs failed. Please check error logs in {self.output_dir.joinpath("hpc-jobs")}')
 
     def tile_seg_region(self, overwrite=False, max_tile_size: int=200, overlap: int=30):
         print('Tiling segmentation region...')
@@ -909,7 +908,7 @@ class SegmentationRun:
 
         return tiles, regions
 
-    def get_seg_run_spec(self, regions=None, overwrite=False):
+    def get_seg_run_spec(self, regions=None, overwrite=False, result_files=True):
         if regions is None:
             regions = self.load_regions()
         self.tile_save_path.mkdir(exist_ok=True)
@@ -926,7 +925,7 @@ class SegmentationRun:
                     subregion=region,
                     method_class=self.seg_method,
                     method_args=self.seg_opts,
-                    result_file=os.path.join(f'{self.tile_save_path.as_posix()}/', f'segmentation_result_{i}.pkl'),
+                    result_file=os.path.join(f'{self.tile_save_path.as_posix()}/', f'segmentation_result_{i}.pkl') if result_files else None,
                     cell_id_file=os.path.join(f'{self.tile_save_path.as_posix()}/', f'segmentation_result_{i}.npy'),
                 )
             )
@@ -994,7 +993,7 @@ class SegmentationRun:
         hpc_config.update(**hpc_opts)
         jobs = run_slurm_func(**hpc_config)
         print(status_str)
-        self.track_job_progress(jobs, run_spec, check_file)
+        self.track_job_progress(jobs)
 
         return jobs
 
@@ -1016,29 +1015,6 @@ class SegmentationRun:
         self.save_cell_ids(cell_ids, overwrite)
 
         return cell_ids, merge_results, skipped
-
-    def create_cell_by_gene(self, remove_bg=True, use_prod_cids=True, prefix='', suffix='', overwrite=False):
-        """Create and save a cell by gene file in Anndata format using 
-        the attached spot table.
-        """
-        if not use_prod_cids and (prefix != '' or suffix != ''):
-            print('Warning: Prefix and/or suffix have been set, but production cell ids are not being used.')
-
-        if use_prod_cids:
-            self.spot_table.generate_production_cell_ids(prefix=prefix, suffix=suffix)
-
-        subtable = self.spot_table.filter_cells(real_cells=remove_bg)
-
-        cell_by_gene = subtable.cell_by_gene_anndata(use_both_ids=use_prod_cids)
-        
-        # Calculate cell volumes to add to cell by gene
-        cell_feature_df = subtable.get_cell_features().sort_values(by='cell_id')
-        cell_by_gene.obs['volume'] = cell_feature_df['volume']
-        
-        self.save_cbg(cell_by_gene, overwrite)
-
-        return cell_by_gene
-
 
     def get_polygon_run_spec(self, overwrite=False):
         """ Generates a cell polygon run spec for running cell polygon jobs on the hpc """
@@ -1116,7 +1092,46 @@ class SegmentationRun:
         self.spot_table.save_cell_polygons(self.output_dir / f'cell_polygons.{save_file_extension}')
         
         return self.spot_table.cell_polygons, skipped
+    
+    
+    def create_cell_by_gene(self, remove_bg=True, use_prod_cids=True, prefix='', suffix='', overwrite=False):
+        """Create and save a cell by gene file in Anndata format using 
+        the attached spot table.
+        """
+        if not use_prod_cids and (prefix != '' or suffix != ''):
+            print('Warning: Prefix and/or suffix have been set, but production cell ids are not being used.')
+
+        if use_prod_cids:
+            self.spot_table.generate_production_cell_ids(prefix=prefix, suffix=suffix)
+
+        subtable = self.spot_table.filter_cells(real_cells=remove_bg)
+
+        cell_by_gene = subtable.cell_by_gene_anndata(use_both_ids=use_prod_cids)
         
+        # Calculate cell volumes to add to cell by gene
+        print('Calculating cell volumes...')
+        cell_feature_df = subtable.get_cell_features().sort_values(by='cell_id')
+        cell_by_gene.obs['volume'] = cell_feature_df['volume']
+        
+        self.save_cbg(cell_by_gene, overwrite)
+
+        return cell_by_gene
+        
+    def clean_up(self, segmentation=True, polygons=True):
+        """ Clean up intermediate files after segmentation and polygon generation is complete
+
+        Args:
+            polygons (bool, optional): Clean up intermediate polygon files. Defaults to True.
+            segmentation (bool, optional): Clean up intermediate segmentation files. Defaults to True.
+        """
+        if segmentation:
+            for file_path in self.tile_save_path.glob('*'):
+                file_path.unlink()
+            self.tile_save_path.rmdir()
+        if polygons:
+            for file_path in self.polygon_save_path.glob('*'):
+                file_path.unlink()
+            self.polygon_save_path.rmdir()
 
     @classmethod
     def from_spatial_dataset(cls, sp_dataset, output_dir, subrgn, seg_method, seg_opts, hpc_opts):
