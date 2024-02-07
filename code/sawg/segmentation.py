@@ -654,8 +654,19 @@ class SegmentationRun:
     seg_opts: dict
         Options to pass to seg_method.
 
-    hpc_opts: dict
-        Options to use for segmenting tiles on the hpc.
+    polygon_opts: dict, optional
+        Options to pass to for cell polygon generation. Currently supports save_file_extension and alpha_inv_coeff.
+        Default is {}, which sets save_file_extension to 'geojson' and alpha_inv_coeff to 4/3.
+        
+    seg_hpc_opts: dict, None, optional
+        Options to use for segmenting tiles on the hpc. Default is None
+        
+    polygon_hpc_opts: dict, None, optional
+        Options to use for calculating cell polygons on the hpc. Default is None
+
+    hpc_opts: dict, None, optional
+        Options to use for both segmenting tiles and calculating cell polygons on the hpc (can be used in place of submitting both seg_hpc_opts and polygon_hpc_opts).
+        Default is None
     """
     def __init__(
             self, 
@@ -666,7 +677,7 @@ class SegmentationRun:
             subrgn: str|tuple,
             seg_method: SegmentationMethod,
             seg_opts: dict,
-            polygon_opts: dict,
+            polygon_opts: dict={},
             seg_hpc_opts: dict|None=None,
             polygon_hpc_opts: dict|None=None,
             hpc_opts: dict|None=None
@@ -694,10 +705,13 @@ class SegmentationRun:
         self.subrgn = subrgn
         self.seg_method = seg_method
         self.seg_opts = seg_opts
+        self.seg_opts['options'].setdefault('cellpose_options', {}).setdefault('min_size', 5000) # Set min_size to 5000 if it wasn't set
         self.seg_hpc_opts = hpc_opts if seg_hpc_opts is None else seg_hpc_opts
 
         # polygon parameters
         self.polygon_opts = polygon_opts
+        self.polygon_opts.setdefault('save_file_extension', 'geojson')
+        self.polygon_opts.setdefault('alpha_inv_coeff', 4/3)
         self.polygon_hpc_opts = hpc_opts if polygon_hpc_opts is None else polygon_hpc_opts
 
         # metadata dict of initial parameters
@@ -732,6 +746,7 @@ class SegmentationRun:
                 'subrgn': self.subrgn,
                 'seg_method': self.seg_method,
                 'seg_opts': self.seg_opts,
+                'polygon_opts': self.polygon_opts,
                 'seg_hpc_opts': self.seg_hpc_opts,
                 'polygon_hpc_opts': self.polygon_hpc_opts,
             }
@@ -843,6 +858,11 @@ class SegmentationRun:
 
         overwrite: bool, optional
             Whether to allow overwriting of output files. Default False.
+            
+        clean_up: str, bool, None, optional
+            Whether or not to clean up intermediate files after segmentation
+            Accepts: 'all_ints', 'seg_ints', 'polygon_ints', 'none', True, False, None
+            Default: cleans up all intermediate files.
 
         Returns
         -------
@@ -1044,9 +1064,6 @@ class SegmentationRun:
             num_jobs = 100 # default to 100 jobs
             row_list = [(i * num_cells // num_jobs, (i + 1) * num_cells // num_jobs) for i in range(num_jobs)]
         
-        save_file_extension = self.polygon_opts['save_file_extension'] if self.polygon_opts['save_file_extension'] else 'geojson'
-        alpha_inv_coeff = self.polygon_opts['alpha_inv_coeff'] if self.polygon_opts['alpha_inv_coeff'] else 4/3
-
         print(f"Generating cell polygon spec for {len(row_list)} jobs...")
         run_spec = {}
         for i, (start_idx, end_idx) in enumerate(row_list):
@@ -1063,8 +1080,8 @@ class SegmentationRun:
                     subregion=self.subrgn,
                     cell_id_file=self.cid_path,
                     cell_subset_file=self.polygon_save_path / f'cell_id_subset_{i}.npy',
-                    result_file=self.polygon_save_path / f'cell_polygons_subset_{i}.{save_file_extension}',
-                    alpha_inv_coeff=alpha_inv_coeff,
+                    result_file=self.polygon_save_path / f'cell_polygons_subset_{i}.{self.polygon_opts["save_file_extension"]}',
+                    alpha_inv_coeff=self.polygon_opts['alpha_inv_coeff'],
                 )
             )
 
@@ -1094,10 +1111,9 @@ class SegmentationRun:
             print('Warning: Some tiles were skipped.')
 
         # save polygons
-        save_file_extension = self.polygon_opts['save_file_extension'] if self.polygon_opts['save_file_extension'] else 'geojson'
-        if not overwrite and self.output_dir / (f'cell_polygons.{save_file_extension}').exists():
+        if not overwrite and self.output_dir / (f'cell_polygons.{self.polygon_opts["save_file_extension"]}').exists():
             raise FileExistsError('cell polygons already saved and overwriting is not enabled.')
-        self.spot_table.save_cell_polygons(self.output_dir / f'cell_polygons.{save_file_extension}')
+        self.spot_table.save_cell_polygons(self.output_dir / f'cell_polygons.{self.polygon_opts["save_file_extension"]}')
         
         return self.spot_table.cell_polygons, skipped
     
@@ -1177,7 +1193,7 @@ class MerscopeSegmentationRun(SegmentationRun):
             subrgn: str|tuple,
             seg_method: SegmentationMethod,
             seg_opts: dict,
-            polygon_opts: dict,
+            polygon_opts: dict={},
             seg_hpc_opts: dict|None=None,
             polygon_hpc_opts: dict|None=None,
             hpc_opts: dict|None=None
@@ -1214,7 +1230,7 @@ class StereoSeqSegmentationRun(SegmentationRun):
             subrgn: str|tuple,
             seg_method: SegmentationMethod,
             seg_opts: dict,
-            polygon_opts: dict,
+            polygon_opts: dict={},
             seg_hpc_opts: dict|None=None,
             polygon_hpc_opts: dict|None=None,
             hpc_opts: dict|None=None
