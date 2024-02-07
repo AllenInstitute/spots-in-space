@@ -826,7 +826,7 @@ class SegmentationRun:
 
         return subtable
 
-    def run(self, use_prod_cids: bool=True, prefix: str='', suffix: str='', overwrite: bool=False, clean_up=True):
+    def run(self, use_prod_cids: bool=True, prefix: str='', suffix: str='', overwrite: bool=False, clean_up: str|bool|None='all_ints'):
         """Run all steps to perform tiled segmentation.
 
         Parameters
@@ -871,7 +871,8 @@ class SegmentationRun:
         cell_by_gene = self.create_cell_by_gene(use_prod_cids=use_prod_cids, prefix=prefix, suffix=suffix, overwrite=overwrite)
 
         if clean_up:
-            self.clean_up()
+            clean_up = 'all_ints' if clean_up == True else clean_up # If the user decides to input true we'll just set that to all ints
+            self.clean_up(clean_up)
 
         return self.spot_table, cell_by_gene
 
@@ -953,7 +954,6 @@ class SegmentationRun:
             self._check_overwrite_dir(self.tile_save_path, 'segmentation_result*', overwrite)
             default_mem = "20G"
             gpus_per_node = 1
-            check_file = 'cell_id_file'
             status_str = 'Segmenting tiles...'
         elif job_type == 'cell_polygons':
             run_spec_path = self.polygon_run_spec_path
@@ -961,7 +961,6 @@ class SegmentationRun:
             self._check_overwrite_dir(self.polygon_save_path, 'cell_polygons_subset_*', overwrite)
             default_mem = "10G"
             gpus_per_node = None
-            check_file = 'result_file'
             status_str = 'Calculating cell polygons...'
         else:
             raise ValueError('Invalid job type.') 
@@ -1034,8 +1033,16 @@ class SegmentationRun:
         num_cells = len(unique_cells)
 
         # list of tuples assigning cells to jobs
-        num_jobs = self.polygon_opts['num_jobs']
-        row_list = [(i * num_cells // num_jobs, (i + 1) * num_cells // num_jobs) for i in range(num_jobs)]
+        if 'num_jobs' in self.polygon_hpc_opts:
+            num_jobs = self.polygon_hpc_opts.pop('num_jobs')
+            row_list = [(i * num_cells // num_jobs, (i + 1) * num_cells // num_jobs) for i in range(num_jobs)]
+        elif 'num_cells_per_job' in self.polygon_hpc_opts:
+            import math
+            num_cells_per_job = self.polygon_hpc_opts.pop('num_cells_per_job')
+            row_list = [(i * num_cells_per_job, min((i + 1) * num_cells_per_job, num_cells)) for i in range(math.ceil(num_cells / num_cells_per_job))]
+        else:
+            num_jobs = 100 # default to 100 jobs
+            row_list = [(i * num_cells // num_jobs, (i + 1) * num_cells // num_jobs) for i in range(num_jobs)]
         
         save_file_extension = self.polygon_opts['save_file_extension'] if self.polygon_opts['save_file_extension'] else 'geojson'
         alpha_inv_coeff = self.polygon_opts['alpha_inv_coeff'] if self.polygon_opts['alpha_inv_coeff'] else 4/3
@@ -1053,6 +1060,7 @@ class SegmentationRun:
                 dict(
                     load_func=self.get_load_func(),
                     load_args=self.get_load_args(),
+                    subregion=self.subrgn,
                     cell_id_file=self.cid_path,
                     cell_subset_file=self.polygon_save_path / f'cell_id_subset_{i}.npy',
                     result_file=self.polygon_save_path / f'cell_polygons_subset_{i}.{save_file_extension}',
@@ -1111,24 +1119,25 @@ class SegmentationRun:
         # Calculate cell volumes to add to cell by gene
         print('Calculating cell volumes...')
         cell_feature_df = subtable.get_cell_features().sort_values(by='cell_id')
-        cell_by_gene.obs['volume'] = cell_feature_df['volume']
+        cell_by_gene.obs['volume'] = cell_feature_df['volume'].to_numpy()
         
         self.save_cbg(cell_by_gene, overwrite)
 
         return cell_by_gene
         
-    def clean_up(self, segmentation=True, polygons=True):
+    def clean_up(self, mode="all_ints"):
         """ Clean up intermediate files after segmentation and polygon generation is complete
 
         Args:
-            polygons (bool, optional): Clean up intermediate polygon files. Defaults to True.
-            segmentation (bool, optional): Clean up intermediate segmentation files. Defaults to True.
+            mode (string, optional): Can be 'all_ints', 'seg_ints', 'polygon_ints', or 'none' depending on desired clean up. Defaults to 'all_ints'.
         """
-        if segmentation:
+        if mode not in ['all_ints', 'seg_ints', 'polygon_ints', 'none']:
+            raise ValueError('Invalid clean up mode')
+        if mode == "all_ints" or mode == "seg_ints":
             for file_path in self.tile_save_path.glob('*'):
                 file_path.unlink()
             self.tile_save_path.rmdir()
-        if polygons:
+        if mode == "all_ints" or mode == "polygon_ints":
             for file_path in self.polygon_save_path.glob('*'):
                 file_path.unlink()
             self.polygon_save_path.rmdir()
