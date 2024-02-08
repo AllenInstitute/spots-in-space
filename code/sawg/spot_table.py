@@ -562,9 +562,10 @@ class SpotTable:
 
         cells = cells[mask]
         filtered_table = self[np.isin(self.cell_ids, cells)]
-        # We can copy the cell polygons over because individual cells do not change
-        # We are only adding or removing cells
-        filtered_table.cell_polygons = {cid: self.cell_polygons[cid] for cid in cells}
+        if self.cell_polygons is not None:
+            # We can copy the cell polygons over because individual cells do not change
+            # We are only adding or removing cells
+            filtered_table.cell_polygons = {cid: self.cell_polygons[cid] for cid in cells if cid in self.cell_polygons}
         return filtered_table
 
     def cell_by_gene_dataframe(self, use_production_ids: bool=False, use_both_ids: bool=False):
