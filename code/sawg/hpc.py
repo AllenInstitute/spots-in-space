@@ -177,8 +177,8 @@ class SlurmJob:
     def state(self):
         """Return the state code for this job, or a dictionary of state codes for array jobs.
         """
-        table = squeue(host=self.host, job_id=self.base_job_id)
-        return JobState(table.get(self.job_id, {'ST': 'NO'})['ST'])
+        table = sacct(host=self.host, job_id=self.base_job_id)
+        return JobState(state=table.get(self.job_id, {'State': 'NO_INFO'})['State'])
 
     def is_done(self):
         return self.state().is_done and os.path.exists(self.output_file)
@@ -295,13 +295,32 @@ class JobState:
         'TO':  ('TIMEOUT',         'Job terminated upon reaching its time limit.'),
         'NO':  ('NO_INFO',         'Squeue returned no information about the requested job ID'),
     }
-    def __init__(self, state_code):
-        self.state_code = state_code
-        self.state, self.description = JobState.state_codes[state_code]
-        self.is_done = state_code in ('BF', 'CA', 'CD', 'DL', 'F', 'NF', 'OOM', 'PR', 'TO', 'NO')
 
+    state_descriptions = {v[0]: v[1] for v in state_codes.values()}
+    state_to_code = {v[0]: k for k, v in state_codes.items()}
+    
+    def __init__(self, state_code=None, state=None):
+        # Check to make sure that state and state code don't conflict    
+        if state and state_code:
+            if state_code != JobState.state_to_code[state]:
+                raise ValueError('state_code and state contain conflicting values')
+                
+        if state:
+            self.state = state
+            self.state_code = JobState.state_to_code[state]
+            self.description = JobState.state_descriptions[state]
+            self.is_done = self.state_code in ('BF', 'CA', 'CD', 'DL', 'F', 'NF', 'OOM', 'PR', 'TO', 'NO')
+        elif state_code:
+            self.state_code = state_code
+            self.state, self.description = JobState.state_codes[state_code]
+            self.is_done = state_code in ('BF', 'CA', 'CD', 'DL', 'F', 'NF', 'OOM', 'PR', 'TO', 'NO')
+        else:
+            raise ValueError('Must input one of state_code or state')
+        
+        
     def __repr__(self):
         return f"<JobState {self.state}>"
+    
 
 _last_squeue = {}
 def squeue(host, job_id, cache_duration=10):
@@ -323,6 +342,30 @@ def squeue(host, job_id, cache_duration=10):
             fields = {cols[i]:field for i,field in enumerate(tokens)}
             table[fields.pop('JOBID')] = fields
         _last_squeue[job_id] = (now, table)
+    else:
+        table = last_state
+    return table
+
+
+_last_sacct = {}
+def sacct(host, job_id, cache_duration=10):
+    global _last_sacct
+    # 10-second cache to rate limit sacct calls
+    last_time, last_state = _last_sacct.get(job_id, (None, None))
+    now = time.time()
+    if last_time is None or now - last_time > cache_duration:
+        stat = run(host, ['sacct', f'--job={job_id}', '--format=JobID%20,State%20', '-X'])
+        lines = stat.split('\n')
+        cols = re.split(r'\s+', lines[0].strip())
+        table = {}
+        for line in lines[2:]:
+            line = line.strip()
+            if line == '':
+                continue
+            tokens = re.split(r'\s+', line)
+            fields = {cols[i]:field for i,field in enumerate(tokens)}
+            table[fields.pop('JobID')] = fields
+        _last_sacct[job_id] = (now, table)
     else:
         table = last_state
     return table

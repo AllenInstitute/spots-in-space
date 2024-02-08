@@ -16,12 +16,16 @@ from .image import ImageFile, ImageStack, ImageTransform
 from . import util
 
 
-def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file:str|None, cell_subset_file:str|None, result_file:str|None, alpha_inv_coeff: float=1):
+def run_cell_polygon_calculation(load_func, load_args:dict, subregion: str|tuple|None, cell_id_file:str|None, cell_subset_file:str|None, result_file:str|None, alpha_inv_coeff: float=1):
     """Load a spot table, calculate the cell polygons (possibly on a subset of cells), and save the result.
     """
     # Load the spottable and the ids
     print('Loading SpotTable...', end='')
     spot_table = load_func(**load_args)
+    if subregion is not None:
+        subregion = spot_table.get_image(channel=subregion).bounds() if isinstance(subregion, str) else subregion
+        spot_table = spot_table.get_subregion(*subregion)
+    print(f"subregion {subregion} {len(spot_table)}")
     if cell_id_file is not None:
         spot_table.cell_ids = np.load(cell_id_file)
     print('[DONE]')
@@ -557,7 +561,11 @@ class SpotTable:
             mask &= m
 
         cells = cells[mask]
-        return self[np.isin(self.cell_ids, cells)]
+        filtered_table = self[np.isin(self.cell_ids, cells)]
+        # We can copy the cell polygons over because individual cells do not change
+        # We are only adding or removing cells
+        filtered_table.cell_polygons = {cid: self.cell_polygons[cid] for cid in cells}
+        return filtered_table
 
     def cell_by_gene_dataframe(self, use_production_ids: bool=False, use_both_ids: bool=False):
         """Return a pandas dataframe containing a cell-by-gene table derived from this spot table.
