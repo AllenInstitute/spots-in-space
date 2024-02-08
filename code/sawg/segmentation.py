@@ -656,7 +656,7 @@ class SegmentationRun:
 
     polygon_opts: dict, optional
         Options to pass to for cell polygon generation. Currently supports save_file_extension and alpha_inv_coeff.
-        Default is {}, which sets save_file_extension to 'geojson' and alpha_inv_coeff to 4/3.
+        Default is None, which sets save_file_extension to 'geojson' and alpha_inv_coeff to 4/3.
         
     seg_hpc_opts: dict, None, optional
         Options to use for segmenting tiles on the hpc. Default is None
@@ -677,7 +677,7 @@ class SegmentationRun:
             subrgn: str|tuple,
             seg_method: SegmentationMethod,
             seg_opts: dict,
-            polygon_opts: dict={},
+            polygon_opts: dict|None=None,
             seg_hpc_opts: dict|None=None,
             polygon_hpc_opts: dict|None=None,
             hpc_opts: dict|None=None
@@ -709,7 +709,7 @@ class SegmentationRun:
         self.seg_hpc_opts = hpc_opts if seg_hpc_opts is None else seg_hpc_opts
 
         # polygon parameters
-        self.polygon_opts = polygon_opts
+        self.polygon_opts = {} if polygon_opts is None else polygon_opts
         self.polygon_opts.setdefault('save_file_extension', 'geojson')
         self.polygon_opts.setdefault('alpha_inv_coeff', 4/3)
         self.polygon_hpc_opts = hpc_opts if polygon_hpc_opts is None else polygon_hpc_opts
@@ -1193,7 +1193,7 @@ class MerscopeSegmentationRun(SegmentationRun):
             subrgn: str|tuple,
             seg_method: SegmentationMethod,
             seg_opts: dict,
-            polygon_opts: dict={},
+            polygon_opts: dict|None=None,
             seg_hpc_opts: dict|None=None,
             polygon_hpc_opts: dict|None=None,
             hpc_opts: dict|None=None
@@ -1230,7 +1230,7 @@ class StereoSeqSegmentationRun(SegmentationRun):
             subrgn: str|tuple,
             seg_method: SegmentationMethod,
             seg_opts: dict,
-            polygon_opts: dict={},
+            polygon_opts: dict|None=None,
             seg_hpc_opts: dict|None=None,
             polygon_hpc_opts: dict|None=None,
             hpc_opts: dict|None=None
