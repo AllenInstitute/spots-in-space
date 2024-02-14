@@ -544,6 +544,9 @@ class SpotTable:
         min_spot_count : int|None
             Include only spots that are segmented to cells with a minimum number of spots
         """
+        if not (real_cells or min_spot_count):
+            raise ValueError("One of real_cells or min_spot_count must be specified")
+            
         cells, counts = np.unique(self.cell_ids, return_counts=True)
 
         masks = []
@@ -802,21 +805,30 @@ class SpotTable:
             return {"area": cell_polygon.area, "centroid": np.array(cell_polygon.centroid.coords)}
         
     
-    def get_cell_features(self, z_plane_thickness=1.5, disable_tqdm=False):
+    def get_cell_features(self, z_plane_thickness=1.5, use_production_ids: bool=False, use_both_ids: bool=False, disable_tqdm=False):
         # run through self.polys and calculate features
         if self.cell_polygons is None or len(self.cell_polygons.keys()) == 0:
             return None
 
+        vol_or_area = "volume" if dict in set(type(k) for k in self.cell_polygons.values()) else "area"
+
         cell_features = []
         for cid in tqdm(self.cell_polygons, disable=disable_tqdm):
             feature_info = {"cell_id":cid}
+            if use_both_ids:
+                feature_info.update({"production_cell_id": self.convert_cell_id(cid)})
+            if use_production_ids:
+                feature_info.update({"production_cell_id": self.convert_cell_id(feature_info.pop("cell_id"))})
+            
             if self.cell_polygons[cid]:
                 feature_info.update(self.calculate_cell_features(self.cell_polygons[cid], z_plane_thickness=z_plane_thickness))
             else:
-                feature_info.update(dict(area=0.0, centroid = None))
-            cell_features.append(feature_info)
+                feature_info.update({vol_or_area:0.0, "centroid":None})
 
+            cell_features.append(feature_info)
+        
         return pandas.DataFrame.from_records(cell_features)
+
 
     def save_cell_polygons(self, save_path: Path|str, use_production_ids=False):
         """

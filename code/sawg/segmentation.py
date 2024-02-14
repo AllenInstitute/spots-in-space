@@ -1128,14 +1128,19 @@ class SegmentationRun:
         if use_prod_cids:
             self.spot_table.generate_production_cell_ids(prefix=prefix, suffix=suffix)
 
-        subtable = self.spot_table.filter_cells(real_cells=remove_bg)
+        subtable = self.spot_table.filter_cells(real_cells=remove_bg) if remove_bg else self.spot_table
 
         cell_by_gene = subtable.cell_by_gene_anndata(use_both_ids=use_prod_cids)
         
         # Calculate cell volumes to add to cell by gene
         print('Calculating cell volumes...')
-        cell_feature_df = subtable.get_cell_features().sort_values(by='cell_id')
-        cell_by_gene.obs['volume'] = cell_feature_df['volume'].to_numpy()
+        if subtable.cell_polygons is None or len(subtable.cell_polygons.keys()) == 0:
+            # Default to np.nan if no cell polygons
+            cell_feature_df = pd.DataFrame({"volume": [np.nan for _ in range(len(cell_by_gene.obs))]}, index=cell_by_gene.obs.index)
+        else:
+            cell_feature_df = subtable.get_cell_features(use_both_ids=use_prod_cids).set_index('production_cell_id' if use_prod_cids else 'cell_id')
+        vol_or_area = 'volume' if 'volume' in cell_feature_df.columns else 'area'
+        cell_by_gene.obs = cell_by_gene.obs.merge(cell_feature_df[vol_or_area], how='left', left_index=True, right_index=True)
         
         self.save_cbg(cell_by_gene, overwrite)
 
