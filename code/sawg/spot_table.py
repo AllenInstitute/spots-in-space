@@ -823,7 +823,7 @@ class SpotTable:
             if self.cell_polygons[cid]: # Sometimes polygons can be None
                 feature_info.update(self.calculate_cell_features(self.cell_polygons[cid], z_plane_thickness=z_plane_thickness))
             else:
-                feature_info.update({vol_or_area:0.0, "centroid":None})
+                feature_info.update({vol_or_area:np.nan, "centroid":None})
 
             cell_features.append(feature_info)
         
