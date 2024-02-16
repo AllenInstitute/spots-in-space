@@ -1136,11 +1136,11 @@ class SegmentationRun:
         print('Calculating cell volumes...')
         if subtable.cell_polygons is None or len(subtable.cell_polygons.keys()) == 0:
             # Default to np.nan if no cell polygons
-            cell_feature_df = pd.DataFrame({"volume": [np.nan for _ in range(len(cell_by_gene.obs))]}, index=cell_by_gene.obs.index)
+            cell_feature_df = pd.DataFrame(index=cell_by_gene.obs.index)
+            cell_feature_df[['volume', 'area']] = np.nan
         else:
             cell_feature_df = subtable.get_cell_features(use_both_ids=use_prod_cids).set_index('production_cell_id' if use_prod_cids else 'cell_id')
-        vol_or_area = 'volume' if 'volume' in cell_feature_df.columns else 'area'
-        cell_by_gene.obs = cell_by_gene.obs.merge(cell_feature_df[vol_or_area], how='left', left_index=True, right_index=True)
+        cell_by_gene.obs = cell_by_gene.obs.merge(cell_feature_df[['volume', 'area']], how='left', left_index=True, right_index=True)
         
         self.save_cbg(cell_by_gene, overwrite)
 
