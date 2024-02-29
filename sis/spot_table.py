@@ -376,11 +376,13 @@ class SpotTable:
 
     @classmethod
     def load_stereoseq(cls, gem_file: str|None=None, cache_file: str|None=None, gem_cols: dict|tuple=(('gene', 0), ('x', 1), ('y', 2), ('MIDcounts', 3)), 
-                       cell_cols: dict|tuple=None, skiprows: int|None=1,  max_rows: int|None=None, image_file: str|None=None, image_channel: str|None=None):
+                       cell_col: int|None=None, skiprows: int|None=1,  max_rows: int|None=None, image_file: str|None=None, image_channel: str|None=None):
         """
         Load StereoSeq data from gem file. This can be slow so optionally cache the result to a .npz file.
         1/19/2023: New StereoSeq data has cell_ids, add optional cell_cols to add to SpotTable. Also has a flag
         for whether the spot was in the main cell or the extended cell (in_cell)
+        1/3/2024: new cellbin.gem doesn't have `in_cell`, let's not worry about it and just specify the column 
+        that the cell ID is in
         """
 
         xyscale = 0.5  # um per unit (stereoseq spots are separated by 500 nm)
@@ -390,14 +392,15 @@ class SpotTable:
             dtype = [('gene', 'S20'), ('x', 'int32'), ('y', 'int32'), ('MIDcounts', 'int')]
             gem_cols = dict(gem_cols)
             usecols = [gem_cols[col] for col in ['gene', 'x', 'y', 'MIDcounts']]
-            if cell_cols is not None:
-                dtype.extend([('cell_ids', 'int'), ('in_cell', 'bool')])
-                usecols.extend([cell_cols[col] for col in ['cell_ids', 'in_cell']])
+            if cell_col is not None:
+                dtype.append(('cell_ids', 'int'))
+                usecols.append(cell_col) 
             fh = open(gem_file, 'r+')
             if skiprows is not None:
                 [fh.readline() for i in range(skiprows)]
             pos = []
             gene_ids = []
+            cell_ids = []
             gene_name_to_id = {}
             next_gene_id = 0
             end = 0
@@ -436,19 +439,19 @@ class SpotTable:
                     gene_ids2 = np.array([gene_name_to_id[gene] for gene in genes], dtype='uint32')
                     gene_ids.append(gene_ids2)
                     pbar.update(end - start)
-                    # if cell_cols is not None:
-                    #     cell_ids = np.repeat(raw_data['cell_ids'], counts).astype('uint16')
-                    #     in_cell = np.invert(np.repeat(raw_data['in_cell'], counts).astype('bool'))
-                        # table = SpotTable(pos=pos, gene_names=genes.astype(f'U{max_gene_len}'), cell_ids=cell_ids)
-                        # table.in_cell = in_cell
-                    # else:
+                    if cell_col is not None:
+                        cell_ids.append(np.repeat(raw_data['cell_ids'], counts).astype('uint16'))
             gene_ids = np.concatenate(gene_ids)
             pos = np.vstack(pos)
             max_len = max(map(len, gene_name_to_id.keys()))
             gene_id_to_name = np.empty(len(gene_name_to_id), dtype=f'U{max_len}')
             for gene, id in gene_name_to_id.items():
                 gene_id_to_name[id] = gene
-            table = SpotTable(pos=pos, gene_ids=gene_ids, gene_id_to_name=gene_id_to_name)
+            if len(cell_ids) > 0:
+                cell_ids = np.concatenate(cell_ids)
+                table = SpotTable(pos=pos, gene_ids=gene_ids, gene_id_to_name=gene_id_to_name, cell_ids=cell_ids)
+            else:
+                table = SpotTable(pos=pos, gene_ids=gene_ids, gene_id_to_name=gene_id_to_name)
 
             if cache_file is not None:                
                 print("Recompressing to npz..")
