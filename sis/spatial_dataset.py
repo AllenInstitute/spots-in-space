@@ -8,7 +8,6 @@ from __future__ import annotations
 ## utilizes new Allen Services for data grabbing 
 ## spatial_config.yml to store datapaths and other configurable properties
 
-version = 2
 
 from sis.celltype_mapping import ScrattchMapping, CellTypeMapping
 from sis.hpc import run_slurm_func
@@ -41,11 +40,14 @@ PtsClient = optional_import('allen_services_api.pts.client.pts_client', names=  
 BersClient = optional_import( 'allen_services_api.bers.client.bers_client', names =  "BersClient")
 
 
+SPATIALDATASET_VERSION = 2
+
+
 class SpatialDataset:
     # wrapper class
     def __init__(self, barcode):
         self.barcode = barcode
-        self.version = version
+        self.version = SPATIALDATASET_VERSION
         self.config = load_config()
         
     @classmethod
