@@ -212,6 +212,16 @@ class SpotTable:
         """
         self._cell_index = None
         self._cell_bounds = None
+        self._unique_cell_ids = None
+        
+    def unique_cell_ids(self):
+        """numpy array of unique cell ids (excluding background)
+        """
+        if self._unique_cell_ids is None:
+            unique_cell_ids = np.unique(self.cell_ids) # Pull out unique cell ids
+            return np.delete(unique_cell_ids, np.where((unique_cell_ids == 0) | (unique_cell_ids == -1))) # Remove background ids
+        else:
+            return self._unique_cell_ids
         
     def get_subregion(self, xlim: tuple, ylim: tuple, incl_end: bool=False):
         """Return a SpotTable including the subset of this table inside the region xlim, ylim
@@ -668,11 +678,13 @@ class SpotTable:
         return self._cell_bounds[self.convert_cell_id(cell_id) if isinstance(cell_id, str) else cell_id]
 
     def cell_centroids(self):
-        """Return an array of cell centroids calculated as the center of the bounding box for each cell."""
-        cells = np.unique(self.cell_ids)
-        cell_bounds = np.array([self.cell_bounds(cid) for cid in cells])
-        centroids = 0.5 * (cell_bounds[:, 1::2] + cell_bounds[:, ::2])
-        return centroids
+        """Return a Pandas DataFrame of cell centroids calculated mean of the x,y,z coordinates for each cell."""
+        centroids = []
+        for cid in self.unique_cell_ids():
+            inds = self.cell_indices(cid)
+            cell_ts_xyz = self.pos[inds]
+            centroids.append(np.mean(cell_ts_xyz, axis=0))
+        return pandas.DataFrame(data=centroids, index=self.unique_cell_ids(), columns=['center_x', 'center_y', 'center_z'])
 
     @staticmethod
     def cell_polygon(cell_points_array, alpha_inv):
@@ -793,19 +805,23 @@ class SpotTable:
     @staticmethod
     def calculate_cell_features(cell_polygon, z_plane_thickness=1.5):
         if isinstance(cell_polygon, dict): # If we have separate polygons for each z-plane
-            from shapely.geometry import MultiPoint
-            volume = 0
-            centroids = []
-            for polygon in cell_polygon.values():
+            area = 0
+            weighted_x, weighted_y, weighted_z = 0, 0, 0
+            for z, polygon in cell_polygon.items():
                 if polygon:
-                    volume += polygon.area
-                    centroids.append(polygon.centroid.coords)
-            volume *= z_plane_thickness
-            centroid = np.array(MultiPoint(centroids).centroid.coords) # we define centroid as centroid of centroids
+                    area += polygon.area
+                    
+                    weighted_x += polygon.centroid.coords[0][0] * polygon.area
+                    weighted_y += polygon.centroid.coords[0][1] * polygon.area
+                    weighted_z += z * polygon.area
+                    
+            volume = area * z_plane_thickness
+            centroid = np.array([[weighted_x / area, weighted_y / area, weighted_z / area]]) # we define centroid as a weighted average (by area) of centroids of polygons
+            
             return {"volume": volume, "centroid": centroid}
         else: # If we have one polygon for each cell (either one representing all z-planes or just one z-plane)
             return {"area": cell_polygon.area, "centroid": np.array(cell_polygon.centroid.coords)}
-        
+    
     
     def get_cell_features(self, z_plane_thickness=1.5, use_production_ids: bool=False, use_both_ids: bool=False, disable_tqdm=False):
         # run through self.polys and calculate features
