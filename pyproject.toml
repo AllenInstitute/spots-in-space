@@ -1,0 +1,28 @@
+[project]
+name = "spots-in-space"
+version = "0.1"
+description = "spatial transcriptomics analysis and beyond"
+readme = "README.md"
+requires-python = ">=3.8"
+authors = [{name = "Allen Institute Spatial Analysis Working Group"}]
+license = {text = "Apache-2.0"}
+classifiers = [
+    "License :: OSI Approved :: Apache Software License"
+]
+dependencies = [
+
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project.urls]
+Homepage = "https://github.com/berl/spots-in-space"
+Changelog = "https://github.com/berl/spots-in-space/releases"
+Issues = "https://github.com/berl/spots-in-space/issues"
+CI = "https://github.com/berl/spots-in-space/actions"
+
+
+[project.optional-dependencies]
+test = ["pytest"]
