@@ -1,16 +1,31 @@
+[tool.versioneer]
+VCS = "git"
+style = "pep440"
+versionfile_source = "sis/_version.py"
+versionfile_build = "sis/_version.py"
+tag_prefix = ""
+
 [project]
 name = "spots-in-space"
 version = "0.1"
 description = "spatial transcriptomics analysis and beyond"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 authors = [{name = "Allen Institute Spatial Analysis Working Group"}]
-license = {text = "Apache-2.0"}
-classifiers = [
-    "License :: OSI Approved :: Apache Software License"
-]
-dependencies = [
-
+license = {file = "LICENSE"}
+dependencies = ["numpy",
+"pandas",
+"scipy",
+"scikit-learn",
+"anndata",
+"seaborn",
+"matplotlib",
+"scanpy",
+"matplotlib",
+"tqdm",
+"shapely",
+"rasterio",
+"geopandas"
 ]
 
 [build-system]

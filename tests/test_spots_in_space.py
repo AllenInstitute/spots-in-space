@@ -1,4 +1,4 @@
-from spots_in_space import example_function
+from sis import example_function
 
 
 def test_example_function():

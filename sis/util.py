@@ -9,7 +9,6 @@ import gzip
 import shutil
 from zipfile import ZipFile
 from matplotlib import pyplot as plt
-import geopandas as gpd
 from shapely import coverage_union_all
 import shapely
 from matplotlib import pyplot as plt
@@ -317,7 +316,8 @@ def show_cells_and_transcripts(spottable, anndata_obj,
     **kwargs are passed to `plot_genes`
     
     """
-    
+    import geopandas as gpd
+
 
     no_gray2 = list(plt.cm.tab10.colors[1:7])
     no_gray2.extend(plt.cm.tab10.colors[8:])
@@ -516,3 +516,7 @@ def plot_cbg_centroids(cell_by_gene: ad.AnnData, ax, x='center_x', y='center_y',
     g = sns.scatterplot(data=cell_by_gene.obs, x=x, y=y, ax=ax, **kwargs)
     ax.set_aspect('equal', adjustable='box', anchor='C')
     return g 
+
+
+def example_function():
+    return 2
