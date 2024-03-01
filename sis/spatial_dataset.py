@@ -8,14 +8,13 @@ from __future__ import annotations
 ## utilizes new Allen Services for data grabbing 
 ## spatial_config.yml to store datapaths and other configurable properties
 
-version = 2
 
-from sawg.celltype_mapping import ScrattchMapping, CellTypeMapping
-from sawg.hpc import run_slurm_func
-from sawg.qc import run_doublet_detection, calc_n_transcripts, calc_n_genes, calc_n_blanks
-from sawg.segmentation import MerscopeSegmentationRun
-from sawg.spot_table import SpotTable
-from sawg.util import load_config
+from sis.celltype_mapping import ScrattchMapping, CellTypeMapping
+from sis.hpc import run_slurm_func
+from sis.qc import run_doublet_detection, calc_n_transcripts, calc_n_genes, calc_n_blanks
+from sis.segmentation import MerscopeSegmentationRun
+from sis.spot_table import SpotTable
+from sis.util import load_config
 import anndata as ad
 import os, sys, datetime, glob, pickle, time
 import json
@@ -26,8 +25,6 @@ import matplotlib.pyplot as plt
 import pickle as pkl
 import pandas as pd
 import numpy as np
-import ipywidgets as widgets
-from ipywidgets import interact_manual
 from tqdm.autonotebook import tqdm
 from contextlib import redirect_stdout
 from .optional_import import optional_import
@@ -37,19 +34,20 @@ interact_manual = optional_import('ipywidgets', names='interact_manual')
 
 
 ## Allen Services
-import allen_services_api.dats.schema.dats_schema as dats_schema
-import allen_services_api.pts.schema.pts_schema as pts_schema
-import allen_services_api.bers.schema.bers_schema as bers_schema
-from allen_services_api.dats.client.dats_client import DatsClient
-from allen_services_api.pts.client.pts_client import PtsClient
-from allen_services_api.bers.client.bers_client import BersClient
+pts_schema = optional_import('allen_services_api.pts.schema.pts_schema', names= 'pts_schema')
+DatsClient = optional_import('allen_services_api.dats.client.dats_client', names=  "DatsClient")
+PtsClient = optional_import('allen_services_api.pts.client.pts_client', names=  "PtsClient")
+BersClient = optional_import( 'allen_services_api.bers.client.bers_client', names =  "BersClient")
+
+
+SPATIALDATASET_VERSION = 2
 
 
 class SpatialDataset:
     # wrapper class
     def __init__(self, barcode):
         self.barcode = barcode
-        self.version = version
+        self.version = SPATIALDATASET_VERSION
         self.config = load_config()
         
     @classmethod
@@ -289,10 +287,11 @@ class SpatialDataset:
 
 class MERSCOPESection(SpatialDataset):
 
-    pts_qc_filt = pts_schema.MetadataFilterInput(type=pts_schema.DataTypeFilterInput(name=pts_schema.StringOperationFilterInput(eq="QCMetadata")))
-    pts_request_filt = pts_schema.MetadataFilterInput(type=pts_schema.DataTypeFilterInput(name=pts_schema.StringOperationFilterInput(eq="MerscopeImagingRequestMetadata")))
 
     def __init__(self, barcode):
+        pts_qc_filt = pts_schema.MetadataFilterInput(type=pts_schema.DataTypeFilterInput(name=pts_schema.StringOperationFilterInput(eq="QCMetadata")))
+        pts_request_filt = pts_schema.MetadataFilterInput(type=pts_schema.DataTypeFilterInput(name=pts_schema.StringOperationFilterInput(eq="MerscopeImagingRequestMetadata")))
+
         config = load_config()
         save_path = Path(config['merscope_save_path']).joinpath(str(barcode))
         if os.path.exists(save_path.joinpath('spatial_dataset')):
@@ -519,7 +518,7 @@ class MERSCOPESection(SpatialDataset):
         job_path.mkdir(exist_ok=True)
         hpc_config = {
                 'run_spec': run_spec,
-                'conda_env': '/allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/seg_tests/conda-envs/sawg_test/',
+                'conda_env': '/allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/seg_tests/conda-envs/sis_test/',
                 'hpc_host': 'hpc-login',  # change to 'localhost' if running from hpc
                 'job_path': f'{job_path.as_posix()}/',
                 'partition': 'celltypes',

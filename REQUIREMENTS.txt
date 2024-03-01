@@ -1,0 +1,14 @@
+numpy
+pandas
+scipy
+scikit-learn
+anndata
+seaborn
+matplotlib
+scanpy
+matplotlib
+tqdm
+shapely
+rasterio
+geopandas
+versioneer

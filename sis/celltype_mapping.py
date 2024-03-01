@@ -1,5 +1,4 @@
 from __future__ import annotations
-from lib2to3.pgen2 import driver
 import pandas as pd
 # from code.gene_panel_selection.gene_panel_selection import ExpressionDataset
 # from code.segmentation.segmentation import SpotTable
@@ -14,7 +13,7 @@ import _pickle as cPickle
 import json
 import anndata as ad
 import umap
-from sawg.hpc import run_slurm
+from sis.hpc import run_slurm
 
 try:
     import tangram as tg
@@ -793,7 +792,7 @@ class ScrattchMapping(CellTypeMapping):
         return fig
         
     def get_confusion_matrix(self, pivot_cols, norm=True):
-        from sawg.expression_dataset import norm_confusion_matrix
+        from sis.expression_dataset import norm_confusion_matrix
         if type(pivot_cols)==dict:
             conf_dict = {}
             for level, pivot in pivot_cols.items():

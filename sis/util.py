@@ -10,7 +10,6 @@ import gzip
 import shutil
 from zipfile import ZipFile
 from matplotlib import pyplot as plt
-import geopandas as gpd
 from shapely import coverage_union_all
 import shapely
 from matplotlib import pyplot as plt
@@ -318,7 +317,8 @@ def show_cells_and_transcripts(spottable, anndata_obj,
     **kwargs are passed to `plot_genes`
     
     """
-    
+    import geopandas as gpd
+
 
     no_gray2 = list(plt.cm.tab10.colors[1:7])
     no_gray2.extend(plt.cm.tab10.colors[8:])
@@ -519,6 +519,9 @@ def plot_cbg_centroids(cell_by_gene: ad.AnnData, ax, x='center_x', y='center_y',
     return g 
 
 
+def example_function():
+    return 2
+
 def make_cirro_compatible(cell_by_gene: ad.AnnData):
     '''Make an AnnData object compatible with Cirrocumulus visualization tool.
     
@@ -558,3 +561,4 @@ def make_cirro_compatible(cell_by_gene: ad.AnnData):
     #     sc.tl.umap(cell_by_gene, layer=layer)
 
     return cell_by_gene_cirro
+
