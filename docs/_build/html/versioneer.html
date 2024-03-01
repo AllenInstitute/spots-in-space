@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>versioneer module &mdash; Spots-in-Spaaaaaace! 0.0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="_static/jquery.js?v=5d32c60e"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="_static/documentation_options.js?v=d45e8c67"></script>
+        <script src="_static/doctools.js?v=888ff710"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Spots-in-Spaaaaaace!
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <!-- Local TOC -->
+              <div class="local-toc"><ul>
+<li><a class="reference internal" href="#">versioneer module</a><ul>
+<li><a class="reference internal" href="#the-versioneer">The Versioneer</a></li>
+<li><a class="reference internal" href="#versioneer.NotThisMethod"><code class="docutils literal notranslate"><span class="pre">NotThisMethod</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.VersioneerBadRootError"><code class="docutils literal notranslate"><span class="pre">VersioneerBadRootError</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.VersioneerConfig"><code class="docutils literal notranslate"><span class="pre">VersioneerConfig</span></code></a><ul>
+<li><a class="reference internal" href="#versioneer.VersioneerConfig.VCS"><code class="docutils literal notranslate"><span class="pre">VersioneerConfig.VCS</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.VersioneerConfig.parentdir_prefix"><code class="docutils literal notranslate"><span class="pre">VersioneerConfig.parentdir_prefix</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.VersioneerConfig.style"><code class="docutils literal notranslate"><span class="pre">VersioneerConfig.style</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.VersioneerConfig.tag_prefix"><code class="docutils literal notranslate"><span class="pre">VersioneerConfig.tag_prefix</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.VersioneerConfig.verbose"><code class="docutils literal notranslate"><span class="pre">VersioneerConfig.verbose</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.VersioneerConfig.versionfile_build"><code class="docutils literal notranslate"><span class="pre">VersioneerConfig.versionfile_build</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.VersioneerConfig.versionfile_source"><code class="docutils literal notranslate"><span class="pre">VersioneerConfig.versionfile_source</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#versioneer.do_setup"><code class="docutils literal notranslate"><span class="pre">do_setup()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.do_vcs_install"><code class="docutils literal notranslate"><span class="pre">do_vcs_install()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.get_cmdclass"><code class="docutils literal notranslate"><span class="pre">get_cmdclass()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.get_config_from_root"><code class="docutils literal notranslate"><span class="pre">get_config_from_root()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.get_root"><code class="docutils literal notranslate"><span class="pre">get_root()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.get_version"><code class="docutils literal notranslate"><span class="pre">get_version()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.get_versions"><code class="docutils literal notranslate"><span class="pre">get_versions()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.git_get_keywords"><code class="docutils literal notranslate"><span class="pre">git_get_keywords()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.git_pieces_from_vcs"><code class="docutils literal notranslate"><span class="pre">git_pieces_from_vcs()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.git_versions_from_keywords"><code class="docutils literal notranslate"><span class="pre">git_versions_from_keywords()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.pep440_split_post"><code class="docutils literal notranslate"><span class="pre">pep440_split_post()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.plus_or_dot"><code class="docutils literal notranslate"><span class="pre">plus_or_dot()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.register_vcs_handler"><code class="docutils literal notranslate"><span class="pre">register_vcs_handler()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.render"><code class="docutils literal notranslate"><span class="pre">render()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.render_git_describe"><code class="docutils literal notranslate"><span class="pre">render_git_describe()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.render_git_describe_long"><code class="docutils literal notranslate"><span class="pre">render_git_describe_long()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.render_pep440"><code class="docutils literal notranslate"><span class="pre">render_pep440()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.render_pep440_branch"><code class="docutils literal notranslate"><span class="pre">render_pep440_branch()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.render_pep440_old"><code class="docutils literal notranslate"><span class="pre">render_pep440_old()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.render_pep440_post"><code class="docutils literal notranslate"><span class="pre">render_pep440_post()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.render_pep440_post_branch"><code class="docutils literal notranslate"><span class="pre">render_pep440_post_branch()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.render_pep440_pre"><code class="docutils literal notranslate"><span class="pre">render_pep440_pre()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.run_command"><code class="docutils literal notranslate"><span class="pre">run_command()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.scan_setup_py"><code class="docutils literal notranslate"><span class="pre">scan_setup_py()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.setup_command"><code class="docutils literal notranslate"><span class="pre">setup_command()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.versions_from_file"><code class="docutils literal notranslate"><span class="pre">versions_from_file()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.versions_from_parentdir"><code class="docutils literal notranslate"><span class="pre">versions_from_parentdir()</span></code></a></li>
+<li><a class="reference internal" href="#versioneer.write_to_version_file"><code class="docutils literal notranslate"><span class="pre">write_to_version_file()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</div>
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Spots-in-Spaaaaaace!</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">versioneer module</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/versioneer.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-versioneer">
+<span id="versioneer-module"></span><h1>versioneer module<a class="headerlink" href="#module-versioneer" title="Link to this heading"></a></h1>
+<p>The Versioneer - like a rocketeer, but for versions.</p>
+<section id="the-versioneer">
+<h2>The Versioneer<a class="headerlink" href="#the-versioneer" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>like a rocketeer, but for versions!</p></li>
+<li><p><a class="reference external" href="https://github.com/python-versioneer/python-versioneer">https://github.com/python-versioneer/python-versioneer</a></p></li>
+<li><p>Brian Warner</p></li>
+<li><p>License: Public Domain (Unlicense)</p></li>
+<li><p>Compatible with: Python 3.7, 3.8, 3.9, 3.10, 3.11 and pypy3</p></li>
+<li><p>[![Latest Version][pypi-image]][pypi-url]</p></li>
+<li><p>[![Build Status][travis-image]][travis-url]</p></li>
+</ul>
+<p>This is a tool for managing a recorded version number in setuptools-based
+python projects. The goal is to remove the tedious and error-prone “update
+the embedded version string” step from your release process. Making a new
+release should be as easy as recording a new tag in your version-control
+system, and maybe making new tarballs.</p>
+<p>## Quick Install</p>
+<p>Versioneer provides two installation modes. The “classic” vendored mode installs
+a copy of versioneer into your repository. The experimental build-time dependency mode
+is intended to allow you to skip this step and simplify the process of upgrading.</p>
+<p>### Vendored mode</p>
+<ul>
+<li><dl class="simple">
+<dt><cite>pip install versioneer</cite> to somewhere in your $PATH</dt><dd><ul class="simple">
+<li><p>A [conda-forge recipe](<a class="reference external" href="https://github.com/conda-forge/versioneer-feedstock">https://github.com/conda-forge/versioneer-feedstock</a>) is
+available, so you can also use <cite>conda install -c conda-forge versioneer</cite></p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><p>add a <cite>[tool.versioneer]</cite> section to your <cite>pyproject.toml</cite> or a
+<cite>[versioneer]</cite> section to your <cite>setup.cfg</cite> (see [Install](INSTALL.md))</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Note that you will need to add <cite>tomli; python_version &lt; “3.11”</cite> to your
+build-time dependencies if you use <cite>pyproject.toml</cite></p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>run <cite>versioneer install –vendor</cite> in your source tree, commit the results</p></li>
+<li><p>verify version information with <cite>python setup.py version</cite></p></li>
+</ul>
+<p>### Build-time dependency mode</p>
+<ul class="simple">
+<li><dl class="simple">
+<dt><cite>pip install versioneer</cite> to somewhere in your $PATH</dt><dd><ul>
+<li><p>A [conda-forge recipe](<a class="reference external" href="https://github.com/conda-forge/versioneer-feedstock">https://github.com/conda-forge/versioneer-feedstock</a>) is
+available, so you can also use <cite>conda install -c conda-forge versioneer</cite></p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><p>add a <cite>[tool.versioneer]</cite> section to your <cite>pyproject.toml</cite> or a
+<cite>[versioneer]</cite> section to your <cite>setup.cfg</cite> (see [Install](INSTALL.md))</p></li>
+<li><p>add <cite>versioneer</cite> (with <cite>[toml]</cite> extra, if configuring in <cite>pyproject.toml</cite>)
+to the <cite>requires</cite> key of the <cite>build-system</cite> table in <cite>pyproject.toml</cite>:
+<code class="docutils literal notranslate"><span class="pre">`toml</span>
+<span class="pre">[build-system]</span>
+<span class="pre">requires</span> <span class="pre">=</span> <span class="pre">[&quot;setuptools&quot;,</span> <span class="pre">&quot;versioneer[toml]&quot;]</span>
+<span class="pre">build-backend</span> <span class="pre">=</span> <span class="pre">&quot;setuptools.build_meta&quot;</span>
+<span class="pre">`</span></code></p></li>
+<li><p>run <cite>versioneer install –no-vendor</cite> in your source tree, commit the results</p></li>
+<li><p>verify version information with <cite>python setup.py version</cite></p></li>
+</ul>
+<p>## Version Identifiers</p>
+<p>Source trees come from a variety of places:</p>
+<ul class="simple">
+<li><p>a version-control system checkout (mostly used by developers)</p></li>
+<li><p>a nightly tarball, produced by build automation</p></li>
+<li><p>a snapshot tarball, produced by a web-based VCS browser, like github’s
+“tarball from tag” feature</p></li>
+<li><p>a release tarball, produced by “setup.py sdist”, distributed through PyPI</p></li>
+</ul>
+<p>Within each source tree, the version identifier (either a string or a number,
+this tool is format-agnostic) can come from a variety of places:</p>
+<ul class="simple">
+<li><p>ask the VCS tool itself, e.g. “git describe” (for checkouts), which knows
+about recent “tags” and an absolute revision-id</p></li>
+<li><p>the name of the directory into which the tarball was unpacked</p></li>
+<li><p>an expanded VCS keyword ($Id$, etc)</p></li>
+<li><p>a <cite>_version.py</cite> created by some earlier build step</p></li>
+</ul>
+<p>For released software, the version identifier is closely related to a VCS
+tag. Some projects use tag names that include more than just the version
+string (e.g. “myproject-1.2” instead of just “1.2”), in which case the tool
+needs to strip the tag prefix to extract the version identifier. For
+unreleased software (between tags), the version identifier should provide
+enough information to help developers recreate the same tree, while also
+giving them an idea of roughly how old the tree is (after version 1.2, before
+version 1.3). Many VCS systems can report a description that captures this,
+for example <cite>git describe –tags –dirty –always</cite> reports things like
+“0.7-1-g574ab98-dirty” to indicate that the checkout is one revision past the
+0.7 tag, has a unique revision id of “574ab98”, and is “dirty” (it has
+uncommitted changes).</p>
+<p>The version identifier is used for multiple purposes:</p>
+<ul class="simple">
+<li><p>to allow the module to self-identify its version: <cite>myproject.__version__</cite></p></li>
+<li><p>to choose a name and prefix for a ‘setup.py sdist’ tarball</p></li>
+</ul>
+<p>## Theory of Operation</p>
+<p>Versioneer works by adding a special <cite>_version.py</cite> file into your source
+tree, where your <cite>__init__.py</cite> can import it. This <cite>_version.py</cite> knows how to
+dynamically ask the VCS tool for version information at import time.</p>
+<p><cite>_version.py</cite> also contains <cite>$Revision$</cite> markers, and the installation
+process marks <cite>_version.py</cite> to have this marker rewritten with a tag name
+during the <cite>git archive</cite> command. As a result, generated tarballs will
+contain enough information to get the proper version.</p>
+<p>To allow <cite>setup.py</cite> to compute a version too, a <cite>versioneer.py</cite> is added to
+the top level of your source tree, next to <cite>setup.py</cite> and the <cite>setup.cfg</cite>
+that configures it. This overrides several distutils/setuptools commands to
+compute the version when invoked, and changes <cite>setup.py build</cite> and <cite>setup.py
+sdist</cite> to replace <cite>_version.py</cite> with a small static file that contains just
+the generated version data.</p>
+<p>## Installation</p>
+<p>See [INSTALL.md](./INSTALL.md) for detailed installation instructions.</p>
+<p>## Version-String Flavors</p>
+<p>Code which uses Versioneer can learn about its version string at runtime by
+importing <cite>_version</cite> from your main <cite>__init__.py</cite> file and running the
+<cite>get_versions()</cite> function. From the “outside” (e.g. in <cite>setup.py</cite>), you can
+import the top-level <cite>versioneer.py</cite> and run <cite>get_versions()</cite>.</p>
+<p>Both functions return a dictionary with different flavors of version
+information:</p>
+<ul class="simple">
+<li><p><cite>[‘version’]</cite>: A condensed version string, rendered using the selected
+style. This is the most commonly used value for the project’s version
+string. The default “pep440” style yields strings like <cite>0.11</cite>,
+<cite>0.11+2.g1076c97</cite>, or <cite>0.11+2.g1076c97.dirty</cite>. See the “Styles” section
+below for alternative styles.</p></li>
+<li><p><cite>[‘full-revisionid’]</cite>: detailed revision identifier. For Git, this is the
+full SHA1 commit id, e.g. “1076c978a8d3cfc70f408fe5974aa6c092c949ac”.</p></li>
+<li><p><cite>[‘date’]</cite>: Date and time of the latest <cite>HEAD</cite> commit. For Git, it is the
+commit date in ISO 8601 format. This will be None if the date is not
+available.</p></li>
+<li><p><cite>[‘dirty’]</cite>: a boolean, True if the tree has uncommitted changes. Note that
+this is only accurate if run in a VCS checkout, otherwise it is likely to
+be False or None</p></li>
+<li><p><cite>[‘error’]</cite>: if the version string could not be computed, this will be set
+to a string describing the problem, otherwise it will be None. It may be
+useful to throw an exception in setup.py if this is set, to avoid e.g.
+creating tarballs with a version string of “unknown”.</p></li>
+</ul>
+<p>Some variants are more useful than others. Including <cite>full-revisionid</cite> in a
+bug report should allow developers to reconstruct the exact code being tested
+(or indicate the presence of local changes that should be shared with the
+developers). <cite>version</cite> is suitable for display in an “about” box or a CLI
+<cite>–version</cite> output: it can be easily compared against release notes and lists
+of bugs fixed in various releases.</p>
+<p>The installer adds the following text to your <cite>__init__.py</cite> to place a basic
+version in <cite>YOURPROJECT.__version__</cite>:</p>
+<blockquote>
+<div><p>from ._version import get_versions
+__version__ = get_versions()[‘version’]
+del get_versions</p>
+</div></blockquote>
+<p>## Styles</p>
+<p>The setup.cfg <cite>style=</cite> configuration controls how the VCS information is
+rendered into a version string.</p>
+<p>The default style, “pep440”, produces a PEP440-compliant string, equal to the
+un-prefixed tag name for actual releases, and containing an additional “local
+version” section with more detail for in-between builds. For Git, this is
+TAG[+DISTANCE.gHEX[.dirty]] , using information from <cite>git describe –tags
+–dirty –always</cite>. For example “0.11+2.g1076c97.dirty” indicates that the
+tree is like the “1076c97” commit but has uncommitted changes (“.dirty”), and
+that this commit is two revisions (“+2”) beyond the “0.11” tag. For released
+software (exactly equal to a known tag), the identifier will only contain the
+stripped tag, e.g. “0.11”.</p>
+<p>Other styles are available. See [details.md](details.md) in the Versioneer
+source tree for descriptions.</p>
+<p>## Debugging</p>
+<p>Versioneer tries to avoid fatal errors: if something goes wrong, it will tend
+to return a version of “0+unknown”. To investigate the problem, run <cite>setup.py
+version</cite>, which will run the version-lookup code in a verbose mode, and will
+display the full contents of <cite>get_versions()</cite> (including the <cite>error</cite> string,
+which may help identify what went wrong).</p>
+<p>## Known Limitations</p>
+<p>Some situations are known to cause problems for Versioneer. This details the
+most significant ones. More can be found on Github
+[issues page](<a class="reference external" href="https://github.com/python-versioneer/python-versioneer/issues">https://github.com/python-versioneer/python-versioneer/issues</a>).</p>
+<p>### Subprojects</p>
+<p>Versioneer has limited support for source trees in which <cite>setup.py</cite> is not in
+the root directory (e.g. <cite>setup.py</cite> and <cite>.git/</cite> are <em>not</em> siblings). The are
+two common reasons why <cite>setup.py</cite> might not be in the root:</p>
+<ul class="simple">
+<li><p>Source trees which contain multiple subprojects, such as
+[Buildbot](<a class="reference external" href="https://github.com/buildbot/buildbot">https://github.com/buildbot/buildbot</a>), which contains both
+“master” and “slave” subprojects, each with their own <cite>setup.py</cite>,
+<cite>setup.cfg</cite>, and <cite>tox.ini</cite>. Projects like these produce multiple PyPI
+distributions (and upload multiple independently-installable tarballs).</p></li>
+<li><p>Source trees whose main purpose is to contain a C library, but which also
+provide bindings to Python (and perhaps other languages) in subdirectories.</p></li>
+</ul>
+<p>Versioneer will look for <cite>.git</cite> in parent directories, and most operations
+should get the right version string. However <cite>pip</cite> and <cite>setuptools</cite> have bugs
+and implementation details which frequently cause <cite>pip install .</cite> from a
+subproject directory to fail to find a correct version string (so it usually
+defaults to <cite>0+unknown</cite>).</p>
+<p><cite>pip install –editable .</cite> should work correctly. <cite>setup.py install</cite> might
+work too.</p>
+<p>Pip-8.1.1 is known to have this problem, but hopefully it will get fixed in
+some later version.</p>
+<p>[Bug #38](<a class="reference external" href="https://github.com/python-versioneer/python-versioneer/issues/38">https://github.com/python-versioneer/python-versioneer/issues/38</a>) is tracking
+this issue. The discussion in
+[PR #61](<a class="reference external" href="https://github.com/python-versioneer/python-versioneer/pull/61">https://github.com/python-versioneer/python-versioneer/pull/61</a>) describes the
+issue from the Versioneer side in more detail.
+[pip PR#3176](<a class="reference external" href="https://github.com/pypa/pip/pull/3176">https://github.com/pypa/pip/pull/3176</a>) and
+[pip PR#3615](<a class="reference external" href="https://github.com/pypa/pip/pull/3615">https://github.com/pypa/pip/pull/3615</a>) contain work to improve
+pip to let Versioneer work correctly.</p>
+<p>Versioneer-0.16 and earlier only looked for a <cite>.git</cite> directory next to the
+<cite>setup.cfg</cite>, so subprojects were completely unsupported with those releases.</p>
+<p>### Editable installs with setuptools &lt;= 18.5</p>
+<p><cite>setup.py develop</cite> and <cite>pip install –editable .</cite> allow you to install a
+project into a virtualenv once, then continue editing the source code (and
+test) without re-installing after every change.</p>
+<p>“Entry-point scripts” (<cite>setup(entry_points={“console_scripts”: ..})</cite>) are a
+convenient way to specify executable scripts that should be installed along
+with the python package.</p>
+<p>These both work as expected when using modern setuptools. When using
+setuptools-18.5 or earlier, however, certain operations will cause
+<cite>pkg_resources.DistributionNotFound</cite> errors when running the entrypoint
+script, which must be resolved by re-installing the package. This happens
+when the install happens with one version, then the egg_info data is
+regenerated while a different version is checked out. Many setup.py commands
+cause egg_info to be rebuilt (including <cite>sdist</cite>, <cite>wheel</cite>, and installing into
+a different virtualenv), so this can be surprising.</p>
+<p>[Bug #83](<a class="reference external" href="https://github.com/python-versioneer/python-versioneer/issues/83">https://github.com/python-versioneer/python-versioneer/issues/83</a>) describes
+this one, but upgrading to a newer version of setuptools should probably
+resolve it.</p>
+<p>## Updating Versioneer</p>
+<p>To upgrade your project to a new release of Versioneer, do the following:</p>
+<ul class="simple">
+<li><p>install the new Versioneer (<cite>pip install -U versioneer</cite> or equivalent)</p></li>
+<li><p>edit <cite>setup.cfg</cite> and <cite>pyproject.toml</cite>, if necessary,
+to include any new configuration settings indicated by the release notes.
+See [UPGRADING](./UPGRADING.md) for details.</p></li>
+<li><p>re-run <cite>versioneer install –[no-]vendor</cite> in your source tree, to replace
+<cite>SRC/_version.py</cite></p></li>
+<li><p>commit any changed files</p></li>
+</ul>
+<p>## Future Directions</p>
+<p>This tool is designed to make it easily extended to other version-control
+systems: all VCS-specific components are in separate directories like
+src/git/ . The top-level <cite>versioneer.py</cite> script is assembled from these
+components by running make-versioneer.py . In the future, make-versioneer.py
+will take a VCS name as an argument, and will construct a version of
+<cite>versioneer.py</cite> that is specific to the given VCS. It might also take the
+configuration arguments that are currently provided manually during
+installation by editing setup.py . Alternatively, it might go the other
+direction and include code from all supported VCS systems, reducing the
+number of intermediate scripts.</p>
+<p>## Similar projects</p>
+<ul class="simple">
+<li><p>[setuptools_scm](<a class="reference external" href="https://github.com/pypa/setuptools_scm/">https://github.com/pypa/setuptools_scm/</a>) - a non-vendored build-time
+dependency</p></li>
+<li><p>[minver](<a class="reference external" href="https://github.com/jbweston/miniver">https://github.com/jbweston/miniver</a>) - a lightweight reimplementation of
+versioneer</p></li>
+<li><p>[versioningit](<a class="reference external" href="https://github.com/jwodder/versioningit">https://github.com/jwodder/versioningit</a>) - a PEP 518-based setuptools
+plugin</p></li>
+</ul>
+<p>## License</p>
+<p>To make Versioneer easier to embed, all its code is dedicated to the public
+domain. The <cite>_version.py</cite> that it creates is also in the public domain.
+Specifically, both are released under the “Unlicense”, as described in
+<a class="reference external" href="https://unlicense.org/">https://unlicense.org/</a>.</p>
+<p>[pypi-image]: <a class="reference external" href="https://img.shields.io/pypi/v/versioneer.svg">https://img.shields.io/pypi/v/versioneer.svg</a>
+[pypi-url]: <a class="reference external" href="https://pypi.python.org/pypi/versioneer/">https://pypi.python.org/pypi/versioneer/</a>
+[travis-image]:
+<a class="reference external" href="https://img.shields.io/travis/com/python-versioneer/python-versioneer.svg">https://img.shields.io/travis/com/python-versioneer/python-versioneer.svg</a>
+[travis-url]: <a class="reference external" href="https://travis-ci.com/github/python-versioneer/python-versioneer">https://travis-ci.com/github/python-versioneer/python-versioneer</a></p>
+</section>
+<dl class="py exception">
+<dt class="sig sig-object py" id="versioneer.NotThisMethod">
+<em class="property"><span class="pre">exception</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">NotThisMethod</span></span><a class="reference internal" href="_modules/versioneer.html#NotThisMethod"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.NotThisMethod" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></p>
+<p>Exception raised if a method is not valid for the current scenario.</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="versioneer.VersioneerBadRootError">
+<em class="property"><span class="pre">exception</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">VersioneerBadRootError</span></span><a class="reference internal" href="_modules/versioneer.html#VersioneerBadRootError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.VersioneerBadRootError" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></p>
+<p>The project root directory is unknown or missing key files.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="versioneer.VersioneerConfig">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">VersioneerConfig</span></span><a class="reference internal" href="_modules/versioneer.html#VersioneerConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.VersioneerConfig" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Container for Versioneer configuration parameters.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="versioneer.VersioneerConfig.VCS">
+<span class="sig-name descname"><span class="pre">VCS</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#versioneer.VersioneerConfig.VCS" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="versioneer.VersioneerConfig.parentdir_prefix">
+<span class="sig-name descname"><span class="pre">parentdir_prefix</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#versioneer.VersioneerConfig.parentdir_prefix" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="versioneer.VersioneerConfig.style">
+<span class="sig-name descname"><span class="pre">style</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#versioneer.VersioneerConfig.style" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="versioneer.VersioneerConfig.tag_prefix">
+<span class="sig-name descname"><span class="pre">tag_prefix</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#versioneer.VersioneerConfig.tag_prefix" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="versioneer.VersioneerConfig.verbose">
+<span class="sig-name descname"><span class="pre">verbose</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#versioneer.VersioneerConfig.verbose" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="versioneer.VersioneerConfig.versionfile_build">
+<span class="sig-name descname"><span class="pre">versionfile_build</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#versioneer.VersioneerConfig.versionfile_build" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="versioneer.VersioneerConfig.versionfile_source">
+<span class="sig-name descname"><span class="pre">versionfile_source</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#versioneer.VersioneerConfig.versionfile_source" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.do_setup">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">do_setup</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">int</span></span></span><a class="reference internal" href="_modules/versioneer.html#do_setup"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.do_setup" title="Link to this definition"></a></dt>
+<dd><p>Do main VCS-independent setup function for installing Versioneer.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.do_vcs_install">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">do_vcs_install</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">versionfile_source</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ipy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference internal" href="_modules/versioneer.html#do_vcs_install"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.do_vcs_install" title="Link to this definition"></a></dt>
+<dd><p>Git-specific installation logic for Versioneer.</p>
+<p>For Git, this means creating/changing .gitattributes to mark _version.py
+for export-subst keyword substitution.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.get_cmdclass">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">get_cmdclass</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cmdclass</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/versioneer.html#get_cmdclass"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.get_cmdclass" title="Link to this definition"></a></dt>
+<dd><p>Get the custom setuptools subclasses used by Versioneer.</p>
+<p>If the package uses a different cmdclass (e.g. one from numpy), it
+should be provide as an argument.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.get_config_from_root">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">get_config_from_root</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">root</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#versioneer.VersioneerConfig" title="versioneer.VersioneerConfig"><span class="pre">VersioneerConfig</span></a></span></span><a class="reference internal" href="_modules/versioneer.html#get_config_from_root"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.get_config_from_root" title="Link to this definition"></a></dt>
+<dd><p>Read the project setup.cfg file to determine Versioneer config.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.get_root">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">get_root</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="reference internal" href="_modules/versioneer.html#get_root"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.get_root" title="Link to this definition"></a></dt>
+<dd><p>Get the project root directory.</p>
+<p>We require that all commands are run from the project root, i.e. the
+directory that contains setup.py, setup.cfg, and versioneer.py .</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.get_version">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">get_version</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="reference internal" href="_modules/versioneer.html#get_version"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.get_version" title="Link to this definition"></a></dt>
+<dd><p>Get the short version string for this project.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.get_versions">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">get_versions</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/versioneer.html#get_versions"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.get_versions" title="Link to this definition"></a></dt>
+<dd><p>Get the project version from whatever source is available.</p>
+<p>Returns dict with two keys: ‘version’ and ‘full’.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.git_get_keywords">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">git_get_keywords</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">versionfile_abs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/versioneer.html#git_get_keywords"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.git_get_keywords" title="Link to this definition"></a></dt>
+<dd><p>Extract version information from the given file.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.git_pieces_from_vcs">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">git_pieces_from_vcs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tag_prefix:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">root:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose:</span> <span class="pre">bool</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">runner:</span> <span class="pre">~typing.Callable</span> <span class="pre">=</span> <span class="pre">&lt;function</span> <span class="pre">run_command&gt;</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/versioneer.html#git_pieces_from_vcs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.git_pieces_from_vcs" title="Link to this definition"></a></dt>
+<dd><p>Get version from ‘git describe’ in the root of the source tree.</p>
+<p>This only gets called if the git-archive ‘subst’ keywords were <em>not</em>
+expanded, and _version.py hasn’t already been rewritten with a short
+version string, meaning we’re inside a checked out source tree.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.git_versions_from_keywords">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">git_versions_from_keywords</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">keywords</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tag_prefix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/versioneer.html#git_versions_from_keywords"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.git_versions_from_keywords" title="Link to this definition"></a></dt>
+<dd><p>Get version information from git keywords.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.pep440_split_post">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">pep440_split_post</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ver</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/versioneer.html#pep440_split_post"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.pep440_split_post" title="Link to this definition"></a></dt>
+<dd><p>Split pep440 version string at the post-release segment.</p>
+<p>Returns the release segments before the post-release and the
+post-release version number (or -1 if no post-release segment is present).</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.plus_or_dot">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">plus_or_dot</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pieces</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="reference internal" href="_modules/versioneer.html#plus_or_dot"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.plus_or_dot" title="Link to this definition"></a></dt>
+<dd><p>Return a + if we don’t already have one, else return a .</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.register_vcs_handler">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">register_vcs_handler</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">vcs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Callable</span></span></span><a class="reference internal" href="_modules/versioneer.html#register_vcs_handler"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.register_vcs_handler" title="Link to this definition"></a></dt>
+<dd><p>Create decorator to mark a method as the handler of a VCS.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.render">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">render</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pieces</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">style</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/versioneer.html#render"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.render" title="Link to this definition"></a></dt>
+<dd><p>Render the given version pieces into the requested style.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.render_git_describe">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">render_git_describe</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pieces</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="reference internal" href="_modules/versioneer.html#render_git_describe"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.render_git_describe" title="Link to this definition"></a></dt>
+<dd><p>TAG[-DISTANCE-gHEX][-dirty].</p>
+<p>Like ‘git describe –tags –dirty –always’.</p>
+<p>Exceptions:
+1: no tags. HEX[-dirty]  (note: no ‘g’ prefix)</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.render_git_describe_long">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">render_git_describe_long</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pieces</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="reference internal" href="_modules/versioneer.html#render_git_describe_long"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.render_git_describe_long" title="Link to this definition"></a></dt>
+<dd><p>TAG-DISTANCE-gHEX[-dirty].</p>
+<p>Like ‘git describe –tags –dirty –always -long’.
+The distance/hash is unconditional.</p>
+<p>Exceptions:
+1: no tags. HEX[-dirty]  (note: no ‘g’ prefix)</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.render_pep440">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">render_pep440</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pieces</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="reference internal" href="_modules/versioneer.html#render_pep440"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.render_pep440" title="Link to this definition"></a></dt>
+<dd><p>Build up version string, with post-release “local version identifier”.</p>
+<p>Our goal: TAG[+DISTANCE.gHEX[.dirty]] . Note that if you
+get a tagged build and then dirty it, you’ll get TAG+0.gHEX.dirty</p>
+<p>Exceptions:
+1: no tags. git_describe was just HEX. 0+untagged.DISTANCE.gHEX[.dirty]</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.render_pep440_branch">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">render_pep440_branch</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pieces</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="reference internal" href="_modules/versioneer.html#render_pep440_branch"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.render_pep440_branch" title="Link to this definition"></a></dt>
+<dd><p>TAG[[.dev0]+DISTANCE.gHEX[.dirty]] .</p>
+<p>The “.dev0” means not master branch. Note that .dev0 sorts backwards
+(a feature branch will appear “older” than the master branch).</p>
+<p>Exceptions:
+1: no tags. 0[.dev0]+untagged.DISTANCE.gHEX[.dirty]</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.render_pep440_old">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">render_pep440_old</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pieces</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="reference internal" href="_modules/versioneer.html#render_pep440_old"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.render_pep440_old" title="Link to this definition"></a></dt>
+<dd><p>TAG[.postDISTANCE[.dev0]] .</p>
+<p>The “.dev0” means dirty.</p>
+<p>Exceptions:
+1: no tags. 0.postDISTANCE[.dev0]</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.render_pep440_post">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">render_pep440_post</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pieces</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="reference internal" href="_modules/versioneer.html#render_pep440_post"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.render_pep440_post" title="Link to this definition"></a></dt>
+<dd><p>TAG[.postDISTANCE[.dev0]+gHEX] .</p>
+<p>The “.dev0” means dirty. Note that .dev0 sorts backwards
+(a dirty tree will appear “older” than the corresponding clean one),
+but you shouldn’t be releasing software with -dirty anyways.</p>
+<p>Exceptions:
+1: no tags. 0.postDISTANCE[.dev0]</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.render_pep440_post_branch">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">render_pep440_post_branch</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pieces</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="reference internal" href="_modules/versioneer.html#render_pep440_post_branch"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.render_pep440_post_branch" title="Link to this definition"></a></dt>
+<dd><p>TAG[.postDISTANCE[.dev0]+gHEX[.dirty]] .</p>
+<p>The “.dev0” means not master branch.</p>
+<p>Exceptions:
+1: no tags. 0.postDISTANCE[.dev0]+gHEX[.dirty]</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.render_pep440_pre">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">render_pep440_pre</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pieces</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="reference internal" href="_modules/versioneer.html#render_pep440_pre"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.render_pep440_pre" title="Link to this definition"></a></dt>
+<dd><p>TAG[.postN.devDISTANCE] – No -dirty.</p>
+<p>Exceptions:
+1: no tags. 0.post0.devDISTANCE</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.run_command">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">run_command</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">commands</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cwd</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hide_stderr</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/versioneer.html#run_command"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.run_command" title="Link to this definition"></a></dt>
+<dd><p>Call the given command(s).</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.scan_setup_py">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">scan_setup_py</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">int</span></span></span><a class="reference internal" href="_modules/versioneer.html#scan_setup_py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.scan_setup_py" title="Link to this definition"></a></dt>
+<dd><p>Validate the contents of setup.py against Versioneer’s expectations.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.setup_command">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">setup_command</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">NoReturn</span></span></span><a class="reference internal" href="_modules/versioneer.html#setup_command"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.setup_command" title="Link to this definition"></a></dt>
+<dd><p>Set up Versioneer and exit with appropriate error code.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.versions_from_file">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">versions_from_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/versioneer.html#versions_from_file"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.versions_from_file" title="Link to this definition"></a></dt>
+<dd><p>Try to determine the version from _version.py if present.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.versions_from_parentdir">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">versions_from_parentdir</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">parentdir_prefix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">root</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/versioneer.html#versions_from_parentdir"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.versions_from_parentdir" title="Link to this definition"></a></dt>
+<dd><p>Try to determine the version from the parent directory name.</p>
+<p>Source tarballs conventionally unpack into a directory that includes both
+the project name and a version string. We will also support searching up
+two directory levels for an appropriately named parent directory</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="versioneer.write_to_version_file">
+<span class="sig-prename descclassname"><span class="pre">versioneer.</span></span><span class="sig-name descname"><span class="pre">write_to_version_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">versions</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference internal" href="_modules/versioneer.html#write_to_version_file"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#versioneer.write_to_version_file" title="Link to this definition"></a></dt>
+<dd><p>Write the given version number to the given _version.py file.</p>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Allen Spatial Analysis Working Group.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

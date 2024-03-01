@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>sis.optional_import &#8212; Spots-in-Spaaaaaace! 0.0.1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=d1102ebc" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=12dfc556" />
+    <script src="../../_static/documentation_options.js?v=d45e8c67"></script>
+    <script src="../../_static/doctools.js?v=888ff710"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for sis.optional_import</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">importlib</span>
+
+
+<div class="viewcode-block" id="optional_import">
+<a class="viewcode-back" href="../../sis.html#sis.optional_import.optional_import">[docs]</a>
+<span class="k">def</span> <span class="nf">optional_import</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">names</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">package</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Try importing a module, but if that fails, wait until the first time it is</span>
+<span class="sd">    accessed before raising the ImportError.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    module : str</span>
+<span class="sd">        Name of module to import (or import from)</span>
+<span class="sd">    names : str | list of str | None</span>
+<span class="sd">        Optional name or list of names to import from *module*. If string, then</span>
+<span class="sd">        the single imported object is returned. If list, then a list</span>
+<span class="sd">        of imported objects is returned.</span>
+<span class="sd">    package : str | None</span>
+<span class="sd">        Optional base package from which relative *module* names are constructed.</span>
+<span class="sd">        This argument is required if the *module* is relative (begins with `.`).</span>
+
+<span class="sd">    Examples::</span>
+
+<span class="sd">        # import numba</span>
+<span class="sd">        numba = optional_import(&#39;numba&#39;)</span>
+
+<span class="sd">        # from numpy import array, zeros</span>
+<span class="sd">        array, zeros = optional_import(&#39;numpy&#39;, names=[&#39;array&#39;, &#39;zeros&#39;])</span>
+
+<span class="sd">        # from ..mypackage import myname</span>
+<span class="sd">        myname = optional_import(&#39;..mypackage&#39;, names=&#39;myname&#39;, package=__name__)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">returnlist</span> <span class="o">=</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">names</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">))</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">returnlist</span> <span class="ow">and</span> <span class="n">names</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="n">names</span><span class="p">]</span>
+    
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">mod</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">package</span><span class="o">=</span><span class="n">package</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">mod</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">ret</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">mod</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+                    <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">mod</span><span class="p">,</span> <span class="n">name</span><span class="p">))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">OptionalImportError</span><span class="p">(</span><span class="ne">ImportError</span><span class="p">(</span><span class="s2">&quot;cannot import name &#39;</span><span class="si">%s</span><span class="s2">&#39; from &#39;</span><span class="si">%s</span><span class="s2">&#39; (</span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">module</span><span class="p">,</span> <span class="n">mod</span><span class="o">.</span><span class="vm">__file__</span><span class="p">))))</span>
+            <span class="k">return</span> <span class="n">ret</span> <span class="k">if</span> <span class="n">returnlist</span> <span class="k">else</span> <span class="n">ret</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">except</span> <span class="ne">ImportError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="n">mod</span> <span class="o">=</span> <span class="n">OptionalImportError</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">returnlist</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">mod</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">names</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">mod</span></div>
+
+
+
+<div class="viewcode-block" id="OptionalImportError">
+<a class="viewcode-back" href="../../sis.html#sis.optional_import.OptionalImportError">[docs]</a>
+<span class="k">class</span> <span class="nc">OptionalImportError</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Dummy object that just re-raises an ImportError when it is accessed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exc</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exc</span> <span class="o">=</span> <span class="n">exc</span>
+    <span class="k">def</span> <span class="fm">__getattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attr</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="bp">self</span><span class="o">.</span><span class="n">exc</span>
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwds</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="bp">self</span><span class="o">.</span><span class="n">exc</span></div>
+
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">Spots-in-Spaaaaaace!</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2024, Allen Spatial Analysis Working Group.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 7.2.6</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 0.7.16</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

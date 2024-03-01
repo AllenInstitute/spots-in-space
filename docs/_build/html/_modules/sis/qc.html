@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>sis.qc &#8212; Spots-in-Spaaaaaace! 0.0.1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=d1102ebc" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=12dfc556" />
+    <script src="../../_static/documentation_options.js?v=d45e8c67"></script>
+    <script src="../../_static/doctools.js?v=888ff710"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for sis.qc</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">import</span> <span class="nn">json</span>
+
+<span class="kn">import</span> <span class="nn">anndata</span> <span class="k">as</span> <span class="nn">ad</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">sparse</span>
+
+
+<div class="viewcode-block" id="calc_n_transcripts">
+<a class="viewcode-back" href="../../sis.html#sis.qc.calc_n_transcripts">[docs]</a>
+<span class="k">def</span> <span class="nf">calc_n_transcripts</span><span class="p">(</span><span class="n">cell_by_gene</span><span class="p">:</span> <span class="n">ad</span><span class="o">.</span><span class="n">AnnData</span><span class="o">|</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Calculate number of detected transcripts per cell.&quot;&quot;&quot;</span>
+    <span class="n">counts</span> <span class="o">=</span> <span class="n">get_counts_from_cbg</span><span class="p">(</span><span class="n">cell_by_gene</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">counts</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+        <span class="n">n_transcripts</span> <span class="o">=</span> <span class="n">counts</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">counts</span><span class="p">,</span> <span class="n">sparse</span><span class="o">.</span><span class="n">spmatrix</span><span class="p">):</span>
+        <span class="n">n_transcripts</span> <span class="o">=</span> <span class="n">counts</span><span class="o">.</span><span class="n">A</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">n_transcripts</span></div>
+
+
+
+<div class="viewcode-block" id="calc_n_genes">
+<a class="viewcode-back" href="../../sis.html#sis.qc.calc_n_genes">[docs]</a>
+<span class="k">def</span> <span class="nf">calc_n_genes</span><span class="p">(</span><span class="n">cell_by_gene</span><span class="p">:</span> <span class="n">ad</span><span class="o">.</span><span class="n">AnnData</span><span class="o">|</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Calculate number of genes per cell.&quot;&quot;&quot;</span>
+    <span class="n">counts</span> <span class="o">=</span> <span class="n">get_counts_from_cbg</span><span class="p">(</span><span class="n">cell_by_gene</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">counts</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+        <span class="n">n_genes</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">count_nonzero</span><span class="p">(</span><span class="n">counts</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">counts</span><span class="p">,</span> <span class="n">sparse</span><span class="o">.</span><span class="n">spmatrix</span><span class="p">):</span>
+        <span class="n">n_genes</span> <span class="o">=</span> <span class="n">counts</span><span class="o">.</span><span class="n">getnnz</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">n_genes</span></div>
+
+
+
+<div class="viewcode-block" id="calc_n_blanks">
+<a class="viewcode-back" href="../../sis.html#sis.qc.calc_n_blanks">[docs]</a>
+<span class="k">def</span> <span class="nf">calc_n_blanks</span><span class="p">(</span><span class="n">cell_by_gene</span><span class="p">:</span> <span class="n">ad</span><span class="o">.</span><span class="n">AnnData</span><span class="o">|</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Calculate number of blanks per cell.&quot;&quot;&quot;</span>
+    <span class="n">counts</span> <span class="o">=</span> <span class="n">get_counts_from_cbg</span><span class="p">(</span><span class="n">cell_by_gene</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cell_by_gene</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">):</span>
+        <span class="n">blank_cols</span> <span class="o">=</span> <span class="n">cell_by_gene</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">str</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;Blank&#39;</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cell_by_gene</span><span class="p">,</span> <span class="n">ad</span><span class="o">.</span><span class="n">AnnData</span><span class="p">):</span>
+        <span class="n">blank_cols</span> <span class="o">=</span> <span class="n">cell_by_gene</span><span class="o">.</span><span class="n">var_names</span><span class="o">.</span><span class="n">str</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;Blank&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">counts</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+        <span class="n">blank_counts</span> <span class="o">=</span> <span class="n">counts</span><span class="p">[:,</span> <span class="n">blank_cols</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">counts</span><span class="p">,</span> <span class="n">sparse</span><span class="o">.</span><span class="n">spmatrix</span><span class="p">):</span>
+        <span class="n">blank_counts</span> <span class="o">=</span> <span class="n">counts</span><span class="o">.</span><span class="n">A</span><span class="p">[:,</span> <span class="n">blank_cols</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">blank_counts</span></div>
+
+
+
+<div class="viewcode-block" id="get_counts_from_cbg">
+<a class="viewcode-back" href="../../sis.html#sis.qc.get_counts_from_cbg">[docs]</a>
+<span class="k">def</span> <span class="nf">get_counts_from_cbg</span><span class="p">(</span><span class="n">cell_by_gene</span><span class="p">:</span> <span class="n">ad</span><span class="o">.</span><span class="n">AnnData</span><span class="o">|</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Get counts array from a cell by gene table in either an AnnData object</span>
+<span class="sd">    or pandas DataFrame.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cell_by_gene</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">):</span>
+        <span class="n">counts</span> <span class="o">=</span> <span class="n">cell_by_gene</span><span class="o">.</span><span class="n">values</span>
+
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cell_by_gene</span><span class="p">,</span> <span class="n">ad</span><span class="o">.</span><span class="n">AnnData</span><span class="p">):</span>
+        <span class="n">counts</span> <span class="o">=</span> <span class="n">cell_by_gene</span><span class="o">.</span><span class="n">X</span>
+
+    <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">issubdtype</span><span class="p">(</span><span class="n">counts</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">integer</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">counts</span></div>
+
+
+
+<div class="viewcode-block" id="run_solo_doublet_detection">
+<a class="viewcode-back" href="../../sis.html#sis.qc.run_solo_doublet_detection">[docs]</a>
+<span class="k">def</span> <span class="nf">run_solo_doublet_detection</span><span class="p">(</span><span class="n">cell_by_gene</span><span class="p">:</span> <span class="n">ad</span><span class="o">.</span><span class="n">AnnData</span><span class="p">,</span> <span class="n">threshold</span><span class="p">:</span> <span class="nb">float</span><span class="o">|</span><span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Detect doublets using SOLO. Returns results in a pandas DataFrame.&quot;&quot;&quot;</span>
+    <span class="kn">import</span> <span class="nn">scvi</span>
+    <span class="n">scvi</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">SCVI</span><span class="o">.</span><span class="n">setup_anndata</span><span class="p">(</span><span class="n">cell_by_gene</span><span class="p">)</span>
+    <span class="n">vae</span> <span class="o">=</span> <span class="n">scvi</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">SCVI</span><span class="p">(</span><span class="n">cell_by_gene</span><span class="p">)</span>
+
+    <span class="c1"># this may need a try except for that intermittent batch size error</span>
+    <span class="n">vae</span><span class="o">.</span><span class="n">train</span><span class="p">()</span>
+
+    <span class="n">solo</span> <span class="o">=</span> <span class="n">scvi</span><span class="o">.</span><span class="n">external</span><span class="o">.</span><span class="n">SOLO</span><span class="o">.</span><span class="n">from_scvi_model</span><span class="p">(</span><span class="n">vae</span><span class="p">)</span>
+    <span class="n">solo</span><span class="o">.</span><span class="n">train</span><span class="p">()</span>
+
+    <span class="n">results</span> <span class="o">=</span> <span class="n">solo</span><span class="o">.</span><span class="n">predict</span><span class="p">()</span>
+    <span class="n">results</span><span class="p">[</span><span class="s1">&#39;solo_prediction&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">solo</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">soft</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">results</span><span class="p">[</span><span class="s1">&#39;doublet_score_diff&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">results</span><span class="o">.</span><span class="n">doublet</span> <span class="o">-</span> <span class="n">results</span><span class="o">.</span><span class="n">singlet</span>
+
+    <span class="k">if</span> <span class="n">threshold</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;doublet_score&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;singlet&#39;</span>
+        <span class="n">results</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">results</span><span class="p">[</span><span class="s1">&#39;doublet_score_diff&#39;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">threshold</span><span class="p">,</span> <span class="s1">&#39;doublet_score&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;doublet&#39;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;doublet_score&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">results</span><span class="p">[</span><span class="s1">&#39;solo_prediction&#39;</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">results</span></div>
+
+
+
+<div class="viewcode-block" id="run_doublet_detection">
+<a class="viewcode-back" href="../../sis.html#sis.qc.run_doublet_detection">[docs]</a>
+<span class="k">def</span> <span class="nf">run_doublet_detection</span><span class="p">(</span><span class="n">cell_by_gene</span><span class="p">:</span> <span class="n">ad</span><span class="o">.</span><span class="n">AnnData</span><span class="p">,</span> <span class="n">output_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">method</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">method_kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">filter_col</span><span class="p">:</span> <span class="nb">str</span><span class="o">|</span><span class="kc">None</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Wrapper function to run a doublet detection algorithm on the HPC.</span>
+<span class="sd">    Saves results into a csv file and doublet detection metadata into a json.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">filter_col</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">cbg_filt</span> <span class="o">=</span> <span class="n">cell_by_gene</span><span class="p">[</span><span class="n">cell_by_gene</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="n">filter_col</span><span class="p">]]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">cbg_filt</span> <span class="o">=</span> <span class="n">cell_by_gene</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">method</span> <span class="o">==</span> <span class="s1">&#39;solo&#39;</span><span class="p">:</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="n">run_solo_doublet_detection</span><span class="p">(</span><span class="n">cbg_filt</span><span class="p">,</span> <span class="o">**</span><span class="n">method_kwargs</span><span class="p">)</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;Only SOLO is currently implemented.&#39;</span><span class="p">)</span>
+
+    <span class="n">result_file</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">output_dir</span><span class="si">}</span><span class="s1">/doublet_results.csv&#39;</span>
+    <span class="n">results</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="n">result_file</span><span class="p">)</span>
+
+    <span class="n">meta_file</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">output_dir</span><span class="si">}</span><span class="s1">/doublet_detection_params.json&#39;</span>
+    <span class="n">doublet_params</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;method&#39;</span><span class="p">:</span> <span class="n">method</span><span class="p">,</span>
+            <span class="s1">&#39;method_kwargs&#39;</span><span class="p">:</span> <span class="n">method_kwargs</span><span class="p">,</span>
+            <span class="s1">&#39;filter_col&#39;</span><span class="p">:</span> <span class="n">filter_col</span>
+    <span class="p">}</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">meta_file</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">doublet_params</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span></div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">Spots-in-Spaaaaaace!</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2024, Allen Spatial Analysis Working Group.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 7.2.6</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 0.7.16</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

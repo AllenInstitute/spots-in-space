@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>sis.image &#8212; Spots-in-Spaaaaaace! 0.0.1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=d1102ebc" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=12dfc556" />
+    <script src="../../_static/documentation_options.js?v=d45e8c67"></script>
+    <script src="../../_static/doctools.js?v=888ff710"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for sis.image</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">import</span> <span class="nn">os</span><span class="o">,</span> <span class="nn">glob</span><span class="o">,</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">.optional_import</span> <span class="kn">import</span> <span class="n">optional_import</span>
+<span class="n">rasterio</span> <span class="o">=</span> <span class="n">optional_import</span><span class="p">(</span><span class="s1">&#39;rasterio&#39;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="ImageBase">
+<a class="viewcode-back" href="../../sis.html#sis.image.ImageBase">[docs]</a>
+<span class="k">class</span> <span class="nc">ImageBase</span><span class="p">:</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return 4D shape (frames, rows, columns, channels)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+<div class="viewcode-block" id="ImageBase.get_data">
+<a class="viewcode-back" href="../../sis.html#sis.image.ImageBase.get_data">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">channel</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="ImageBase.get_channel">
+<a class="viewcode-back" href="../../sis.html#sis.image.ImageBase.get_channel">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_channel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">channel</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">channel</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">channels</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channels</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span>
+        <span class="k">return</span> <span class="n">ImageView</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">channels</span><span class="o">=</span><span class="p">[</span><span class="n">channel</span><span class="p">])</span></div>
+
+        
+<div class="viewcode-block" id="ImageBase.get_subregion">
+<a class="viewcode-back" href="../../sis.html#sis.image.ImageBase.get_subregion">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_subregion</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">region</span><span class="p">,</span> <span class="n">incl_end</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a view of this image limited to the region [(xmin, xmax), (ymin, ymax)]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">corners</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">region</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+        <span class="n">tl</span><span class="p">,</span> <span class="n">br</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform</span><span class="o">.</span><span class="n">map_to_pixels</span><span class="p">(</span><span class="n">corners</span><span class="p">)</span>
+        <span class="n">tl</span> <span class="o">=</span> <span class="n">tl</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">br</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">br</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span> <span class="k">if</span> <span class="n">incl_end</span> <span class="k">else</span> <span class="n">br</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_pixel_subregion</span><span class="p">([(</span><span class="n">tl</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">br</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="p">(</span><span class="n">tl</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">br</span><span class="p">[</span><span class="mi">1</span><span class="p">])])</span></div>
+
+
+<div class="viewcode-block" id="ImageBase.bounds">
+<a class="viewcode-back" href="../../sis.html#sis.image.ImageBase.bounds">[docs]</a>
+    <span class="k">def</span> <span class="nf">bounds</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return (xlim, ylim) bounds of the image in spot coordinates</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">o</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform</span><span class="o">.</span><span class="n">map_from_pixels</span><span class="p">([[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]])[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform</span><span class="o">.</span><span class="n">map_from_pixels</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="mi">3</span><span class="p">]])[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="p">((</span><span class="n">o</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="p">(</span><span class="n">o</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span></div>
+
+
+<div class="viewcode-block" id="ImageBase.get_pixel_subregion">
+<a class="viewcode-back" href="../../sis.html#sis.image.ImageBase.get_pixel_subregion">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_pixel_subregion</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">region</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a view of this image limited to the region [:, rowmin:rowmax, colmin:colmax]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">ImageView</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="n">region</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">cols</span><span class="o">=</span><span class="n">region</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="ImageBase.get_frame">
+<a class="viewcode-back" href="../../sis.html#sis.image.ImageBase.get_frame">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_frame</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">frame</span><span class="p">):</span>
+        <span class="n">z_len</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">assert</span> <span class="n">frame</span> <span class="o">&lt;</span> <span class="n">z_len</span>
+        <span class="k">return</span> <span class="n">ImageView</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">frames</span><span class="o">=</span><span class="p">(</span><span class="n">frame</span><span class="p">,</span> <span class="n">frame</span><span class="o">+</span><span class="mi">1</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="ImageBase.show">
+<a class="viewcode-back" href="../../sis.html#sis.image.ImageBase.show">[docs]</a>
+    <span class="k">def</span> <span class="nf">show</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">frame</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">channel</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwds</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">ax</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+            <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span>
+
+        <span class="n">img</span> <span class="o">=</span> <span class="bp">self</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">frame</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="n">img</span> <span class="o">=</span> <span class="n">img</span><span class="o">.</span><span class="n">get_frame</span><span class="p">(</span><span class="n">frame</span><span class="p">)</span>
+            
+        <span class="n">data</span> <span class="o">=</span> <span class="n">img</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="n">channel</span><span class="o">=</span><span class="n">channel</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">frame</span> <span class="o">==</span> <span class="s1">&#39;mean&#39;</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_show_image</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">ax</span><span class="p">,</span> <span class="o">**</span><span class="n">kwds</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span> <span class="nf">_show_image</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">ax</span><span class="p">,</span> <span class="o">**</span><span class="n">kwds</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="o">==</span><span class="mi">3</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">,:,:]</span>
+            <span class="k">elif</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">3</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;show requires 2d image data or RGB data with shape [3,N,M]&quot;</span><span class="p">)</span>
+        <span class="n">y_inverted</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">yaxis_inverted</span><span class="p">()</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">px_corners</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="mi">3</span><span class="p">]])</span>
+        <span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">top</span><span class="p">),</span> <span class="p">(</span><span class="n">right</span><span class="p">,</span> <span class="n">bottom</span><span class="p">)</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform</span><span class="o">.</span><span class="n">map_from_pixels</span><span class="p">(</span><span class="n">px_corners</span><span class="p">)</span>
+        <span class="n">kwds</span><span class="p">[</span><span class="s1">&#39;extent&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span> <span class="n">bottom</span><span class="p">,</span> <span class="n">top</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="o">**</span><span class="n">kwds</span><span class="p">)</span>
+        <span class="c1"># don&#39;t let imshow invert the y axis</span>
+        <span class="k">if</span> <span class="n">ax</span><span class="o">.</span><span class="n">yaxis_inverted</span><span class="p">()</span> <span class="o">!=</span> <span class="n">y_inverted</span><span class="p">:</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">invert_yaxis</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="Image">
+<a class="viewcode-back" href="../../sis.html#sis.image.Image">[docs]</a>
+<span class="k">class</span> <span class="nc">Image</span><span class="p">(</span><span class="n">ImageBase</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;An Image defined by 4D numpy array (frames, rows, cols, channels).</span>
+<span class="sd">    </span>
+<span class="sd">    Carries metadata about pixel transform and channel identity.</span>
+<span class="sd">    </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">transform</span><span class="p">:</span><span class="n">ImageTransform</span><span class="p">,</span> <span class="n">channels</span><span class="p">:</span><span class="nb">list</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="o">|</span><span class="kc">None</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="k">assert</span> <span class="n">data</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">4</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">transform</span><span class="p">,</span> <span class="n">ImageTransform</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">transform</span> <span class="o">=</span> <span class="n">transform</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">channels</span> <span class="o">=</span> <span class="n">channels</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">data</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">shape</span>
+        
+<div class="viewcode-block" id="Image.get_data">
+<a class="viewcode-back" href="../../sis.html#sis.image.Image.get_data">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">channel</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return array of image data.</span>
+
+<span class="sd">        If the image has multiple channels, then the name of the channel to return must be given.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_channel_index</span><span class="p">(</span><span class="n">channel</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">index</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="Image.get_sub_data">
+<a class="viewcode-back" href="../../sis.html#sis.image.Image.get_sub_data">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_sub_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">frames</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">,</span> <span class="n">rows</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">,</span> <span class="n">cols</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">,</span> <span class="n">channel</span><span class="p">:</span> <span class="nb">str</span><span class="o">|</span><span class="kc">None</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get image data for a subregion</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        frames : tuple</span>
+<span class="sd">            (first_frame, last_frame)</span>
+<span class="sd">        rows : tuple</span>
+<span class="sd">            (first_row, last_row+1)</span>
+<span class="sd">        cols : tuple</span>
+<span class="sd">            (first_col, last_col+1)</span>
+<span class="sd">        channel : str | None</span>
+<span class="sd">            Name of channel to return data from</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">chan</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="n">channel</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">chan</span><span class="p">[</span><span class="n">frames</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span><span class="n">frames</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">rows</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span><span class="n">rows</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">cols</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span><span class="n">cols</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span></div>
+
+
+    <span class="k">def</span> <span class="nf">_get_channel_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">channel</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">channel</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">channels</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">channel</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;Must specify channel to return&quot;</span>
+            <span class="k">return</span> <span class="mi">0</span></div>
+
+
+
+<div class="viewcode-block" id="ImageFile">
+<a class="viewcode-back" href="../../sis.html#sis.image.ImageFile">[docs]</a>
+<span class="k">class</span> <span class="nc">ImageFile</span><span class="p">(</span><span class="n">ImageBase</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">file</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">transform</span><span class="p">:</span><span class="n">ImageTransform</span><span class="p">,</span> <span class="n">axes</span><span class="p">:</span> <span class="nb">list</span><span class="o">|</span><span class="kc">None</span><span class="p">,</span> <span class="n">channels</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="o">|</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Represents a single image stored on disk, carrying metadata about:</span>
+<span class="sd">        - The file containing image data</span>
+<span class="sd">        - The transform that maps from pixel coordinates to spot table coordinates</span>
+<span class="sd">        - Which axes are which</span>
+<span class="sd">        - What is represented by each channel</span>
+
+<span class="sd">        Image data are lazy-loaded so that we can handle subregions without loading the entire image</span>
+<span class="sd">        </span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        file : str</span>
+<span class="sd">            Path to image file</span>
+<span class="sd">        transform : ndarray</span>
+<span class="sd">            ImageTransform relating (row, col) image pixel coordinates to (x, y) spot coordinates.</span>
+<span class="sd">        axes : list</span>
+<span class="sd">            List of axis names giving order of axes in *file*; options are &#39;frame&#39;, &#39;row&#39;, &#39;col&#39;, &#39;channel&#39;</span>
+<span class="sd">        channels : list</span>
+<span class="sd">            List of names given to each channel (e.g.: &#39;dapi&#39;)</span>
+<span class="sd">        name : str|None</span>
+<span class="sd">            Optional unique identifier for this image</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">file</span> <span class="o">=</span> <span class="n">file</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">transform</span> <span class="o">=</span> <span class="n">transform</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">axes</span> <span class="o">=</span> <span class="n">axes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">channels</span> <span class="o">=</span> <span class="n">channels</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_shape</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="ImageFile.load_merscope">
+<a class="viewcode-back" href="../../sis.html#sis.image.ImageFile.load_merscope">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">load_merscope</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">image_file</span><span class="p">,</span> <span class="n">transform_file</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">um_to_px</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="n">transform_file</span><span class="p">)[:</span><span class="mi">2</span><span class="p">]</span>
+        <span class="c1"># transpose rows so we map to (row,col) instead of (col,row)</span>
+        <span class="n">um_to_px</span> <span class="o">=</span> <span class="n">um_to_px</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">tr</span> <span class="o">=</span> <span class="n">ImageTransform</span><span class="p">(</span><span class="n">um_to_px</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ImageFile</span><span class="p">(</span><span class="n">file</span><span class="o">=</span><span class="n">image_file</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">tr</span><span class="p">,</span> <span class="n">axes</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;frame&#39;</span><span class="p">,</span> <span class="s1">&#39;row&#39;</span><span class="p">,</span> <span class="s1">&#39;col&#39;</span><span class="p">,</span> <span class="s1">&#39;channel&#39;</span><span class="p">],</span> <span class="n">channels</span><span class="o">=</span><span class="p">[</span><span class="n">channel</span><span class="p">],</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">)</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_shape</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">warnings</span><span class="o">.</span><span class="n">catch_warnings</span><span class="p">():</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s1">&#39;ignore&#39;</span><span class="p">)</span>
+                <span class="k">with</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">file</span><span class="p">)</span> <span class="k">as</span> <span class="n">src</span><span class="p">:</span>
+                    <span class="c1"># todo: support for multiple planes per file?</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_shape</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">src</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;height&#39;</span><span class="p">],</span> <span class="n">src</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;width&#39;</span><span class="p">],</span> <span class="n">src</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_shape</span>
+
+    <span class="k">def</span> <span class="nf">_standard_image_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">img_data</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">img_data</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">img_data</span> <span class="o">=</span> <span class="n">img_data</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,</span> <span class="p">:,:]</span>
+        <span class="k">return</span> <span class="n">img_data</span>
+
+<div class="viewcode-block" id="ImageFile.get_data">
+<a class="viewcode-back" href="../../sis.html#sis.image.ImageFile.get_data">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">channel</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return array of image data.</span>
+
+<span class="sd">        If the image has multiple channels, then the name of the channel to return must be given.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_channel_index</span><span class="p">(</span><span class="n">channel</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">warnings</span><span class="o">.</span><span class="n">catch_warnings</span><span class="p">():</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s1">&#39;ignore&#39;</span><span class="p">)</span>
+            <span class="k">with</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">file</span><span class="p">)</span> <span class="k">as</span> <span class="n">src</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_standard_image_shape</span><span class="p">(</span><span class="n">src</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">index</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="ImageFile.get_sub_data">
+<a class="viewcode-back" href="../../sis.html#sis.image.ImageFile.get_sub_data">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_sub_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">frames</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">,</span> <span class="n">rows</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">,</span> <span class="n">cols</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">,</span> <span class="n">channel</span><span class="p">:</span> <span class="nb">str</span><span class="o">|</span><span class="kc">None</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get image data for a subregion</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        frames : tuple</span>
+<span class="sd">            (first_frame, last_frame)</span>
+<span class="sd">        rows : tuple</span>
+<span class="sd">            (first_row, last_row+1)</span>
+<span class="sd">        cols : tuple</span>
+<span class="sd">            (first_col, last_col+1)</span>
+<span class="sd">        channel : str | None</span>
+<span class="sd">            Name of channel to return data from</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_channel_index</span><span class="p">(</span><span class="n">channel</span><span class="p">)</span>
+        <span class="n">win</span> <span class="o">=</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">windows</span><span class="o">.</span><span class="n">Window</span><span class="p">(</span><span class="n">cols</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">rows</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">cols</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">cols</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">rows</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">rows</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">with</span> <span class="n">warnings</span><span class="o">.</span><span class="n">catch_warnings</span><span class="p">():</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s1">&#39;ignore&#39;</span><span class="p">)</span>
+            <span class="k">with</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">file</span><span class="p">)</span> <span class="k">as</span> <span class="n">src</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_standard_image_shape</span><span class="p">(</span><span class="n">src</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">window</span><span class="o">=</span><span class="n">win</span><span class="p">))</span></div>
+
+
+    <span class="k">def</span> <span class="nf">_get_channel_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">channel</span><span class="p">):</span>
+        <span class="c1"># rasterio indexes channels starting at 1</span>
+        <span class="k">if</span> <span class="n">channel</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channels</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">channels</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">channel</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span></div>
+
+
+
+<div class="viewcode-block" id="ImageTransform">
+<a class="viewcode-back" href="../../sis.html#sis.image.ImageTransform">[docs]</a>
+<span class="k">class</span> <span class="nc">ImageTransform</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Transfomation mapping between (x, y) spot coordinates and (row, col) image pixels</span>
+<span class="sd">    </span>
+<span class="sd">    *matrix* is a numpy array of shape (2, 3) containing the affine transformation matrix that maps from spots to pixels</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">matrix</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">matrix</span> <span class="o">=</span> <span class="n">matrix</span>
+        <span class="k">assert</span> <span class="n">matrix</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_inverse</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="ImageTransform.map_to_pixels">
+<a class="viewcode-back" href="../../sis.html#sis.image.ImageTransform.map_to_pixels">[docs]</a>
+    <span class="k">def</span> <span class="nf">map_to_pixels</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">points</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Map (x, y) positions to image pixels (row, col). </span>
+<span class="sd">        </span>
+<span class="sd">        Points must be an array of shape (N, 2).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">points</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">points</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">points</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span>
+        <span class="k">assert</span> <span class="n">points</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">matrix</span><span class="p">[:</span><span class="mi">2</span><span class="p">,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">@</span> <span class="n">points</span><span class="o">.</span><span class="n">T</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">matrix</span><span class="p">[:</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">:])</span><span class="o">.</span><span class="n">T</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">inverse_matrix</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_inverse</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">m3</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+            <span class="n">m3</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">matrix</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_inverse</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">m3</span><span class="p">)[:</span><span class="mi">2</span><span class="p">]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_inverse</span>
+
+<div class="viewcode-block" id="ImageTransform.map_from_pixels">
+<a class="viewcode-back" href="../../sis.html#sis.image.ImageTransform.map_from_pixels">[docs]</a>
+    <span class="k">def</span> <span class="nf">map_from_pixels</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pixels</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Map (row, col) image pixels to positions (x, y). </span>
+<span class="sd">        </span>
+<span class="sd">        Points must be an array of shape (N, 2).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">pixels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">pixels</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">pixels</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span>
+        <span class="k">assert</span> <span class="n">pixels</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inverse_matrix</span><span class="p">[:</span><span class="mi">2</span><span class="p">,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">@</span> <span class="n">pixels</span><span class="o">.</span><span class="n">T</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">inverse_matrix</span><span class="p">[:</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">:])</span><span class="o">.</span><span class="n">T</span></div>
+
+
+<div class="viewcode-block" id="ImageTransform.translated">
+<a class="viewcode-back" href="../../sis.html#sis.image.ImageTransform.translated">[docs]</a>
+    <span class="k">def</span> <span class="nf">translated</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">offset</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a new transform that is translated by *offset* (where offset is expressed in pixels)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">matrix</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">m</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">+=</span> <span class="n">offset</span>
+        <span class="k">return</span> <span class="n">ImageTransform</span><span class="p">(</span><span class="n">m</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="ImageStack">
+<a class="viewcode-back" href="../../sis.html#sis.image.ImageStack">[docs]</a>
+<span class="k">class</span> <span class="nc">ImageStack</span><span class="p">(</span><span class="n">ImageBase</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A stack of Image z-planes</span>
+
+<span class="sd">    Assumes images are all the same shape and evenly spaced along the z axis.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">images</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">images</span> <span class="o">=</span> <span class="n">images</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="c1"># z0 = self.images[0].transform.map_from_pixels([[</span>
+
+<div class="viewcode-block" id="ImageStack.load_merscope_stacks">
+<a class="viewcode-back" href="../../sis.html#sis.image.ImageStack.load_merscope_stacks">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">load_merscope_stacks</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Read standard merscope image mosaic format, returning multiple image stacks</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">transform_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;micron_to_mosaic_pixel_transform.csv&#39;</span><span class="p">)</span>
+
+        <span class="c1"># look for TIF files with the structure like &quot;mosaic_DAPI_z3.tif&quot;</span>
+        <span class="n">image_files</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;mosaic_*_z*.tif&#39;</span><span class="p">))</span>
+        <span class="n">image_meta</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">stains</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="n">z_inds</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="n">image_files</span><span class="p">:</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;mosaic_(\S+)_z(\d+).tif&#39;</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">filename</span><span class="p">)[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">m</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">stain</span><span class="p">,</span> <span class="n">z_index</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">groups</span><span class="p">()</span>
+            <span class="n">z_index</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">z_index</span><span class="p">)</span>
+            <span class="n">image_meta</span><span class="p">[(</span><span class="n">stain</span><span class="p">,</span> <span class="n">z_index</span><span class="p">)]</span> <span class="o">=</span> <span class="n">filename</span>
+            <span class="n">stains</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">stain</span><span class="p">)</span>
+            <span class="n">z_inds</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">z_index</span><span class="p">)</span>
+
+        <span class="c1"># for each available stain, make a new stack</span>
+        <span class="n">z_inds</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">z_inds</span><span class="p">))</span>
+        <span class="n">stacks</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">stain</span> <span class="ow">in</span> <span class="n">stains</span><span class="p">:</span>
+            <span class="n">images</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">z_ind</span> <span class="ow">in</span> <span class="n">z_inds</span><span class="p">:</span>
+                <span class="n">img_file</span> <span class="o">=</span> <span class="n">image_meta</span><span class="p">[</span><span class="n">stain</span><span class="p">,</span> <span class="n">z_ind</span><span class="p">]</span>
+                <span class="n">img</span> <span class="o">=</span> <span class="n">ImageFile</span><span class="o">.</span><span class="n">load_merscope</span><span class="p">(</span><span class="n">img_file</span><span class="p">,</span> <span class="n">transform_file</span><span class="p">,</span> <span class="n">channel</span><span class="o">=</span><span class="n">stain</span><span class="p">)</span>
+                <span class="n">images</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">img</span><span class="p">)</span>
+            <span class="n">stacks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ImageStack</span><span class="p">(</span><span class="n">images</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">stacks</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">img_shape</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">images</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span>
+        <span class="k">return</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">images</span><span class="p">),)</span> <span class="o">+</span> <span class="n">img_shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> 
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">channels</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">images</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">channels</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">transform</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">images</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">transform</span>
+
+<div class="viewcode-block" id="ImageStack.get_data">
+<a class="viewcode-back" href="../../sis.html#sis.image.ImageStack.get_data">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">channel</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">get_image_data</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">img</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">images</span><span class="p">:</span>
+                <span class="k">yield</span> <span class="n">img</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="n">channel</span><span class="o">=</span><span class="n">channel</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_data</span><span class="p">(</span><span class="n">get_image_data</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="ImageStack.get_sub_data">
+<a class="viewcode-back" href="../../sis.html#sis.image.ImageStack.get_sub_data">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_sub_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">frames</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">,</span> <span class="n">rows</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">,</span> <span class="n">cols</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">,</span> <span class="n">channel</span><span class="p">:</span> <span class="nb">str</span><span class="o">|</span><span class="kc">None</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">images</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">images</span><span class="p">[</span><span class="n">frames</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span><span class="n">frames</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span>
+        <span class="k">def</span> <span class="nf">get_image_data</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">img</span> <span class="ow">in</span> <span class="n">images</span><span class="p">:</span>
+                <span class="k">yield</span> <span class="n">img</span><span class="o">.</span><span class="n">get_sub_data</span><span class="p">(</span><span class="n">frames</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="n">rows</span><span class="p">,</span> <span class="n">cols</span><span class="o">=</span><span class="n">cols</span><span class="p">,</span> <span class="n">channel</span><span class="o">=</span><span class="n">channel</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_data</span><span class="p">(</span><span class="n">get_image_data</span><span class="p">(),</span> <span class="nb">len</span><span class="p">(</span><span class="n">images</span><span class="p">))</span></div>
+
+
+    <span class="k">def</span> <span class="nf">_load_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gen</span><span class="p">,</span> <span class="n">n_frames</span><span class="p">):</span>
+        <span class="c1"># load data to a 3D array one frame at a time</span>
+        <span class="c1"># (avoiding np.stack() to reduce memory usage)</span>
+        <span class="n">first</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">gen</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">full</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">n_frames</span><span class="p">,)</span> <span class="o">+</span> <span class="n">first</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">first</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="n">full</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">first</span>
+        <span class="k">del</span> <span class="n">first</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">img</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">gen</span><span class="p">):</span>
+            <span class="n">full</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">img</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">full</span></div>
+
+
+
+<div class="viewcode-block" id="ImageView">
+<a class="viewcode-back" href="../../sis.html#sis.image.ImageView">[docs]</a>
+<span class="k">class</span> <span class="nc">ImageView</span><span class="p">(</span><span class="n">ImageBase</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents a subset of data from an Image (a rectangular subregion or subset of channels)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">image</span><span class="p">,</span> <span class="n">frames</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cols</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">channels</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">channels</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">channels</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">image</span><span class="o">.</span><span class="n">channels</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">image</span> <span class="o">=</span> <span class="n">image</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">view_frames</span> <span class="o">=</span> <span class="n">frames</span> <span class="ow">or</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">image</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">view_rows</span> <span class="o">=</span> <span class="n">rows</span> <span class="ow">or</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">image</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">view_cols</span> <span class="o">=</span> <span class="n">cols</span> <span class="ow">or</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">image</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+
+        <span class="k">for</span> <span class="n">ax</span><span class="p">,</span> <span class="n">rgn</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">view_frames</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">view_rows</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">view_cols</span><span class="p">]):</span>
+            <span class="k">assert</span> <span class="n">rgn</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">0</span>
+            <span class="k">assert</span> <span class="n">rgn</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">rgn</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">assert</span> <span class="n">rgn</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">image</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="n">ax</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">view_channels</span> <span class="o">=</span> <span class="n">channels</span>
+
+        <span class="n">offset</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">rows</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">offset</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">rows</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">cols</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">offset</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">cols</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">transform</span> <span class="o">=</span> <span class="n">image</span><span class="o">.</span><span class="n">transform</span><span class="o">.</span><span class="n">translated</span><span class="p">(</span><span class="o">-</span><span class="n">offset</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">image</span><span class="o">.</span><span class="n">name</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">view_frames</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">view_frames</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">view_rows</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">view_rows</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">view_cols</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">view_cols</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">image</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
+        <span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">view_channels</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">shape</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">view_channels</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">channels</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">view_channels</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">view_channels</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">image</span><span class="o">.</span><span class="n">channels</span>
+
+<div class="viewcode-block" id="ImageView.get_data">
+<a class="viewcode-back" href="../../sis.html#sis.image.ImageView.get_data">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">channel</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>        
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">image</span><span class="o">.</span><span class="n">get_sub_data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">view_frames</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">view_rows</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">view_cols</span><span class="p">,</span> <span class="n">channel</span><span class="o">=</span><span class="n">channel</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ImageView.get_sub_data">
+<a class="viewcode-back" href="../../sis.html#sis.image.ImageView.get_sub_data">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_sub_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">frames</span><span class="p">,</span> <span class="n">rows</span><span class="p">,</span> <span class="n">cols</span><span class="p">,</span> <span class="n">channel</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">framestart</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">view_frames</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">rowstart</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">view_rows</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">colstart</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">view_cols</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">frames</span> <span class="o">=</span> <span class="p">(</span><span class="n">frames</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">framestart</span><span class="p">,</span> <span class="n">frames</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">framestart</span><span class="p">)</span>
+        <span class="n">rows</span> <span class="o">=</span> <span class="p">(</span><span class="n">rows</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">rowstart</span><span class="p">,</span> <span class="n">rows</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">rowstart</span><span class="p">)</span>
+        <span class="n">cols</span> <span class="o">=</span> <span class="p">(</span><span class="n">cols</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">colstart</span><span class="p">,</span> <span class="n">cols</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">colstart</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">image</span><span class="o">.</span><span class="n">get_sub_data</span><span class="p">(</span><span class="n">frames</span><span class="p">,</span> <span class="n">rows</span><span class="p">,</span> <span class="n">cols</span><span class="p">,</span> <span class="n">channel</span><span class="o">=</span><span class="n">channel</span><span class="p">)</span></div>
+</div>
+
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">Spots-in-Spaaaaaace!</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2024, Allen Spatial Analysis Working Group.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 7.2.6</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 0.7.16</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

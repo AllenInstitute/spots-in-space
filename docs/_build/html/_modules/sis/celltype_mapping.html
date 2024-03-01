@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>sis.celltype_mapping &#8212; Spots-in-Spaaaaaace! 0.0.1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=d1102ebc" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=12dfc556" />
+    <script src="../../_static/documentation_options.js?v=d45e8c67"></script>
+    <script src="../../_static/doctools.js?v=888ff710"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for sis.celltype_mapping</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="c1"># from code.gene_panel_selection.gene_panel_selection import ExpressionDataset</span>
+<span class="c1"># from code.segmentation.segmentation import SpotTable</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">sparse</span>
+<span class="kn">import</span> <span class="nn">seaborn</span> <span class="k">as</span> <span class="nn">sns</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">bz2</span>
+<span class="kn">import</span> <span class="nn">_pickle</span> <span class="k">as</span> <span class="nn">cPickle</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">anndata</span> <span class="k">as</span> <span class="nn">ad</span>
+<span class="kn">import</span> <span class="nn">umap</span>
+<span class="kn">from</span> <span class="nn">sis.hpc</span> <span class="kn">import</span> <span class="n">run_slurm</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">tangram</span> <span class="k">as</span> <span class="nn">tg</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+    <span class="k">pass</span>
+
+<div class="viewcode-block" id="CellTypeMapping">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.CellTypeMapping">[docs]</a>
+<span class="k">class</span> <span class="nc">CellTypeMapping</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Container class for cell type mapping methods</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">ordered_labels</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reload</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;_ordered_labels&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ordered_labels</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">reload</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;//allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/snRNAseq_data/ordered_celltype_labels.json&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_ordered_labels</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ordered_labels</span>
+
+    <span class="k">def</span> <span class="nf">_create_run_directory</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">save_path</span><span class="p">):</span>
+        <span class="n">dir_ts</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{:0.3f}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">timestamp</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="n">dir_ts</span><span class="p">)</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Mapping UID: </span><span class="si">{</span><span class="n">dir_ts</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_set_run_directory</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">save_path</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span> <span class="o">=</span> <span class="n">save_path</span>
+
+<div class="viewcode-block" id="CellTypeMapping.save_mapping">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.CellTypeMapping.save_mapping">[docs]</a>
+    <span class="k">def</span> <span class="nf">save_mapping</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">save_path</span><span class="p">:</span> <span class="nb">str</span><span class="o">|</span><span class="kc">None</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">file_name</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="s1">&#39;mapping&#39;</span><span class="p">,</span> <span class="n">meta</span><span class="p">:</span><span class="nb">dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">replace</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">meta</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">replace</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">save_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Must set a directory path&#39;</span><span class="p">)</span>
+                <span class="k">return</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_create_run_directory</span><span class="p">(</span><span class="n">save_path</span><span class="p">)</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span><span class="p">,</span> <span class="s1">&#39;meta.json&#39;</span><span class="p">),</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">bz2</span><span class="o">.</span><span class="n">BZ2File</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span><span class="p">,</span> <span class="n">file_name</span> <span class="o">+</span> <span class="s1">&#39;.pbz2&#39;</span><span class="p">),</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span> 
+            <span class="n">cPickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="CellTypeMapping.load_from_timestamp">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.CellTypeMapping.load_from_timestamp">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">load_from_timestamp</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">directory</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">timestamp</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">file_name</span><span class="p">:</span> <span class="nb">str</span><span class="o">=</span><span class="s1">&#39;mapping&#39;</span><span class="p">,</span> <span class="n">meta_only</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">directory</span><span class="p">,</span> <span class="n">timestamp</span><span class="p">)</span>
+        <span class="n">meta_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;meta.json&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">meta_only</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">meta_file</span><span class="p">):</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">meta_file</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">meta</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">meta</span>
+        <span class="n">data_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">file_name</span> <span class="o">+</span> <span class="s1">&#39;.pbz2&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">data_file</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;analysis file </span><span class="si">{</span><span class="n">file_name</span><span class="si">}</span><span class="s1"> does not exist for timestamp </span><span class="si">{</span><span class="n">timestamp</span><span class="si">}</span><span class="s1"> in directory </span><span class="si">{</span><span class="n">directory</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="k">return</span>
+        <span class="n">ct_map</span> <span class="o">=</span> <span class="n">bz2</span><span class="o">.</span><span class="n">BZ2File</span><span class="p">(</span><span class="n">data_file</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span>
+        <span class="n">ct_map</span> <span class="o">=</span> <span class="n">cPickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">ct_map</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">ct_map</span></div>
+
+    
+<div class="viewcode-block" id="CellTypeMapping.reset_qc">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.CellTypeMapping.reset_qc">[docs]</a>
+    <span class="k">def</span> <span class="nf">reset_qc</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># reset qc status </span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="s1">&#39;mapping_qc&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;pass&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">uns</span><span class="p">[</span><span class="s1">&#39;qc_params&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+<div class="viewcode-block" id="CellTypeMapping.qc_mapping">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.CellTypeMapping.qc_mapping">[docs]</a>
+    <span class="k">def</span> <span class="nf">qc_mapping</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">qc_params</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="c1"># QC mapping results using thresholds for various performance metrics in self.ad_map.obs</span>
+
+        <span class="n">qc_mask</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reset_qc</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">param</span><span class="p">,</span> <span class="n">thresh</span> <span class="ow">in</span> <span class="n">qc_params</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">qc_mask</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">qc_mask</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="n">param</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">thresh</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">qc_mask</span> <span class="o">=</span> <span class="n">qc_mask</span> <span class="o">&amp;</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="n">param</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">thresh</span><span class="p">)</span>
+            
+        <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">qc_mask</span><span class="p">,</span> <span class="s1">&#39;mapping_qc&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;fail&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">uns</span><span class="p">[</span><span class="s1">&#39;qc_params&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">qc_params</span></div>
+
+    
+<div class="viewcode-block" id="CellTypeMapping.spatial_umap">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.CellTypeMapping.spatial_umap">[docs]</a>
+    <span class="k">def</span> <span class="nf">spatial_umap</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attr</span><span class="p">:</span> <span class="nb">str</span><span class="o">=</span><span class="s1">&#39;ad_sp&#39;</span><span class="p">,</span> <span class="n">umap_args</span><span class="p">:</span> <span class="nb">dict</span><span class="o">|</span><span class="kc">None</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="c1"># UMAP spatial gene expression. Assumes X of anndata object is a cell x gene</span>
+        <span class="n">umap_attr</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attr</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">umap_args</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">mapper</span> <span class="o">=</span> <span class="n">umap</span><span class="o">.</span><span class="n">UMAP</span><span class="p">(</span><span class="o">**</span><span class="n">umap_args</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">mapper</span> <span class="o">=</span> <span class="n">umap</span><span class="o">.</span><span class="n">UMAP</span><span class="p">()</span>
+        <span class="n">embedding</span> <span class="o">=</span> <span class="n">mapper</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">umap_attr</span><span class="o">.</span><span class="n">X</span><span class="p">)</span>
+
+        <span class="n">umap_attr</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="s1">&#39;umap_x&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">embedding</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="n">umap_attr</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="s1">&#39;umap_y&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">embedding</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="CellTypeMapping.mapping">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.CellTypeMapping.mapping">[docs]</a>
+    <span class="k">def</span> <span class="nf">mapping</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;mapping must be implementd in a subclass&#39;</span><span class="p">)</span></div>
+</div>
+
+
+<div class="viewcode-block" id="TangramMapping">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.TangramMapping">[docs]</a>
+<span class="k">class</span> <span class="nc">TangramMapping</span><span class="p">(</span><span class="n">CellTypeMapping</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sc_data</span><span class="p">:</span> <span class="s1">&#39;AnnData&#39;</span><span class="o">|</span><span class="nb">str</span><span class="p">,</span> <span class="n">sp_data</span><span class="p">:</span> <span class="s1">&#39;AnnData&#39;</span><span class="o">|</span><span class="nb">str</span><span class="p">,</span> <span class="n">meta</span><span class="p">:</span> <span class="nb">dict</span><span class="o">=</span><span class="p">{}):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        sc_data: AnnData object or filename of AnnData object representing single-cell or singcle-nucleus data or None</span>
+<span class="sd">        sp_data: AnnData object or filename of AnnData object representing spatial transcriptomics data or None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">import</span> <span class="nn">scanpy</span> <span class="k">as</span> <span class="nn">sc</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span> <span class="o">=</span> <span class="kc">None</span>
+       
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">sc_data</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">ad_sc</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">read_h5ad</span><span class="p">(</span><span class="n">sc_data</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">ad_sc</span> <span class="o">=</span> <span class="n">sc_data</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">sp_data</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">ad_sp</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">read_h5ad</span><span class="p">(</span><span class="n">sp_data</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">ad_sp</span> <span class="o">=</span> <span class="n">sp_data</span>
+
+        <span class="c1"># library size correction, normalize count within each cell to fixed number</span>
+        <span class="n">sc</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">normalize_total</span><span class="p">(</span><span class="n">ad_sc</span><span class="p">)</span>
+
+        <span class="n">meta</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;mapping_method&#39;</span><span class="p">:</span> <span class="s1">&#39;Tangram&#39;</span><span class="p">})</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">ad_sc</span> <span class="o">=</span> <span class="n">ad_sc</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span> <span class="o">=</span> <span class="n">ad_sp</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">meta</span> <span class="o">=</span> <span class="n">meta</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ordered_labels</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="TangramMapping.set_training_genes">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.TangramMapping.set_training_genes">[docs]</a>
+    <span class="k">def</span> <span class="nf">set_training_genes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">training_genes</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">meta</span><span class="p">:</span> <span class="nb">dict</span><span class="o">=</span><span class="p">{}):</span>
+       
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;starting with </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">training_genes</span><span class="p">)</span><span class="si">}</span><span class="s1"> training genes..&#39;</span><span class="p">)</span>
+        <span class="n">tg</span><span class="o">.</span><span class="n">pp_adatas</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ad_sc</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span><span class="p">,</span> <span class="n">genes</span><span class="o">=</span><span class="n">training_genes</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">meta</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="TangramMapping.mapping">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.TangramMapping.mapping">[docs]</a>
+    <span class="k">def</span> <span class="nf">mapping</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="o">=</span><span class="s1">&#39;cpu&#39;</span><span class="p">,</span> <span class="n">mode</span><span class="p">:</span> <span class="nb">str</span><span class="o">=</span><span class="s1">&#39;clusters&#39;</span><span class="p">,</span> <span class="n">cluster_label</span><span class="p">:</span> <span class="s1">&#39;None|str&#39;</span><span class="o">=</span><span class="s1">&#39;subclass&#39;</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span><span class="nb">dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">meta</span><span class="p">:</span><span class="nb">dict</span><span class="o">=</span><span class="p">{}):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot; main mapping function using tangram.map_cells_to_space. Default to cluster mode at subclass level.</span>
+<span class="sd">        Pass other argumaents to tangram.map_cells_to_space via args</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">ad_map</span> <span class="o">=</span> <span class="n">tg</span><span class="o">.</span><span class="n">map_cells_to_space</span><span class="p">(</span>
+            <span class="n">adata_sc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_sc</span><span class="p">,</span>
+            <span class="n">adata_sp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span><span class="p">,</span>
+            <span class="n">device</span> <span class="o">=</span> <span class="n">device</span><span class="p">,</span>
+            <span class="n">mode</span> <span class="o">=</span> <span class="n">mode</span><span class="p">,</span>
+            <span class="n">cluster_label</span> <span class="o">=</span> <span class="n">cluster_label</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">args</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span> <span class="o">=</span> <span class="n">ad_map</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;mode&#39;</span><span class="p">:</span> <span class="n">mode</span><span class="p">,</span> <span class="s1">&#39;cluster_label&#39;</span><span class="p">:</span> <span class="n">cluster_label</span><span class="p">})</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">meta</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="TangramMapping.project_genes">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.TangramMapping.project_genes">[docs]</a>
+    <span class="k">def</span> <span class="nf">project_genes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span><span class="nb">dict</span><span class="o">=</span><span class="p">{}):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Project gene expression from RNAseq data to spatial data</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">ad_ge</span> <span class="o">=</span> <span class="n">tg</span><span class="o">.</span><span class="n">project_genes</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_sc</span><span class="p">,</span> <span class="n">cluster_label</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">],</span> <span class="o">**</span><span class="n">args</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ad_ge</span> <span class="o">=</span> <span class="n">ad_ge</span></div>
+
+
+<div class="viewcode-block" id="TangramMapping.evaluate_mapping">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.TangramMapping.evaluate_mapping">[docs]</a>
+    <span class="k">def</span> <span class="nf">evaluate_mapping</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">level</span><span class="p">:</span><span class="nb">str</span><span class="o">|</span><span class="kc">None</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span><span class="nb">dict</span><span class="o">=</span><span class="p">{}):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Run a standard set of mapping evaluations</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Running core analysis set..&#39;</span><span class="p">)</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;1) plot training scores of mapping&#39;</span><span class="p">)</span>
+        <span class="n">tg</span><span class="o">.</span><span class="n">plot_training_scores</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="p">,</span> <span class="n">bins</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">.5</span><span class="p">)</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;2) plot mapping probability at each spatial position for each cluster label&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">plot_cell_probability</span><span class="p">(</span><span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;3) get and plot the maximum cluster label for each spatial position&#39;</span><span class="p">)</span>
+        <span class="c1"># if self.meta.cluster_label == subclass group into excitatory, inhibitory, non-neuronal</span>
+        <span class="k">if</span> <span class="n">level</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">level</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">level</span>  <span class="o">==</span> <span class="s1">&#39;subclass&#39;</span><span class="p">:</span>
+            <span class="n">class_groups</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_sc</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="s1">&#39;class&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span>
+            <span class="n">groups</span> <span class="o">=</span> <span class="p">{</span><span class="n">group</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_sc</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">ad_sc</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="s1">&#39;class&#39;</span><span class="p">]</span><span class="o">==</span><span class="p">(</span><span class="n">group</span><span class="p">)][</span><span class="s1">&#39;subclass&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="o">.</span><span class="n">to_list</span><span class="p">()</span> <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">class_groups</span><span class="p">}</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">plot_discrete_mapping_probability</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">level</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="n">groups</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">plot_discrete_mapping</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">level</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="n">groups</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">plot_discrete_mapping_probability</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">level</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">plot_discrete_mapping</span><span class="p">(</span><span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;4) predict spatial gene expression, plot canonical markers and histogram of scores&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">compare_spatial_gene_exp</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="TangramMapping.plot_cell_probability">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.TangramMapping.plot_cell_probability">[docs]</a>
+    <span class="k">def</span> <span class="nf">plot_cell_probability</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ncols</span><span class="p">:</span> <span class="nb">int</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">dict</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="n">annotation</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">]</span>
+        <span class="n">nrows</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="n">annotation</span><span class="p">])</span> <span class="o">/</span> <span class="n">ncols</span><span class="p">))</span>
+        <span class="n">tg</span><span class="o">.</span><span class="n">plot_cell_annotation</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span><span class="p">,</span> <span class="n">annotation</span><span class="o">=</span><span class="n">annotation</span><span class="p">,</span> <span class="n">nrows</span><span class="o">=</span><span class="n">nrows</span><span class="p">,</span> <span class="n">ncols</span><span class="o">=</span><span class="n">ncols</span><span class="p">,</span> <span class="n">invert_y</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="TangramMapping.get_discrete_cell_mapping">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.TangramMapping.get_discrete_cell_mapping">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_discrete_cell_mapping</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">threshold</span><span class="p">:</span> <span class="nb">float</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">levels</span><span class="p">:</span> <span class="nb">list</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;class_label&#39;</span><span class="p">,</span> <span class="s1">&#39;neighborhood_label&#39;</span><span class="p">,</span><span class="s1">&#39;subclass_label&#39;</span><span class="p">,</span> <span class="s1">&#39;supertype_label&#39;</span><span class="p">,</span> <span class="s1">&#39;cluster_label&#39;</span><span class="p">]):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return mapped cell type that has the highest probability for each cell. Optionally set a lower probability threshold.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">mapping_level</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="s1">&#39;tangram_ct_pred&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span><span class="o">.</span><span class="n">obsm</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">tg</span><span class="o">.</span><span class="n">project_cell_annotations</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span><span class="p">,</span> <span class="n">annotation</span><span class="o">=</span><span class="n">mapping_level</span><span class="p">)</span>
+        
+        <span class="n">spatial_prob</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span><span class="o">.</span><span class="n">obsm</span><span class="p">[</span><span class="s1">&#39;tangram_ct_pred&#39;</span><span class="p">]</span>
+        <span class="n">spatial_prob_norm</span> <span class="o">=</span> <span class="p">(</span><span class="n">spatial_prob</span> <span class="o">-</span> <span class="n">spatial_prob</span><span class="o">.</span><span class="n">min</span><span class="p">())</span> <span class="o">/</span> <span class="p">(</span><span class="n">spatial_prob</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">-</span> <span class="n">spatial_prob</span><span class="o">.</span><span class="n">min</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span><span class="o">.</span><span class="n">obsm</span><span class="p">[</span><span class="s1">&#39;tangram_ct_pred_norm&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">spatial_prob_norm</span>
+
+        <span class="n">max_prob</span> <span class="o">=</span> <span class="n">spatial_prob_norm</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">max_anno</span> <span class="o">=</span> <span class="n">spatial_prob_norm</span><span class="o">.</span><span class="n">idxmax</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">max_anno</span> <span class="o">=</span> <span class="n">max_anno</span><span class="o">.</span><span class="n">mask</span><span class="p">(</span><span class="n">max_prob</span> <span class="o">&lt;</span> <span class="n">threshold</span><span class="p">)</span>
+        <span class="n">max_prob</span> <span class="o">=</span> <span class="n">max_prob</span><span class="o">.</span><span class="n">mask</span><span class="p">(</span><span class="n">max_prob</span> <span class="o">&lt;</span> <span class="n">threshold</span><span class="p">)</span>   
+        <span class="n">max_prob</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">mapping_level</span> <span class="o">+</span> <span class="s1">&#39;_prob&#39;</span>
+        <span class="n">max_anno</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">mapping_level</span>
+
+        <span class="n">discrete_mapping</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">max_anno</span><span class="p">)</span>
+        <span class="n">discrete_mapping</span> <span class="o">=</span> <span class="n">discrete_mapping</span><span class="o">.</span><span class="n">dropna</span><span class="p">()</span>
+        
+
+        <span class="n">discrete_mapping</span> <span class="o">=</span> <span class="n">discrete_mapping</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">max_prob</span><span class="p">),</span> <span class="n">left_index</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">right_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">discrete_mapping</span> <span class="o">=</span> <span class="n">discrete_mapping</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span><span class="o">.</span><span class="n">obs</span><span class="p">[[</span><span class="s1">&#39;center_x&#39;</span><span class="p">,</span> <span class="s1">&#39;center_y&#39;</span><span class="p">]],</span> <span class="n">left_index</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">right_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        
+        <span class="c1"># fill in other levels of the hierarchy from known mappings in refence data.</span>
+        <span class="n">levels</span> <span class="o">=</span> <span class="p">[</span><span class="n">l</span> <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">levels</span> <span class="k">if</span> <span class="n">l</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_sc</span><span class="o">.</span><span class="n">obs</span><span class="o">.</span><span class="n">columns</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">levels</span><span class="p">)</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;No other heirarchy levels match reference data. Check self.ad_sc.obs.columns and set levels accordingly&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">labels</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_sc</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="n">levels</span><span class="p">]</span><span class="o">.</span><span class="n">drop_duplicates</span><span class="p">()</span>
+            <span class="n">labels</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="n">mapping_level</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">discrete_mapping</span> <span class="o">=</span> <span class="n">discrete_mapping</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">labels</span><span class="p">,</span> <span class="n">left_on</span><span class="o">=</span><span class="n">mapping_level</span><span class="p">,</span> <span class="n">right_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="n">discrete_mapping</span> <span class="o">=</span> <span class="n">discrete_mapping</span><span class="o">.</span><span class="n">reindex</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span><span class="o">.</span><span class="n">obs</span><span class="o">.</span><span class="n">index</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span><span class="o">.</span><span class="n">obsm</span><span class="p">[</span><span class="s1">&#39;discrete_ct_pred&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">discrete_mapping</span></div>
+
+    
+<div class="viewcode-block" id="TangramMapping.plot_discrete_mapping">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.TangramMapping.plot_discrete_mapping">[docs]</a>
+    <span class="k">def</span> <span class="nf">plot_discrete_mapping</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">level</span><span class="p">:</span> <span class="nb">str</span><span class="o">|</span><span class="kc">None</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">groups</span><span class="p">:</span> <span class="nb">dict</span><span class="o">|</span><span class="kc">None</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">dict</span><span class="o">=</span><span class="p">{}):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Plot the discrete mapping produced from get_discrete_cell_mapping at hierarchy level. Optionally provide a dictionary with keys specifying group</span>
+<span class="sd">        names and keys a list of labels to plot separately for easier visualization. If &#39;level&#39; is None defaults to self.meta[&#39;cluster_label&#39;] </span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># checking for tangram_ct_pred_norm for backwards compatability </span>
+        <span class="k">if</span> <span class="s1">&#39;discrete_ct_pred&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span><span class="o">.</span><span class="n">obsm</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="ow">or</span> <span class="s1">&#39;tangram_ct_pred_norm&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span><span class="o">.</span><span class="n">obsm</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span> 
+            <span class="bp">self</span><span class="o">.</span><span class="n">get_discrete_cell_mapping</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">level</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">level</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">]</span>
+        
+        <span class="n">scatter</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;s&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span> <span class="s1">&#39;alpha&#39;</span><span class="p">:</span> <span class="mf">0.7</span><span class="p">,</span> <span class="s1">&#39;linewidth&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+        <span class="n">scatter</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span><span class="o">.</span><span class="n">obsm</span><span class="p">[</span><span class="s1">&#39;discrete_ct_pred&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">groups</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">groups</span><span class="p">),</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">groups</span><span class="p">)</span><span class="o">*</span><span class="mi">8</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">group_name</span><span class="p">,</span> <span class="n">group</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">groups</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+                <span class="n">sns</span><span class="o">.</span><span class="n">scatterplot</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="s1">&#39;center_x&#39;</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="s1">&#39;center_y&#39;</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;grey&#39;</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+                <span class="n">subdata</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">data</span><span class="p">[</span><span class="n">level</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">group</span><span class="p">)]</span>
+                <span class="n">sns</span><span class="o">.</span><span class="n">scatterplot</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">subdata</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="s1">&#39;center_x&#39;</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="s1">&#39;center_y&#39;</span><span class="p">,</span> <span class="n">hue</span><span class="o">=</span><span class="n">level</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">hue_order</span><span class="o">=</span><span class="n">group</span><span class="p">,</span> <span class="o">**</span><span class="n">scatter</span><span class="p">)</span>
+                <span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="n">group_name</span><span class="p">)</span>
+                <span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">bbox_to_anchor</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">))</span>
+            
+            <span class="n">fig</span><span class="o">.</span><span class="n">set_tight_layout</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        
+        
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">8</span><span class="p">))</span>
+            <span class="n">sns</span><span class="o">.</span><span class="n">scatterplot</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="s1">&#39;center_x&#39;</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="s1">&#39;center_y&#39;</span><span class="p">,</span> <span class="n">hue</span><span class="o">=</span><span class="n">level</span><span class="p">,</span><span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="o">**</span><span class="n">scatter</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">bbox_to_anchor</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">))</span>
+        
+        <span class="k">return</span> <span class="n">fig</span></div>
+
+
+<div class="viewcode-block" id="TangramMapping.plot_discrete_mapping_probability">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.TangramMapping.plot_discrete_mapping_probability">[docs]</a>
+    <span class="k">def</span> <span class="nf">plot_discrete_mapping_probability</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">groups</span><span class="p">:</span> <span class="nb">dict</span><span class="o">|</span><span class="kc">None</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">level</span><span class="p">:</span> <span class="nb">str</span><span class="o">|</span><span class="kc">None</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">dict</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="c1"># checking for tangram_ct_pred_norm for backwards compatability </span>
+        <span class="k">if</span> <span class="s1">&#39;discrete_ct_pred&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span><span class="o">.</span><span class="n">obsm</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="ow">or</span> <span class="s1">&#39;tangram_ct_pred_norm&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span><span class="o">.</span><span class="n">obsm</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span> 
+            <span class="bp">self</span><span class="o">.</span><span class="n">get_discrete_cell_mapping</span><span class="p">()</span>
+        
+        <span class="k">if</span> <span class="n">level</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">level</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">]</span>
+
+        <span class="n">violin</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;cut&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+        <span class="n">violin</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span><span class="o">.</span><span class="n">obsm</span><span class="p">[</span><span class="s1">&#39;discrete_ct_pred&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">groups</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">groups</span><span class="p">),</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">15</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">groups</span><span class="p">)</span><span class="o">*</span><span class="mi">4</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">group_name</span><span class="p">,</span> <span class="n">group</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">groups</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+                <span class="n">subdata</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">data</span><span class="p">[</span><span class="n">level</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">group</span><span class="p">)]</span>
+                
+                <span class="n">sns</span><span class="o">.</span><span class="n">violinplot</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">subdata</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="n">level</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;_prob&#39;</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">order</span><span class="o">=</span><span class="n">group</span><span class="p">,</span> <span class="o">**</span><span class="n">violin</span><span class="p">)</span>
+                <span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Max probability&#39;</span><span class="p">)</span>
+                <span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">(</span><span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">get_xticklabels</span><span class="p">(),</span> <span class="n">rotation</span> <span class="o">=</span> <span class="mi">45</span><span class="p">,</span> <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;right&#39;</span><span class="p">)</span>
+                <span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="n">group_name</span><span class="p">)</span>
+            
+            <span class="n">fig</span><span class="o">.</span><span class="n">set_tight_layout</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">15</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+            <span class="n">sns</span><span class="o">.</span><span class="n">violinplot</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="n">level</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;_prob&#39;</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">sort</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">violin</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Max probability&#39;</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">(</span><span class="n">ax</span><span class="o">.</span><span class="n">get_xticklabels</span><span class="p">(),</span> <span class="n">rotation</span> <span class="o">=</span> <span class="mi">45</span><span class="p">,</span> <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;right&#39;</span><span class="p">)</span>
+            
+        <span class="k">return</span> <span class="n">fig</span></div>
+
+
+<div class="viewcode-block" id="TangramMapping.compare_spatial_gene_exp">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.TangramMapping.compare_spatial_gene_exp">[docs]</a>
+    <span class="k">def</span> <span class="nf">compare_spatial_gene_exp</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">genes</span><span class="p">:</span> <span class="nb">list</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;cux2&#39;</span><span class="p">,</span> <span class="s1">&#39;rorb&#39;</span><span class="p">,</span> <span class="s1">&#39;fezf2&#39;</span><span class="p">,</span> <span class="s1">&#39;lhx6&#39;</span><span class="p">,</span> <span class="s1">&#39;pvalb&#39;</span><span class="p">,</span> <span class="s1">&#39;grik1&#39;</span><span class="p">,</span> <span class="s1">&#39;lamp5&#39;</span><span class="p">,</span> <span class="s1">&#39;gfap&#39;</span><span class="p">,</span> <span class="s1">&#39;opalin&#39;</span><span class="p">,</span> <span class="s1">&#39;mog&#39;</span><span class="p">],</span> <span class="n">args</span><span class="p">:</span> <span class="nb">dict</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;ad_ge&#39;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">project_genes</span><span class="p">()</span>
+
+        <span class="n">genes</span> <span class="o">=</span> <span class="p">[</span><span class="n">g</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">genes</span><span class="p">]</span>
+        <span class="n">tg</span><span class="o">.</span><span class="n">plot_genes</span><span class="p">(</span><span class="n">genes</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_ge</span><span class="p">,</span> <span class="n">invert_y</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">)</span>
+        <span class="n">spatial_score</span> <span class="o">=</span> <span class="n">tg</span><span class="o">.</span><span class="n">compare_spatial_geneexp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ad_ge</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span><span class="p">,</span> <span class="n">adata_sc</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ad_sc</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">spatial_score</span> <span class="o">=</span> <span class="n">spatial_score</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">spatial_score</span><span class="p">[</span><span class="n">spatial_score</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">genes</span><span class="p">)])</span>
+        
+        <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span>
+        <span class="n">sns</span><span class="o">.</span><span class="n">histplot</span><span class="p">(</span><span class="n">spatial_score</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="s1">&#39;score&#39;</span><span class="p">,</span> <span class="n">hue</span><span class="o">=</span><span class="s1">&#39;is_training&#39;</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="CKMapping">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.CKMapping">[docs]</a>
+<span class="k">class</span> <span class="nc">CKMapping</span><span class="p">(</span><span class="n">CellTypeMapping</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Currently for CKmapping mapping occurs on HPC through a separate script. This class loads in results for analysis</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sp_data</span><span class="p">:</span> <span class="s1">&#39;AnnData&#39;</span><span class="o">|</span><span class="nb">str</span><span class="p">,</span> <span class="n">mapping_result_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">meta</span><span class="p">:</span> <span class="nb">dict</span><span class="o">=</span><span class="p">{}):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        sp_data: AnnData object or filename of AnnData object representing spatial transcriptomics data or None</span>
+<span class="sd">        mapping_result_path: file path to CK mapping result which should be a .rda file</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">import</span> <span class="nn">rpy2.robjects</span> <span class="k">as</span> <span class="nn">ro</span>
+        <span class="kn">from</span> <span class="nn">rpy2.robjects</span> <span class="kn">import</span> <span class="n">pandas2ri</span>
+        <span class="n">pandas2ri</span><span class="o">.</span><span class="n">activate</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span> <span class="o">=</span> <span class="n">mapping_result_path</span>
+       
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">sp_data</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;loading spatial data...&#39;</span><span class="p">)</span>
+            <span class="n">ad_sp</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">read_h5ad</span><span class="p">(</span><span class="n">sp_data</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">ad_sp</span> <span class="o">=</span> <span class="n">sp_data</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;loading mapping...&#39;</span><span class="p">)</span>
+        <span class="n">r_file</span> <span class="o">=</span> <span class="n">ro</span><span class="o">.</span><span class="n">r</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">mapping_result_path</span><span class="p">,</span> <span class="s1">&#39;mapped.rda&#39;</span><span class="p">))</span>
+        <span class="n">map_results</span> <span class="o">=</span> <span class="n">ro</span><span class="o">.</span><span class="n">r</span><span class="p">[</span><span class="s1">&#39;mapped&#39;</span><span class="p">]</span>
+
+        <span class="c1"># Extract mapping data from R-object. This returns a list of dataframes indexed as such:</span>
+        <span class="c1"># [0] map.freq (dataframe)</span>
+            <span class="c1"># cl     : all clusters a sample is mapped in N iterations of mapping with sub-sampled markers</span>
+            <span class="c1"># freq : frequencies a sample is mapped to each cluster, cl</span>
+            <span class="c1"># dist  : distance to cluster template centroid (mean marker gene count)</span>
+            <span class="c1"># path.cor : correlation of markers along the path of the hierarchy to the terminal node(cluster), in hierarchical mapping</span>
+        <span class="c1"># [1] best.map.df (dataframe)</span>
+            <span class="c1"># best.cl  : the cluster a sample is mapped with highest freq in map.freq</span>
+            <span class="c1"># prob     : probablity of a sample being mapped to best.cl cluster out of  N iterations</span>
+            <span class="c1"># avg.dist : distance to the template cluster mean</span>
+            <span class="c1"># avg.path.cor : correlation of markers along the path of the hierarchy to the terminal node(cluster), in hierarchical mapping</span>
+            <span class="c1"># avg.cor  : correlation to template cluster mean</span>
+            <span class="c1"># cor.zscore : z-normalized value of over avg.cor</span>
+        <span class="c1"># [2] cl.df : taxonomy cluster annotation matched by &quot;cl&quot; (mapped[[&quot;best.map.df&quot;]]$best.cl) (dataframe)</span>
+            <span class="c1"># map_freq = pandas2ri.rpy2py(map_results[0])</span>
+            <span class="c1"># map_freq.set_index(&#39;sample_id&#39;, inplace=True)</span>
+        <span class="c1"># [3] all.markers: list of marker genes used for mapping (list)</span>
+        <span class="c1"># [4] meta: metadata about how mapping was done, created by me not in CK&#39;s code (list)</span>
+            <span class="c1"># Taxonomy = the taxonomy that was used for mapping</span>
+            <span class="c1"># method = Flat or Hierarchical mapping</span>
+            <span class="c1"># iterations = number of iterations of mapping</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;extracting mapping results...&#39;</span><span class="p">)</span>
+        <span class="n">map_freq</span> <span class="o">=</span> <span class="n">pandas2ri</span><span class="o">.</span><span class="n">rpy2py</span><span class="p">(</span><span class="n">map_results</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">map_freq</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="s1">&#39;sample_id&#39;</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            
+        <span class="n">best_mapping</span> <span class="o">=</span> <span class="n">pandas2ri</span><span class="o">.</span><span class="n">rpy2py</span><span class="p">(</span><span class="n">map_results</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">best_mapping</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="s1">&#39;sample_id&#39;</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="n">clusters</span> <span class="o">=</span> <span class="n">pandas2ri</span><span class="o">.</span><span class="n">rpy2py</span><span class="p">(</span><span class="n">map_results</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+        <span class="n">clusters</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="s1">&#39;cluster_id&#39;</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="c1"># add type labels across the hierarchy from clusters relationship</span>
+        <span class="n">labels</span> <span class="o">=</span> <span class="p">[</span><span class="n">l</span> <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">clusters</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="n">l</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;label&#39;</span><span class="p">)]</span>
+        <span class="k">for</span> <span class="n">label</span> <span class="ow">in</span> <span class="n">labels</span><span class="p">:</span>
+            <span class="n">map_freq</span><span class="p">[</span><span class="n">label</span><span class="p">]</span> <span class="o">=</span> <span class="n">map_freq</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">clusters</span><span class="p">[</span><span class="n">clusters</span><span class="p">[</span><span class="s1">&#39;cl&#39;</span><span class="p">]</span><span class="o">==</span><span class="n">x</span><span class="p">[</span><span class="s1">&#39;cl&#39;</span><span class="p">]][</span><span class="n">label</span><span class="p">]</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">best_mapping</span><span class="p">[</span><span class="n">label</span><span class="p">]</span> <span class="o">=</span> <span class="n">best_mapping</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">clusters</span><span class="p">[</span><span class="n">clusters</span><span class="p">[</span><span class="s1">&#39;cl&#39;</span><span class="p">]</span><span class="o">==</span><span class="n">x</span><span class="p">[</span><span class="s1">&#39;best.cl&#39;</span><span class="p">]][</span><span class="n">label</span><span class="p">]</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">uns</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">map_results</span><span class="p">)</span> <span class="o">==</span> <span class="mi">5</span><span class="p">:</span>
+            <span class="n">markers</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">map_results</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
+            <span class="n">uns</span><span class="p">[</span><span class="s1">&#39;all.markers&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">markers</span>
+            <span class="n">map_meta</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">map_results</span><span class="p">[</span><span class="mi">4</span><span class="p">])</span>
+            <span class="n">uns</span><span class="p">[</span><span class="s1">&#39;Taxonomy&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">map_meta</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">uns</span><span class="p">[</span><span class="s1">&#39;method&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">map_meta</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">uns</span><span class="p">[</span><span class="s1">&#39;iterations&#39;</span><span class="p">]</span>  <span class="o">=</span> <span class="n">map_meta</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">map_meta</span><span class="p">)</span><span class="o">==</span><span class="mi">3</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">map_results</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
+            <span class="n">map_meta</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">map_results</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
+            <span class="n">uns</span><span class="p">[</span><span class="s1">&#39;Taxonomy&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">map_meta</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">uns</span><span class="p">[</span><span class="s1">&#39;method&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">map_meta</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">uns</span><span class="p">[</span><span class="s1">&#39;iterations&#39;</span><span class="p">]</span>  <span class="o">=</span> <span class="n">map_meta</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">map_meta</span><span class="p">)</span><span class="o">==</span><span class="mi">3</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Length of mapping results doesn&#39;t match known structures&quot;</span><span class="p">)</span>
+        
+        <span class="n">uns</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+                <span class="s1">&#39;map.freq&#39;</span><span class="p">:</span> <span class="n">map_freq</span><span class="p">,</span>
+                <span class="s1">&#39;cl.df&#39;</span><span class="p">:</span> <span class="n">clusters</span><span class="p">,</span>
+            <span class="p">})</span>
+
+        <span class="c1"># Set X to cell x gene reduced to genes used for mapping from all.markers if available otherwise use all genes</span>
+        <span class="k">if</span> <span class="s1">&#39;all.markers&#39;</span> <span class="ow">in</span> <span class="n">uns</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span> 
+            <span class="n">X</span> <span class="o">=</span> <span class="n">ad_sp</span><span class="p">[:,</span> <span class="n">uns</span><span class="p">[</span><span class="s1">&#39;all.markers&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">to_df</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">X</span> <span class="o">=</span> <span class="n">ad_sp</span><span class="o">.</span><span class="n">to_df</span><span class="p">()</span>
+
+        <span class="c1"># make quasi confusion matrix (cell x celltype prob)</span>
+        <span class="c1"># AnnData refuses to believe that map_freq.pivot and best_mapping have equal indexes even though</span>
+        <span class="c1"># they do so hack around to force it so that AnnData doesn&#39;t error</span>
+    
+        <span class="n">obsm_vals</span> <span class="o">=</span> <span class="n">map_freq</span><span class="o">.</span><span class="n">pivot</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">,</span> <span class="n">values</span><span class="o">=</span><span class="s1">&#39;freq&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">obsm_index</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">index</span><span class="o">=</span><span class="n">ad_sp</span><span class="o">.</span><span class="n">obs</span><span class="o">.</span><span class="n">index</span><span class="p">)</span>
+        <span class="n">obsm</span> <span class="o">=</span> <span class="n">obsm_index</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">obsm_vals</span><span class="p">,</span> <span class="n">left_index</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">right_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="n">ad_map</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">AnnData</span><span class="p">(</span>
+            <span class="n">X</span> <span class="o">=</span> <span class="n">X</span><span class="p">,</span>
+            <span class="n">obs</span> <span class="o">=</span> <span class="n">ad_sp</span><span class="o">.</span><span class="n">obs</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">best_mapping</span><span class="p">,</span> <span class="n">left_index</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">right_index</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+            <span class="n">obsm</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;map_prob_matrix&#39;</span><span class="p">:</span> <span class="n">obsm</span><span class="p">},</span>
+            <span class="n">uns</span> <span class="o">=</span> <span class="n">uns</span>
+        <span class="p">)</span>
+       
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">map_results</span><span class="p">)</span> <span class="o">==</span> <span class="mi">5</span><span class="p">:</span>
+            <span class="n">markers</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">map_results</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
+            <span class="n">ad_map</span><span class="o">.</span><span class="n">uns</span><span class="p">[</span><span class="s1">&#39;all.markers&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">markers</span>
+            <span class="n">map_meta</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">map_results</span><span class="p">[</span><span class="mi">4</span><span class="p">])</span>
+            <span class="n">ad_map</span><span class="o">.</span><span class="n">uns</span><span class="p">[</span><span class="s1">&#39;Taxonomy&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">map_meta</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">ad_map</span><span class="o">.</span><span class="n">uns</span><span class="p">[</span><span class="s1">&#39;method&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">map_meta</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">ad_map</span><span class="o">.</span><span class="n">uns</span><span class="p">[</span><span class="s1">&#39;iterations&#39;</span><span class="p">]</span>  <span class="o">=</span> <span class="n">map_meta</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">map_meta</span><span class="p">)</span><span class="o">==</span><span class="mi">3</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">map_results</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
+            <span class="n">map_meta</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">map_results</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
+            <span class="n">ad_map</span><span class="o">.</span><span class="n">uns</span><span class="p">[</span><span class="s1">&#39;Taxonomy&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">map_meta</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">ad_map</span><span class="o">.</span><span class="n">uns</span><span class="p">[</span><span class="s1">&#39;method&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">map_meta</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">ad_map</span><span class="o">.</span><span class="n">uns</span><span class="p">[</span><span class="s1">&#39;iterations&#39;</span><span class="p">]</span>  <span class="o">=</span> <span class="n">map_meta</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">map_meta</span><span class="p">)</span><span class="o">==</span><span class="mi">3</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Length of mapping results doesn&#39;t match known structures&quot;</span><span class="p">)</span>
+
+        <span class="n">meta</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+            <span class="s1">&#39;mapping_method&#39;</span><span class="p">:</span> <span class="s1">&#39;CK mapping&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;flat or heirarchical&#39;</span><span class="p">:</span> <span class="n">ad_map</span><span class="o">.</span><span class="n">uns</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;method&#39;</span><span class="p">,</span> <span class="s1">&#39;unknown&#39;</span><span class="p">)</span>
+        <span class="p">})</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span> <span class="o">=</span> <span class="n">ad_sp</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span> <span class="o">=</span> <span class="n">ad_map</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">meta</span> <span class="o">=</span> <span class="n">meta</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">save_mapping</span><span class="p">(</span><span class="n">save_path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span><span class="p">,</span> <span class="n">file_name</span><span class="o">=</span><span class="s1">&#39;ck_mapping&#39;</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    
+<div class="viewcode-block" id="CKMapping.plot_mapping_performance">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.CKMapping.plot_mapping_performance">[docs]</a>
+    <span class="k">def</span> <span class="nf">plot_mapping_performance</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">fig</span> <span class="o">=</span> <span class="n">sns</span><span class="o">.</span><span class="n">jointplot</span><span class="p">(</span><span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="s1">&#39;avg.cor&#39;</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="s1">&#39;prob&#39;</span><span class="p">,</span> <span class="n">hue</span><span class="o">=</span><span class="s1">&#39;class_label&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.2</span><span class="p">)</span>
+        
+        <span class="k">return</span> <span class="n">fig</span></div>
+
+
+<div class="viewcode-block" id="CKMapping.plot_best_mapping_probability">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.CKMapping.plot_best_mapping_probability">[docs]</a>
+    <span class="k">def</span> <span class="nf">plot_best_mapping_probability</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">level</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">groups</span><span class="p">:</span> <span class="nb">dict</span><span class="o">|</span><span class="kc">None</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">dict</span><span class="o">=</span><span class="p">{}):</span>
+    
+        <span class="n">violin</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;cut&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+        <span class="n">violin</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span>
+
+        <span class="k">if</span> <span class="n">groups</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">groups</span><span class="p">),</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">15</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">groups</span><span class="p">)</span><span class="o">*</span><span class="mi">4</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">group_name</span><span class="p">,</span> <span class="n">group</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">groups</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+                <span class="n">subdata</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">data</span><span class="p">[</span><span class="n">level</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">group</span><span class="p">)]</span>
+                
+                <span class="n">sns</span><span class="o">.</span><span class="n">violinplot</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">subdata</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="n">level</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="s1">&#39;prob&#39;</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">order</span><span class="o">=</span><span class="n">group</span><span class="p">,</span> <span class="o">**</span><span class="n">violin</span><span class="p">)</span>
+                <span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Probability&#39;</span><span class="p">)</span>
+                <span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">(</span><span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">get_xticklabels</span><span class="p">(),</span> <span class="n">rotation</span> <span class="o">=</span> <span class="mi">45</span><span class="p">,</span> <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;right&#39;</span><span class="p">)</span>
+                <span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="n">group_name</span><span class="p">)</span>
+            
+            <span class="n">fig</span><span class="o">.</span><span class="n">set_tight_layout</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">15</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+            <span class="n">sns</span><span class="o">.</span><span class="n">violinplot</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="n">level</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span> <span class="s1">&#39;prob&#39;</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">sort</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">violin</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Probability&#39;</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">(</span><span class="n">ax</span><span class="o">.</span><span class="n">get_xticklabels</span><span class="p">(),</span> <span class="n">rotation</span> <span class="o">=</span> <span class="mi">45</span><span class="p">,</span> <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;right&#39;</span><span class="p">)</span>
+            
+        <span class="k">return</span> <span class="n">fig</span></div>
+
+
+<div class="viewcode-block" id="CKMapping.plot_best_mapping_corr">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.CKMapping.plot_best_mapping_corr">[docs]</a>
+    <span class="k">def</span> <span class="nf">plot_best_mapping_corr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">level</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">groups</span><span class="p">:</span> <span class="nb">dict</span><span class="o">|</span><span class="kc">None</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">dict</span><span class="o">=</span><span class="p">{}):</span>
+
+        <span class="n">violin</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;cut&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+        <span class="n">violin</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span>
+
+        <span class="k">if</span> <span class="n">groups</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">groups</span><span class="p">),</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">15</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">groups</span><span class="p">)</span><span class="o">*</span><span class="mi">4</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">group_name</span><span class="p">,</span> <span class="n">group</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">groups</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+                <span class="n">subdata</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">data</span><span class="p">[</span><span class="n">level</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">group</span><span class="p">)]</span>
+
+                <span class="n">sns</span><span class="o">.</span><span class="n">violinplot</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">subdata</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="n">level</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="s1">&#39;avg.cor&#39;</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">order</span><span class="o">=</span><span class="n">group</span><span class="p">,</span> <span class="o">**</span><span class="n">violin</span><span class="p">)</span>
+                <span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Avg Correlation&#39;</span><span class="p">)</span>
+                <span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">(</span><span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">get_xticklabels</span><span class="p">(),</span> <span class="n">rotation</span> <span class="o">=</span> <span class="mi">45</span><span class="p">,</span> <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;right&#39;</span><span class="p">)</span>
+                <span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="n">group_name</span><span class="p">)</span>
+
+            <span class="n">fig</span><span class="o">.</span><span class="n">set_tight_layout</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">15</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+            <span class="n">sns</span><span class="o">.</span><span class="n">violinplot</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="n">level</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span> <span class="s1">&#39;avg.cor&#39;</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">sort</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">violin</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Avg Correlation&#39;</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">(</span><span class="n">ax</span><span class="o">.</span><span class="n">get_xticklabels</span><span class="p">(),</span> <span class="n">rotation</span> <span class="o">=</span> <span class="mi">45</span><span class="p">,</span> <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;right&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">fig</span></div>
+
+
+<div class="viewcode-block" id="CKMapping.plot_best_mapping">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.CKMapping.plot_best_mapping">[docs]</a>
+    <span class="k">def</span> <span class="nf">plot_best_mapping</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">level</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">groups</span><span class="p">:</span> <span class="nb">dict</span><span class="o">|</span><span class="kc">None</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">dict</span><span class="o">=</span><span class="p">{}):</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;Plot the best mapping at particular heirarchy level. Optionally provide a dictionary with keys specifying group</span>
+<span class="sd">            names and keys a list of labels to plot separately for easier visualization.  </span>
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="n">scatter</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;s&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span> <span class="s1">&#39;alpha&#39;</span><span class="p">:</span> <span class="mf">0.7</span><span class="p">,</span> <span class="s1">&#39;linewidth&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+            <span class="n">scatter</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
+            <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span>
+
+            <span class="k">if</span> <span class="n">groups</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">groups</span><span class="p">),</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">groups</span><span class="p">)</span><span class="o">*</span><span class="mi">6</span><span class="p">))</span>
+                <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">group_name</span><span class="p">,</span> <span class="n">group</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">groups</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+                    <span class="n">sns</span><span class="o">.</span><span class="n">scatterplot</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="s1">&#39;center_x&#39;</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="s1">&#39;center_y&#39;</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;grey&#39;</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+                    <span class="n">subdata</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">data</span><span class="p">[</span><span class="n">level</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">group</span><span class="p">)]</span>
+                    <span class="n">sns</span><span class="o">.</span><span class="n">scatterplot</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">subdata</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="s1">&#39;center_x&#39;</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="s1">&#39;center_y&#39;</span><span class="p">,</span> <span class="n">hue</span><span class="o">=</span><span class="n">level</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">hue_order</span><span class="o">=</span><span class="n">group</span><span class="p">,</span> <span class="o">**</span><span class="n">scatter</span><span class="p">)</span>
+                    <span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="n">group_name</span><span class="p">)</span>
+                    <span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">bbox_to_anchor</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">))</span>
+                
+                <span class="n">fig</span><span class="o">.</span><span class="n">set_tight_layout</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+            
+            
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">8</span><span class="p">))</span>
+                <span class="n">sns</span><span class="o">.</span><span class="n">scatterplot</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="s1">&#39;center_x&#39;</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="s1">&#39;center_y&#39;</span><span class="p">,</span> <span class="n">hue</span><span class="o">=</span><span class="n">level</span><span class="p">,</span><span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="o">**</span><span class="n">scatter</span><span class="p">)</span>
+                <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">bbox_to_anchor</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">))</span>
+            
+            <span class="k">return</span> <span class="n">fig</span></div>
+</div>
+
+
+<div class="viewcode-block" id="ScrattchMapping">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.ScrattchMapping">[docs]</a>
+<span class="k">class</span> <span class="nc">ScrattchMapping</span><span class="p">(</span><span class="n">CellTypeMapping</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sp_data</span><span class="p">:</span> <span class="s1">&#39;AnnData&#39;</span><span class="o">|</span><span class="nb">str</span><span class="p">,</span> <span class="n">taxonomy_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">meta</span><span class="p">:</span> <span class="nb">dict</span><span class="o">=</span><span class="p">{}):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        sp_data: AnnData object or filename of AnnData object representing spatial transcriptomics data or None</span>
+<span class="sd">        taxonomy_path: file path to where taxonomy lives on isolon</span>
+<span class="sd">        sc_data: AnnData object or filename of AnnData object representing reference RNAseq data</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+           
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">sp_data</span><span class="p">,</span> <span class="n">ad</span><span class="o">.</span><span class="n">AnnData</span><span class="p">):</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;loading spatial data from </span><span class="si">{</span><span class="n">sp_data</span><span class="si">}</span><span class="s1">...&#39;</span><span class="p">)</span>
+            <span class="n">ad_sp</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">read_h5ad</span><span class="p">(</span><span class="n">sp_data</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">ad_sp</span> <span class="o">=</span> <span class="n">sp_data</span>
+
+        <span class="n">meta</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;mapping_method&#39;</span><span class="p">:</span> <span class="s1">&#39;scrattch mapping&#39;</span><span class="p">,</span>
+                     <span class="s1">&#39;taxonomy&#39;</span><span class="p">:</span> <span class="n">taxonomy_path</span><span class="p">,</span>
+                      <span class="s1">&#39;sp_data_uns&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">ad_sp</span><span class="o">.</span><span class="n">uns</span><span class="p">)),</span>
+                    <span class="p">})</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span> <span class="o">=</span> <span class="n">ad_sp</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">taxonomy_path</span> <span class="o">=</span> <span class="n">taxonomy_path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">meta</span> <span class="o">=</span> <span class="n">meta</span>
+
+<div class="viewcode-block" id="ScrattchMapping.run_on_hpc">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.ScrattchMapping.run_on_hpc">[docs]</a>
+    <span class="k">def</span> <span class="nf">run_on_hpc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ad_map_args</span><span class="p">:</span><span class="nb">dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">hpc_args</span><span class="p">:</span><span class="nb">dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">docker</span><span class="p">:</span> <span class="nb">str</span><span class="o">=</span><span class="s1">&#39;singularity exec --cleanenv docker://bicore/scrattch_mapping:latest&#39;</span><span class="p">,</span> <span class="n">r_script</span><span class="p">:</span> <span class="nb">str</span><span class="o">=</span><span class="s1">&#39;scrattch_mapping.R&#39;</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">make_mapping_anndata</span><span class="p">(</span><span class="o">**</span><span class="n">ad_map_args</span><span class="p">)</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;building HPC job&#39;</span><span class="p">)</span>
+        <span class="n">job_path</span> <span class="o">=</span> <span class="n">hpc_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;job_path&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">job_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;must specify a job path&#39;</span><span class="p">)</span>
+            <span class="k">return</span>
+        <span class="n">hpc_default</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;hpc_host&#39;</span><span class="p">:</span> <span class="s1">&#39;hpc-login&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;job_path&#39;</span><span class="p">:</span> <span class="n">job_path</span><span class="p">,</span>
+            <span class="s1">&#39;partition&#39;</span><span class="p">:</span> <span class="s1">&#39;celltypes&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;job_name&#39;</span><span class="p">:</span> <span class="s1">&#39;scrattch-mapping&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;nodes&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="s1">&#39;mincpus&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
+            <span class="s1">&#39;mem&#39;</span><span class="p">:</span> <span class="s1">&#39;300G&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;time&#39;</span><span class="p">:</span><span class="s1">&#39;1:00:00&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;mail_user&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s1">&#39;output&#39;</span><span class="p">:</span> <span class="n">job_path</span> <span class="o">+</span> <span class="s1">&#39;hpc_logs/%j.out&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;error&#39;</span><span class="p">:</span> <span class="n">job_path</span> <span class="o">+</span> <span class="s1">&#39;hpc_logs/%j.err&#39;</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="n">hpc_default</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">hpc_args</span><span class="p">)</span>
+        
+        <span class="n">dat_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\\</span><span class="s1">&#39;</span><span class="p">,</span> <span class="s1">&#39;/&#39;</span><span class="p">)</span> <span class="c1"># make sure format is correct for linux</span>
+
+        <span class="n">command</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">                cd </span><span class="si">{</span><span class="n">job_path</span><span class="si">}</span>
+
+<span class="s2">                </span><span class="si">{</span><span class="n">docker</span><span class="si">}</span><span class="s2"> Rscript </span><span class="si">{</span><span class="n">r_script</span><span class="si">}</span><span class="s2"> --dat_path </span><span class="si">{</span><span class="n">dat_path</span><span class="si">}</span>
+<span class="s2">        &quot;&quot;&quot;</span>
+        
+        <span class="k">assert</span> <span class="s1">&#39;command&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">hpc_args</span>
+        <span class="n">hpc_default</span><span class="p">[</span><span class="s1">&#39;command&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">command</span>
+        <span class="n">job</span> <span class="o">=</span> <span class="n">run_slurm</span><span class="p">(</span><span class="o">**</span><span class="n">hpc_default</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">state</span><span class="p">(),</span> <span class="n">job</span><span class="o">.</span><span class="n">job_id</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">job</span></div>
+
+    
+<div class="viewcode-block" id="ScrattchMapping.make_mapping_anndata">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.ScrattchMapping.make_mapping_anndata">[docs]</a>
+    <span class="k">def</span> <span class="nf">make_mapping_anndata</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">save_path</span><span class="p">:</span> <span class="nb">str</span><span class="o">|</span><span class="kc">None</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ad_sp_layer</span><span class="p">:</span> <span class="nb">str</span><span class="o">|</span><span class="kc">None</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">training_genes</span><span class="p">:</span> <span class="nb">list</span><span class="o">|</span><span class="kc">None</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cell_qc</span><span class="p">:</span> <span class="nb">str</span><span class="o">|</span><span class="kc">None</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">meta</span><span class="p">:</span> <span class="nb">dict</span><span class="o">=</span><span class="p">{}):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        save_path: where to save out mapping anndata object to load into R script</span>
+<span class="sd">        ad_sp_layer: scrattch_mapping requires log normalized data, identify where in the ad_sp object</span>
+<span class="sd">                    this data resides. If None it will be assumed the data is ad_sp.X otherwise identify</span>
+<span class="sd">                    key for ad_sp.layers</span>
+<span class="sd">        training_genes: list of genes to use for mapping, if None will use all genes in ad_sp.var_names</span>
+<span class="sd">        cell_qc: column to use in ad_sp.obs to filter cells for mapping. Values in column must be boolean. If None all cells will be used</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">training_genes</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">genes</span> <span class="o">=</span> <span class="p">[</span><span class="n">tg</span> <span class="k">for</span> <span class="n">tg</span> <span class="ow">in</span> <span class="n">training_genes</span> <span class="k">if</span> <span class="n">tg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span><span class="o">.</span><span class="n">var_names</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">genes</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;No genes overlap between training_genes and ad_sp.var_names&#39;</span><span class="p">)</span>
+                <span class="k">return</span>
+            <span class="n">ad_map</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span><span class="p">[:,</span> <span class="n">genes</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># remove blanks if they exist</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">ad_map</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span><span class="o">.</span><span class="n">var</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span><span class="o">.</span><span class="n">var</span><span class="p">[</span><span class="s1">&#39;probe_type&#39;</span><span class="p">]</span><span class="o">==</span><span class="s1">&#39;gene&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">to_list</span><span class="p">()]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;probe type not set in ad_sp.var, assuming only genes in ad_sp.var...&#39;</span><span class="p">)</span>
+                <span class="n">ad_map</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_sp</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="c1"># scrattch_map catches if the gene names are only listed in the index. Make them a column</span>
+        <span class="k">if</span> <span class="n">ad_map</span><span class="o">.</span><span class="n">var</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
+            <span class="n">ad_map</span><span class="o">.</span><span class="n">var</span><span class="p">[</span><span class="s1">&#39;gene&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ad_map</span><span class="o">.</span><span class="n">var_names</span>
+
+        <span class="k">if</span> <span class="n">ad_sp_layer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ad_map</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="s1">&#39;raw_counts&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ad_map</span><span class="o">.</span><span class="n">X</span>
+            <span class="n">ad_map</span><span class="o">.</span><span class="n">X</span> <span class="o">=</span> <span class="n">ad_map</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="n">ad_sp_layer</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;counts&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ad_sp_layer</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;counts&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;raw&#39;</span>
+
+        <span class="c1"># Script doesn&#39;t work if AnnData contains sparse matrices, so convert </span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ad_map</span><span class="o">.</span><span class="n">X</span><span class="p">,</span> <span class="n">sparse</span><span class="o">.</span><span class="n">spmatrix</span><span class="p">):</span>
+            <span class="n">ad_map</span><span class="o">.</span><span class="n">X</span> <span class="o">=</span> <span class="n">ad_map</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">toarray</span><span class="p">()</span>
+        
+        <span class="c1"># All layers must be converted, not just X</span>
+        <span class="k">for</span> <span class="n">l_name</span> <span class="ow">in</span> <span class="n">ad_map</span><span class="o">.</span><span class="n">layers</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ad_map</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="n">l_name</span><span class="p">],</span> <span class="n">sparse</span><span class="o">.</span><span class="n">spmatrix</span><span class="p">):</span>
+                <span class="n">ad_map</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="n">l_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">ad_map</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="n">l_name</span><span class="p">]</span><span class="o">.</span><span class="n">toarray</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">cell_qc</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ad_map</span> <span class="o">=</span> <span class="n">ad_map</span><span class="p">[</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="n">cell_qc</span><span class="p">]]</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">to_list</span><span class="p">(),</span> <span class="p">:]</span>
+
+        <span class="n">ad_map</span><span class="o">.</span><span class="n">uns</span><span class="p">[</span><span class="s1">&#39;taxonomy_path&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">taxonomy_path</span>
+        <span class="k">if</span> <span class="s1">&#39;taxonomy_name&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">ad_map</span><span class="o">.</span><span class="n">uns</span><span class="p">[</span><span class="s1">&#39;taxonomy_name&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;taxonomy_name&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="s1">&#39;taxonomy_cols&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">ad_map</span><span class="o">.</span><span class="n">uns</span><span class="p">[</span><span class="s1">&#39;taxonomy_cols&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">prefix</span> <span class="o">+</span> <span class="s1">&#39;label&#39;</span> <span class="k">for</span> <span class="n">prefix</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;taxonomy_cols&#39;</span><span class="p">]]</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">meta</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span> <span class="o">=</span> <span class="n">ad_map</span>
+        <span class="k">if</span> <span class="n">save_path</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Must set a save path&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">save_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Setting run directory to </span><span class="si">{</span><span class="n">save_path</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_create_run_directory</span><span class="p">(</span><span class="n">save_path</span><span class="p">)</span>
+
+        <span class="n">ad_map</span><span class="o">.</span><span class="n">write_h5ad</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span><span class="p">,</span> <span class="s1">&#39;scrattch_map_temp.h5ad&#39;</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="ScrattchMapping.load_scrattch_mapping_results">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.ScrattchMapping.load_scrattch_mapping_results">[docs]</a>
+    <span class="k">def</span> <span class="nf">load_scrattch_mapping_results</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># use to load scrattch mapping results back in for analysis</span>
+        <span class="c1"># results will be saved in obsm field of anndata in R script</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;loading results...&#39;</span><span class="p">)</span>
+        <span class="n">results_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span><span class="p">,</span> <span class="s1">&#39;scrattch_map_temp.h5ad&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">results_file</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;No scrattch_map_temp.h5ad file found in run directory, checking for previously saved results...&#39;</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">mapping</span> <span class="o">=</span> <span class="n">ScrattchMapping</span><span class="o">.</span><span class="n">load_from_timestamp</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span><span class="p">),</span> <span class="n">timestamp</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span><span class="p">))</span>
+                <span class="bp">self</span> <span class="o">=</span> <span class="n">mapping</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="k">pass</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">scrattch_map_results</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">read_h5ad</span><span class="p">(</span><span class="n">results_file</span><span class="p">)</span>
+            <span class="k">if</span> <span class="s1">&#39;mapping_results&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">scrattch_map_results</span><span class="o">.</span><span class="n">obsm</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;No mapping_results found check hpc logs for errors&#39;</span><span class="p">)</span>
+                <span class="k">return</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">scrattch_map_results</span><span class="o">.</span><span class="n">obsm</span><span class="p">[</span><span class="s1">&#39;mapping_results&#39;</span><span class="p">],</span> <span class="n">left_index</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">right_index</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">suffixes</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;_drop&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span><span class="o">.</span><span class="n">drop</span><span class="p">([</span><span class="n">col</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="s1">&#39;drop&#39;</span> <span class="ow">in</span> <span class="n">col</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">uns</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">scrattch_map_results</span><span class="o">.</span><span class="n">uns</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">save_mapping</span><span class="p">(</span><span class="n">save_path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="c1"># delete saved out anndata file</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;deleting scrattch-mapping temp file...&#39;</span><span class="p">)</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span><span class="p">,</span> <span class="s1">&#39;scrattch_map_temp.h5ad&#39;</span><span class="p">))</span></div>
+
+    
+<div class="viewcode-block" id="ScrattchMapping.load_taxonomy_anndata">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.ScrattchMapping.load_taxonomy_anndata">[docs]</a>
+    <span class="k">def</span> <span class="nf">load_taxonomy_anndata</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># the taxonomy anndatas are pretty big, only load if necessary and backed so no changes inadvertantly get made. </span>
+        <span class="n">taxonomy_files</span> <span class="o">=</span> <span class="p">[</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">dirpath</span><span class="p">,</span><span class="n">filename</span><span class="p">)</span> <span class="k">for</span> <span class="n">dirpath</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">filenames</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">walk</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">taxonomy_path</span><span class="p">)</span> <span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="n">filenames</span> <span class="k">if</span> <span class="n">filename</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;taxonomy.h5ad&#39;</span><span class="p">)]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">taxonomy_files</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ad_sc</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">read_h5ad</span><span class="p">(</span><span class="n">taxonomy_files</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">backed</span><span class="o">=</span><span class="s1">&#39;r&#39;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">taxonomy_files</span><span class="p">)</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;No taxonomy.h5ad file found that ends in path: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">taxonomy_path</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Multiple taxonomy.h5ad files found:&#39;</span><span class="p">)</span>
+            <span class="n">_</span> <span class="o">=</span> <span class="p">[</span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">file</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">file</span> <span class="ow">in</span> <span class="n">taxonomy_files</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="ScrattchMapping.plot_best_mapping_corr">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.ScrattchMapping.plot_best_mapping_corr">[docs]</a>
+    <span class="k">def</span> <span class="nf">plot_best_mapping_corr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">level</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">groups</span><span class="p">:</span> <span class="nb">dict</span><span class="o">|</span><span class="kc">None</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">qc_pass</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+
+        <span class="n">violin</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;cut&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+        <span class="n">violin</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">qc_pass</span> <span class="ow">is</span> <span class="kc">True</span> <span class="ow">and</span> <span class="s1">&#39;mapping_qc&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="s1">&#39;mapping_qc&#39;</span><span class="p">]</span><span class="o">==</span><span class="s1">&#39;pass&#39;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span>
+
+        <span class="k">if</span> <span class="n">groups</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">groups</span><span class="p">),</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">15</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">groups</span><span class="p">)</span><span class="o">*</span><span class="mi">4</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">group_name</span><span class="p">,</span> <span class="n">group</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">groups</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+                <span class="n">subdata</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">data</span><span class="p">[</span><span class="n">level</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">group</span><span class="p">)]</span>
+
+                <span class="n">sns</span><span class="o">.</span><span class="n">violinplot</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">subdata</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="n">level</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="s1">&#39;score.Corr&#39;</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">hue</span><span class="o">=</span><span class="n">level</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">group</span><span class="p">,</span> <span class="o">**</span><span class="n">violin</span><span class="p">)</span>
+                <span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Avg Correlation&#39;</span><span class="p">)</span>
+                <span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">(</span><span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">get_xticklabels</span><span class="p">(),</span> <span class="n">rotation</span> <span class="o">=</span> <span class="mi">45</span><span class="p">,</span> <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;right&#39;</span><span class="p">)</span>
+                <span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="n">group_name</span><span class="p">)</span>
+                <span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set_aspect</span><span class="p">(</span><span class="s1">&#39;equal&#39;</span><span class="p">,</span> <span class="n">adjustable</span><span class="o">=</span><span class="s1">&#39;box&#39;</span><span class="p">,</span> <span class="n">anchor</span><span class="o">=</span><span class="s1">&#39;C&#39;</span><span class="p">)</span>
+
+            <span class="n">fig</span><span class="o">.</span><span class="n">set_tight_layout</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">15</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+            <span class="n">sns</span><span class="o">.</span><span class="n">violinplot</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="n">level</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span> <span class="s1">&#39;score.Corr&#39;</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="o">**</span><span class="n">violin</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Avg Correlation&#39;</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">(</span><span class="n">ax</span><span class="o">.</span><span class="n">get_xticklabels</span><span class="p">(),</span> <span class="n">rotation</span> <span class="o">=</span> <span class="mi">45</span><span class="p">,</span> <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;right&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">fig</span></div>
+
+
+<div class="viewcode-block" id="ScrattchMapping.plot_best_mapping">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.ScrattchMapping.plot_best_mapping">[docs]</a>
+    <span class="k">def</span> <span class="nf">plot_best_mapping</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">level</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">groups</span><span class="p">:</span> <span class="nb">dict</span><span class="o">|</span><span class="kc">None</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">qc_pass</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;Plot the best mapping at particular heirarchy level. Optionally provide a dictionary with keys specifying group</span>
+<span class="sd">            names and keys a list of labels to plot separately for easier visualization.  </span>
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="n">scatter</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;s&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span> <span class="s1">&#39;alpha&#39;</span><span class="p">:</span> <span class="mf">0.7</span><span class="p">,</span> <span class="s1">&#39;linewidth&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+            <span class="n">scatter</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">qc_pass</span> <span class="ow">is</span> <span class="kc">True</span> <span class="ow">and</span> <span class="s1">&#39;mapping_qc&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="s1">&#39;mapping_qc&#39;</span><span class="p">]</span><span class="o">==</span><span class="s1">&#39;pass&#39;</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span>
+
+            <span class="k">if</span> <span class="n">groups</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">groups</span><span class="p">),</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">groups</span><span class="p">)</span><span class="o">*</span><span class="mi">6</span><span class="p">))</span>
+                <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">group_name</span><span class="p">,</span> <span class="n">group</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">groups</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+                    <span class="n">sns</span><span class="o">.</span><span class="n">scatterplot</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="s1">&#39;center_x&#39;</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="s1">&#39;center_y&#39;</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;grey&#39;</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+                    <span class="n">subdata</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">data</span><span class="p">[</span><span class="n">level</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">group</span><span class="p">)]</span>
+                    <span class="n">sns</span><span class="o">.</span><span class="n">scatterplot</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">subdata</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="s1">&#39;center_x&#39;</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="s1">&#39;center_y&#39;</span><span class="p">,</span> <span class="n">hue</span><span class="o">=</span><span class="n">level</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">hue_order</span><span class="o">=</span><span class="n">group</span><span class="p">,</span> <span class="o">**</span><span class="n">scatter</span><span class="p">)</span>
+                    <span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="n">group_name</span><span class="p">)</span>
+                    <span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">bbox_to_anchor</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">))</span>
+                
+                <span class="n">fig</span><span class="o">.</span><span class="n">set_tight_layout</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+            
+            
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">8</span><span class="p">))</span>
+                <span class="n">sns</span><span class="o">.</span><span class="n">scatterplot</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="s1">&#39;center_x&#39;</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="s1">&#39;center_y&#39;</span><span class="p">,</span> <span class="n">hue</span><span class="o">=</span><span class="n">level</span><span class="p">,</span><span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="o">**</span><span class="n">scatter</span><span class="p">)</span>
+                <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">bbox_to_anchor</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">))</span>
+            
+            <span class="k">return</span> <span class="n">fig</span></div>
+
+
+<div class="viewcode-block" id="ScrattchMapping.plot_class_proportions">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.ScrattchMapping.plot_class_proportions">[docs]</a>
+    <span class="k">def</span> <span class="nf">plot_class_proportions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">level</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">{},</span> <span class="n">qc_pass</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="n">qc_pass</span> <span class="ow">is</span> <span class="kc">True</span> <span class="ow">and</span> <span class="s1">&#39;mapping_qc&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="s1">&#39;mapping_qc&#39;</span><span class="p">]</span><span class="o">==</span><span class="s1">&#39;pass&#39;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span>
+        
+        <span class="k">if</span> <span class="n">groups</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">cls_prop</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">for</span> <span class="n">group_name</span><span class="p">,</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">groups</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">subdata</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">data</span><span class="p">[</span><span class="n">level</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">group</span><span class="p">)]</span>
+                <span class="n">total_count</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">subdata</span><span class="p">)</span>
+                <span class="n">level_counts</span> <span class="o">=</span> <span class="n">subdata</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="n">level</span><span class="p">)</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+                <span class="n">level_counts</span><span class="p">[</span><span class="s1">&#39;Prop of Class&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">level_counts</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;score.Corr&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="n">total_count</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+                <span class="n">level_counts</span><span class="p">[</span><span class="s1">&#39;Class&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">group_name</span>
+
+                <span class="k">if</span> <span class="n">cls_prop</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">cls_prop</span> <span class="o">=</span> <span class="n">level_counts</span><span class="p">[[</span><span class="s1">&#39;Prop of Class&#39;</span><span class="p">,</span> <span class="s1">&#39;Class&#39;</span><span class="p">]]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">cls_prop</span> <span class="o">=</span> <span class="n">cls_prop</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">level_counts</span><span class="p">[[</span><span class="s1">&#39;Prop of Class&#39;</span><span class="p">,</span> <span class="s1">&#39;Class&#39;</span><span class="p">]])</span>
+            <span class="n">pivot</span> <span class="o">=</span> <span class="n">cls_prop</span><span class="o">.</span><span class="n">pivot_table</span><span class="p">(</span><span class="n">index</span><span class="o">=</span><span class="n">cls_prop</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="s1">&#39;Class&#39;</span><span class="p">,</span> <span class="n">values</span><span class="o">=</span><span class="s1">&#39;Prop of Class&#39;</span><span class="p">)</span>
+            <span class="n">pivot</span> <span class="o">=</span> <span class="n">pivot</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">cls_prop</span><span class="o">.</span><span class="n">index</span><span class="p">]</span>
+            <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">))</span>
+            <span class="n">_</span> <span class="o">=</span> <span class="n">pivot</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">plot</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">stacked</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Proportion of Class&#39;</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="s1">&#39;upper left&#39;</span><span class="p">,</span> <span class="n">bbox_to_anchor</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">total_count</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+            <span class="n">level_counts</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="n">level</span><span class="p">)</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+            <span class="n">level_counts</span><span class="p">[</span><span class="s1">&#39;Prop of Cells&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">level_counts</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;score.Corr&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="n">total_count</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">))</span>
+            <span class="n">_</span> <span class="o">=</span> <span class="n">level_counts</span><span class="p">[</span><span class="s1">&#39;Prop of Cells&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">plot</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Proportion of Cells&#39;</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="s1">&#39;upper left&#39;</span><span class="p">,</span> <span class="n">bbox_to_anchor</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+        
+        <span class="k">return</span> <span class="n">fig</span></div>
+
+        
+<div class="viewcode-block" id="ScrattchMapping.get_confusion_matrix">
+<a class="viewcode-back" href="../../sis.html#sis.celltype_mapping.ScrattchMapping.get_confusion_matrix">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_confusion_matrix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pivot_cols</span><span class="p">,</span> <span class="n">norm</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sis.expression_dataset</span> <span class="kn">import</span> <span class="n">norm_confusion_matrix</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">pivot_cols</span><span class="p">)</span><span class="o">==</span><span class="nb">dict</span><span class="p">:</span>
+            <span class="n">conf_dict</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">level</span><span class="p">,</span> <span class="n">pivot</span> <span class="ow">in</span> <span class="n">pivot_cols</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">conf_matrix_level</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="n">pivot</span><span class="p">]</span><span class="o">.</span><span class="n">pivot_table</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="n">pivot</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">index</span><span class="o">=</span><span class="n">pivot</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">aggfunc</span><span class="o">=</span><span class="nb">len</span><span class="p">,</span> <span class="n">margins</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">conf_matrix_level</span> <span class="o">=</span> <span class="n">conf_matrix_level</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">conf_matrix_level</span><span class="o">.</span><span class="n">columns</span><span class="p">]</span>
+                <span class="n">conf_matrix_level</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="s1">&#39;Mapped&#39;</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">conf_matrix_level</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;Annotated&#39;</span>
+                <span class="n">conf_dict</span><span class="p">[</span><span class="n">level</span><span class="p">]</span> <span class="o">=</span> <span class="n">conf_matrix_level</span>
+            <span class="n">conf_matrix</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">conf_dict</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+                <span class="n">conf_matrix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ad_map</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="n">pivot_cols</span><span class="p">]</span><span class="o">.</span><span class="n">pivot_table</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="n">pivot_cols</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">index</span><span class="o">=</span><span class="n">pivot_cols</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">aggfunc</span><span class="o">=</span><span class="nb">len</span><span class="p">,</span> <span class="n">margins</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">conf_matrix</span> <span class="o">=</span> <span class="n">conf_matrix</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">conf_matrix</span><span class="o">.</span><span class="n">columns</span><span class="p">]</span>
+                <span class="n">conf_matrix</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="s1">&#39;Mapped&#39;</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">conf_matrix</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;Annotated&#39;</span>
+        
+        <span class="k">if</span> <span class="n">norm</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">norm_conf_matrix</span> <span class="o">=</span> <span class="n">norm_confusion_matrix</span><span class="p">(</span><span class="n">conf_matrix</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">norm_conf_matrix</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">conf_matrix</span></div>
+</div>
+
+    
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">Spots-in-Spaaaaaace!</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2024, Allen Spatial Analysis Working Group.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 7.2.6</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 0.7.16</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>sis.expression_dataset &#8212; Spots-in-Spaaaaaace! 0.0.1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=d1102ebc" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=12dfc556" />
+    <script src="../../_static/documentation_options.js?v=d45e8c67"></script>
+    <script src="../../_static/doctools.js?v=888ff710"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for sis.expression_dataset</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">from</span> <span class="nn">ast</span> <span class="kn">import</span> <span class="n">Expr</span>
+<span class="kn">from</span> <span class="nn">calendar</span> <span class="kn">import</span> <span class="n">c</span>
+<span class="kn">from</span> <span class="nn">operator</span> <span class="kn">import</span> <span class="n">ne</span>
+<span class="kn">import</span> <span class="nn">pandas</span>
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">typing</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">pickle</span> <span class="k">as</span> <span class="nn">pkl</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">import</span> <span class="nn">inspect</span>
+<span class="kn">import</span> <span class="nn">anndata</span> <span class="k">as</span> <span class="nn">ad</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">from</span> <span class="nn">sis.celltype_mapping</span> <span class="kn">import</span> <span class="n">CellTypeMapping</span>
+<span class="kn">from</span> <span class="nn">sis.hpc</span> <span class="kn">import</span> <span class="n">run_slurm</span>
+
+<span class="n">_r_init_done</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="n">rinterface</span> <span class="o">=</span> <span class="kc">None</span>
+<div class="viewcode-block" id="importr">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.importr">[docs]</a>
+<span class="k">def</span> <span class="nf">importr</span><span class="p">(</span><span class="n">lib</span><span class="p">):</span>
+    <span class="c1"># os.environ[&#39;R_HOME&#39;] = &#39;C:\\Users\stephanies\AppData\Local\Continuum\miniconda3\envs\r_env\lib\R&#39;</span>
+    <span class="c1"># os.environ[&#39;R_HOME&#39;] = &quot;C:/PROGRA~1/R/R-43~1.0&quot;</span>
+    <span class="k">global</span> <span class="n">_r_init_done</span><span class="p">,</span> <span class="n">rinterface</span><span class="p">,</span> <span class="n">ro</span>
+    <span class="kn">import</span> <span class="nn">rpy2.robjects</span> <span class="k">as</span> <span class="nn">ro</span>
+    <span class="kn">from</span> <span class="nn">rpy2.robjects.packages</span> <span class="kn">import</span> <span class="n">importr</span> <span class="k">as</span> <span class="n">rpy2_importr</span>
+    <span class="kn">import</span> <span class="nn">rpy2.rinterface</span> <span class="k">as</span> <span class="nn">rinterface</span>
+    <span class="kn">from</span> <span class="nn">rpy2.robjects</span> <span class="kn">import</span> <span class="n">pandas2ri</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">_r_init_done</span><span class="p">:</span>
+        <span class="n">pandas2ri</span><span class="o">.</span><span class="n">activate</span><span class="p">()</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;pandas2ri activated&#39;</span><span class="p">)</span>
+        <span class="n">readr</span> <span class="o">=</span> <span class="n">rpy2_importr</span><span class="p">(</span><span class="s1">&#39;readr&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">rpy2_importr</span><span class="p">(</span><span class="n">lib</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="ExpressionDataset">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.ExpressionDataset">[docs]</a>
+<span class="k">class</span> <span class="nc">ExpressionDataset</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Encapsulates gene expression data from scRNAseq</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    expression_data : AnnData </span>
+<span class="sd">        AnnData with following attributes:</span>
+<span class="sd">            X: cell x gene count</span>
+<span class="sd">            obs: cell annotations with at least &#39;class&#39;, &#39;subclass&#39;, &#39;cluster&#39; annotations</span>
+<span class="sd">            var: gene names</span>
+<span class="sd">    expression_type : str</span>
+<span class="sd">        Indicates the kind of data in *expression_data.X*. Options are &quot;raw&quot; (raw expression counts), &quot;cpm&quot;, &quot;logcpm&quot;, &quot;binary&quot;</span>
+<span class="sd">    region : string</span>
+<span class="sd">        Region of the brain this data comes from</span>
+<span class="sd">    save_path : string</span>
+<span class="sd">        Directory to save date for later recall</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expression_data</span><span class="p">:</span> <span class="n">ad</span><span class="o">.</span><span class="n">AnnData</span><span class="p">,</span> <span class="n">expression_type</span><span class="p">,</span>  <span class="n">region</span><span class="p">:</span> <span class="nb">str</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">save_path</span><span class="p">:</span> <span class="nb">str</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">target_cells</span><span class="p">:</span> <span class="nb">int</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">target_label</span><span class="p">:</span> <span class="nb">str</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">expression_data</span> <span class="o">=</span> <span class="n">expression_data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">expression_type</span> <span class="o">=</span> <span class="n">expression_type</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">region</span> <span class="o">=</span> <span class="n">region</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="n">target_cells</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">target_label</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">expression_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">subsample_by_type</span><span class="p">(</span><span class="n">target_cells</span><span class="p">,</span> <span class="n">target_label</span><span class="p">)</span> 
+
+        <span class="k">if</span> <span class="n">save_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1">#initiate save directory and dump ExpressionDataset</span>
+            <span class="n">dir_ts</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{:0.3f}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">timestamp</span><span class="p">())</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="n">dir_ts</span><span class="p">)</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span><span class="p">)</span>
+            <span class="n">file</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span><span class="p">,</span> <span class="s1">&#39;expression_dataset&#39;</span><span class="p">),</span> <span class="s1">&#39;wb&#39;</span><span class="p">)</span>
+            <span class="n">pkl</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">file</span><span class="p">)</span>
+            <span class="n">file</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;gene panel UID: </span><span class="si">{</span><span class="n">dir_ts</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">genes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">expression_data</span><span class="o">.</span><span class="n">columns</span>
+
+<div class="viewcode-block" id="ExpressionDataset.normalize">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.ExpressionDataset.normalize">[docs]</a>
+    <span class="k">def</span> <span class="nf">normalize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expression_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="c1">## Needs updating to be compatible with expression_dataset = AnnData</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a normalized copy of this dataset.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        expression_type : str</span>
+<span class="sd">            Type of data to return. Options are &#39;cpm&#39;, &#39;logcpm&#39;, and &#39;binary&#39;</span>
+<span class="sd">        &quot;&quot;&quot;</span>        
+        <span class="k">if</span> <span class="n">expression_type</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">expression_type</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        
+        <span class="k">if</span> <span class="n">expression_type</span> <span class="o">==</span> <span class="s1">&#39;cpm&#39;</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">expression_type</span> <span class="o">==</span> <span class="s1">&#39;raw&#39;</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">expression_type</span> <span class="o">==</span> <span class="s1">&#39;logcpm&#39;</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">expression_type</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;raw&#39;</span><span class="p">,</span> <span class="s1">&#39;cpm&#39;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">expression_type</span> <span class="o">==</span> <span class="s1">&#39;raw&#39;</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span><span class="s1">&#39;cpm&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span><span class="s1">&#39;logcpm&#39;</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">expression_type</span> <span class="o">==</span> <span class="s1">&#39;cpm&#39;</span><span class="p">:</span>
+                <span class="n">expression</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log2</span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">expression_data</span><span class="p">)</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">expression_data</span><span class="o">=</span><span class="n">expression</span><span class="p">,</span> <span class="n">expression_type</span><span class="o">=</span><span class="s1">&#39;logcpm&#39;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">expression_type</span> <span class="o">==</span> <span class="s1">&#39;binary&#39;</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">expression_type</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;raw&#39;</span><span class="p">,</span> <span class="s1">&#39;cpm&#39;</span><span class="p">]</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">expression_data</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expression_data</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">),</span> <span class="n">expression_type</span><span class="o">=</span><span class="s1">&#39;binary&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ExpressionDataset.load_arrow">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.ExpressionDataset.load_arrow">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">load_arrow</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">gene_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">annotation_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">expression_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">expression_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">max_n_samples</span><span class="p">:</span> <span class="n">typing</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return dataset loaded from 3 arrow files</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        gene_file : str</span>
+<span class="sd">            Name of arrow file containing a column &#39;gene&#39; with the same length and order as rows in expression_file.</span>
+<span class="sd">        annotation_file : str</span>
+<span class="sd">            Name of arrow file containing columns &#39;sample_id&#39;, &#39;cluster&#39;, &#39;subclass&#39;, and &#39;class&#39;. </span>
+<span class="sd">        expression_file : str</span>
+<span class="sd">            Name of arrow file containing one gene per row, one cell per column.</span>
+<span class="sd">        expression_type : str</span>
+<span class="sd">            Type of expression data provided in *expression_file* (see ExpressionDataset.__init__(expression_type))</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">annotations</span> <span class="o">=</span> <span class="n">pandas</span><span class="o">.</span><span class="n">read_feather</span><span class="p">(</span><span class="n">annotation_file</span><span class="p">)</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="s1">&#39;sample_id&#39;</span><span class="p">)</span>
+        <span class="n">genes</span> <span class="o">=</span> <span class="n">pandas</span><span class="o">.</span><span class="n">read_feather</span><span class="p">(</span><span class="n">gene_file</span><span class="p">)</span>
+        <span class="n">expression</span> <span class="o">=</span> <span class="n">pandas</span><span class="o">.</span><span class="n">read_feather</span><span class="p">(</span><span class="n">expression_file</span><span class="p">)</span>
+        <span class="n">expression</span> <span class="o">=</span> <span class="n">expression</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="n">genes</span><span class="p">[</span><span class="s1">&#39;gene&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">T</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">expression</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">annotations</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">max_n_samples</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">max_n_samples</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">expression</span><span class="p">)</span>
+
+        <span class="n">anndata</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">AnnData</span><span class="p">(</span>
+            <span class="n">X</span> <span class="o">=</span> <span class="n">expression</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:</span><span class="n">max_n_samples</span><span class="p">],</span>
+            <span class="n">obs</span> <span class="o">=</span> <span class="n">annotations</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:</span><span class="n">max_n_samples</span><span class="p">],</span>
+            <span class="n">var</span> <span class="o">=</span> <span class="n">pandas</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">index</span><span class="o">=</span><span class="n">expression</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="n">exp_data</span> <span class="o">=</span> <span class="n">ExpressionDataset</span><span class="p">(</span>
+            <span class="n">expression_data</span><span class="o">=</span><span class="n">anndata</span><span class="p">,</span>
+            <span class="n">expression_type</span><span class="o">=</span><span class="n">expression_type</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">exp_data</span></div>
+
+
+<div class="viewcode-block" id="ExpressionDataset.load_from_timestamp">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.ExpressionDataset.load_from_timestamp">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">load_from_timestamp</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">directory</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">timestamp</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">directory</span><span class="p">,</span> <span class="n">timestamp</span><span class="p">,</span> <span class="s1">&#39;expression_dataset&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;expression dataset file does not exist for timestamp </span><span class="si">{</span><span class="n">timestamp</span><span class="si">}</span><span class="s1"> in directory </span><span class="si">{</span><span class="n">directory</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="k">return</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+            <span class="n">exp_data</span> <span class="o">=</span> <span class="n">pkl</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+            <span class="n">file</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="c1">#consider making a new directory as if this is a new run? or hav an input to indicate if this is a new run but using a</span>
+        <span class="c1">#previously saved expression dataset?</span>
+        <span class="k">return</span> <span class="n">exp_data</span></div>
+
+    
+<div class="viewcode-block" id="ExpressionDataset.select_genes">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.ExpressionDataset.select_genes">[docs]</a>
+    <span class="k">def</span> <span class="nf">select_genes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">genes</span><span class="p">:</span> <span class="nb">list</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;ExpressionDataset&#39;</span><span class="p">:</span>
+        <span class="n">exp_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">expression_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">expression_data</span><span class="p">[:,</span> <span class="n">genes</span><span class="p">])</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;run_directory&#39;</span><span class="p">):</span>
+            <span class="n">exp_data</span><span class="o">.</span><span class="n">run_directory</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span>
+        
+        <span class="k">return</span> <span class="n">exp_data</span></div>
+
+
+<div class="viewcode-block" id="ExpressionDataset.copy">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.ExpressionDataset.copy">[docs]</a>
+    <span class="k">def</span> <span class="nf">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwds</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a copy of this ExpressionDataset with some arguments changed.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">default_kwds</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+            <span class="n">expression_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">expression_data</span><span class="p">,</span>
+            <span class="n">expression_type</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">expression_type</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">default_kwds</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">kwds</span><span class="p">)</span>
+        <span class="n">exp_data</span> <span class="o">=</span>  <span class="n">ExpressionDataset</span><span class="p">(</span><span class="o">**</span><span class="n">default_kwds</span><span class="p">)</span>
+        <span class="n">exp_data</span><span class="o">.</span><span class="n">run_directory</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span>
+        <span class="k">return</span> <span class="n">exp_data</span></div>
+
+
+<div class="viewcode-block" id="ExpressionDataset.subsample_by_type">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.ExpressionDataset.subsample_by_type">[docs]</a>
+    <span class="k">def</span> <span class="nf">subsample_by_type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">target_cells</span><span class="p">,</span> <span class="n">label</span><span class="p">):</span>
+        <span class="kn">import</span> <span class="nn">scanpy</span> <span class="k">as</span> <span class="nn">sc</span>
+        <span class="n">exp_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">expression_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">expression_data</span><span class="p">)</span>
+        <span class="n">adatas</span> <span class="o">=</span> <span class="p">[</span><span class="n">exp_data</span><span class="o">.</span><span class="n">expression_data</span><span class="p">[</span><span class="n">exp_data</span><span class="o">.</span><span class="n">expression_data</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="n">label</span><span class="p">]</span><span class="o">==</span><span class="n">clust</span><span class="p">]</span> <span class="k">for</span> <span class="n">clust</span> <span class="ow">in</span> <span class="n">exp_data</span><span class="o">.</span><span class="n">expression_data</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="n">label</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">()]</span>
+
+        <span class="k">for</span> <span class="n">dat</span> <span class="ow">in</span> <span class="n">adatas</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">dat</span><span class="o">.</span><span class="n">n_obs</span> <span class="o">&gt;</span> <span class="n">target_cells</span><span class="p">:</span>
+                <span class="n">sc</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">subsample</span><span class="p">(</span><span class="n">dat</span><span class="p">,</span> <span class="n">n_obs</span><span class="o">=</span><span class="n">target_cells</span><span class="p">)</span>
+
+        <span class="n">exp_data_subsampled</span> <span class="o">=</span> <span class="n">adatas</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="o">*</span><span class="n">adatas</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+
+        <span class="k">return</span> <span class="n">exp_data_subsampled</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="GenePanelSelection">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.GenePanelSelection">[docs]</a>
+<span class="k">class</span> <span class="nc">GenePanelSelection</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Contains a gene panel selection as well as information about how the selection was performed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exp_data</span><span class="p">:</span> <span class="n">ExpressionDataset</span><span class="p">,</span> <span class="n">gene_panel</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">method</span><span class="p">:</span> <span class="s1">&#39;GenePanelMethod&#39;</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">dict</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span> <span class="o">=</span> <span class="n">exp_data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gene_panel</span> <span class="o">=</span> <span class="n">gene_panel</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">method</span> <span class="o">=</span> <span class="n">method</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">args</span> <span class="o">=</span> <span class="n">args</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span><span class="o">.</span><span class="n">run_directory</span>
+        <span class="n">file_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;file_name&#39;</span><span class="p">,</span> <span class="s1">&#39;gene_panel_selection&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">save_selection</span><span class="p">(</span><span class="n">file_name</span> <span class="o">=</span> <span class="n">file_name</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__getstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span><span class="n">v</span> <span class="k">for</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">inspect</span><span class="o">.</span><span class="n">ismethod</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">))}</span>
+
+<div class="viewcode-block" id="GenePanelSelection.expression_dataset">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.GenePanelSelection.expression_dataset">[docs]</a>
+    <span class="k">def</span> <span class="nf">expression_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a new ExpressionDataset containing only the genes selected in this panel.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span><span class="o">.</span><span class="n">select_genes</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">gene_panel</span><span class="p">)</span></div>
+
+    
+<div class="viewcode-block" id="GenePanelSelection.report">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.GenePanelSelection.report">[docs]</a>
+    <span class="k">def</span> <span class="nf">report</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="GenePanelSelection.save_selection">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.GenePanelSelection.save_selection">[docs]</a>
+    <span class="k">def</span> <span class="nf">save_selection</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">save_path</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">file_name</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="s1">&#39;gene_panel_selection&#39;</span><span class="p">,</span> <span class="n">meta</span><span class="p">:</span><span class="nb">dict</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">meta</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">save_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Must specify save path or set GenePanelSelection.run_directory to path&#39;</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="n">path</span> <span class="o">=</span> <span class="n">save_path</span> <span class="k">if</span> <span class="n">save_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span>
+        <span class="n">file</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">file_name</span><span class="p">),</span> <span class="s1">&#39;wb&#39;</span><span class="p">)</span>
+        <span class="n">pkl</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">file</span><span class="p">)</span>
+        <span class="n">file</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="GenePanelSelection.load_from_timestamp">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.GenePanelSelection.load_from_timestamp">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">load_from_timestamp</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">directory</span><span class="p">:</span><span class="nb">str</span><span class="p">,</span> <span class="n">timestamp</span><span class="p">:</span><span class="nb">str</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="s1">&#39;gene_panel_selection&#39;</span><span class="p">):</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">directory</span><span class="p">,</span> <span class="n">timestamp</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">filename</span><span class="si">}</span><span class="s1"> file does not exist for timestamp </span><span class="si">{</span><span class="n">timestamp</span><span class="si">}</span><span class="s1"> in directory </span><span class="si">{</span><span class="n">directory</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="k">return</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+            <span class="n">selection</span> <span class="o">=</span> <span class="n">pkl</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+            <span class="n">file</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        
+        <span class="k">return</span> <span class="n">selection</span></div>
+
+
+<div class="viewcode-block" id="GenePanelSelection.eval_method">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.GenePanelSelection.eval_method">[docs]</a>
+    <span class="k">def</span> <span class="nf">eval_method</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">method</span><span class="p">:</span> <span class="n">CellTypeMapping</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">eval</span> <span class="o">=</span> <span class="n">method</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">eval</span><span class="o">.</span><span class="n">_set_run_directory</span><span class="p">(</span><span class="n">save_path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span><span class="p">)</span></div>
+
+    
+<div class="viewcode-block" id="GenePanelSelection.get_confusion_matrix">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.GenePanelSelection.get_confusion_matrix">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_confusion_matrix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">):</span>
+        <span class="c1"># instantiate in evaluation method of CellTypeMapping class</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">eval</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">confusion_matrix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">eval</span><span class="o">.</span><span class="n">get_confusion_matrix</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">eval</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;No GenePanelSelection evaluation method is defined&#39;</span><span class="p">)</span></div>
+
+    
+<div class="viewcode-block" id="GenePanelSelection.get_fraction_mapped">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.GenePanelSelection.get_fraction_mapped">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_fraction_mapped</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">):</span>
+        <span class="c1"># pull fraction mapped from diagonal of confusion matrix</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">confusion_matrix</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">eval</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;No GenePanelSelection evaluation method is defined to generate confusion matrix&#39;</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">confusion_matrix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">eval</span><span class="o">.</span><span class="n">get_confusion_matrix</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">eval</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">)</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="k">raise</span><span class="p">(</span><span class="s2">&quot;Tried generating confusion matrix but don&#39;t have appropriate arguments&quot;</span><span class="p">)</span>
+                
+            <span class="bp">self</span><span class="o">.</span><span class="n">fraction_mapped</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">eval</span><span class="o">.</span><span class="n">get_fraction_mapped</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">eval</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">confusion_matrix</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;No GenePanelSelection evaluation method is defined&#39;</span><span class="p">)</span></div>
+</div>
+
+        
+
+<div class="viewcode-block" id="GenePanelMethod">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.GenePanelMethod">[docs]</a>
+<span class="k">class</span> <span class="nc">GenePanelMethod</span><span class="p">():</span>
+<div class="viewcode-block" id="GenePanelMethod.select_gene_panel">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.GenePanelMethod.select_gene_panel">[docs]</a>
+    <span class="k">def</span> <span class="nf">select_gene_panel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">ExpressionDataset</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">dict</span><span class="o">=</span><span class="p">{})</span> <span class="o">-&gt;</span> <span class="n">GenePanelSelection</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;select_gene_panel must be implementd in a subclass&#39;</span><span class="p">)</span></div>
+
+    
+<div class="viewcode-block" id="GenePanelMethod.evaluate_gene_panel">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.GenePanelMethod.evaluate_gene_panel">[docs]</a>
+    <span class="k">def</span> <span class="nf">evaluate_gene_panel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">selection</span><span class="p">:</span> <span class="n">GenePanelSelection</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;evaluate_gene_panel must be implemented in a subclass&#39;</span><span class="p">)</span></div>
+
+    
+    <span class="k">def</span> <span class="nf">__getstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span><span class="n">v</span> <span class="k">for</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">inspect</span><span class="o">.</span><span class="n">ismethod</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">))}</span></div>
+
+
+
+<div class="viewcode-block" id="ScranMethod">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.ScranMethod">[docs]</a>
+<span class="k">class</span> <span class="nc">ScranMethod</span><span class="p">(</span><span class="n">GenePanelMethod</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exp_data</span> <span class="o">=</span> <span class="n">ExpressionDataset</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span> <span class="o">=</span> <span class="n">exp_data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scran</span> <span class="o">=</span> <span class="n">importr</span><span class="p">(</span><span class="s1">&#39;scran&#39;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="ScranMethod.select_gene_panel">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.ScranMethod.select_gene_panel">[docs]</a>
+    <span class="k">def</span> <span class="nf">select_gene_panel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span><span class="nb">dict</span><span class="p">,</span> <span class="n">file_name</span><span class="p">:</span> <span class="nb">str</span><span class="o">=</span><span class="s1">&#39;hvg_selection&#39;</span><span class="p">):</span>
+        <span class="n">expression_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span><span class="o">.</span><span class="n">expression_data</span><span class="o">.</span><span class="n">T</span>
+        <span class="n">exp_var</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">scran</span><span class="o">.</span><span class="n">modelGeneVar</span><span class="p">(</span><span class="n">expression_data</span><span class="p">)</span>
+        <span class="n">var_thresh</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;var_thresh&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">top_hvgs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scran</span><span class="o">.</span><span class="n">getTopHVGs</span><span class="p">(</span><span class="n">exp_var</span><span class="p">,</span> <span class="n">var_threshold</span><span class="o">=</span><span class="n">var_thresh</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">size</span><span class="p">):</span>
+            <span class="n">top_hvgs</span> <span class="o">=</span> <span class="n">top_hvgs</span><span class="p">[:</span><span class="n">size</span><span class="p">]</span>
+
+        <span class="n">gps</span> <span class="o">=</span> <span class="n">GenePanelSelection</span><span class="p">(</span>
+            <span class="n">exp_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span><span class="p">,</span>
+            <span class="n">gene_panel</span> <span class="o">=</span> <span class="n">top_hvgs</span><span class="p">,</span>
+            <span class="n">method</span> <span class="o">=</span> <span class="n">ScranMethod</span><span class="p">,</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;n_genes_selected&#39;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">top_hvgs</span><span class="p">),</span>
+                <span class="s1">&#39;variance_threshold&#39;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;var_thresh&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+                <span class="s1">&#39;file_name&#39;</span><span class="p">:</span> <span class="n">file_name</span><span class="p">,</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+
+
+        <span class="k">return</span> <span class="n">gps</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="GeneBasisMethod">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.GeneBasisMethod">[docs]</a>
+<span class="k">class</span> <span class="nc">GeneBasisMethod</span><span class="p">(</span><span class="n">GenePanelMethod</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exp_data</span><span class="p">:</span> <span class="n">ExpressionDataset</span><span class="p">,</span> <span class="n">run_local</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="n">exp_data</span><span class="o">.</span><span class="n">expression_data</span><span class="o">.</span><span class="n">obs</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="s1">&#39;cell&#39;</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="c1"># &lt;- renaming sample_id to &#39;cell&#39; is important for geneBasis ability to read the file and align with the expression data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span> <span class="o">=</span> <span class="n">exp_data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sce</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">run_local</span> <span class="o">=</span> <span class="n">run_local</span>
+        <span class="k">if</span> <span class="n">run_local</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">gB</span> <span class="o">=</span> <span class="n">importr</span><span class="p">(</span><span class="s1">&#39;geneBasisR&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">SummarizedExperiment</span> <span class="o">=</span> <span class="n">importr</span><span class="p">(</span><span class="s1">&#39;SummarizedExperiment&#39;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="GeneBasisMethod.df_to_sce">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.GeneBasisMethod.df_to_sce">[docs]</a>
+    <span class="k">def</span> <span class="nf">df_to_sce</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span><span class="nb">dict</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">save_to_csv</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">raw_to_sce</span><span class="p">(</span><span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="GeneBasisMethod.save_to_csv">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.GeneBasisMethod.save_to_csv">[docs]</a>
+    <span class="k">def</span> <span class="nf">save_to_csv</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;saving expression and annotation data to csv...&#39;</span><span class="p">)</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span><span class="o">.</span><span class="n">run_directory</span>
+        <span class="n">expression_data_filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;expression_data.csv&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">expression_data_filename</span><span class="p">):</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">expression_data_filename</span><span class="si">}</span><span class="s1"> already exists&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span> 
+            <span class="n">expression_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span><span class="o">.</span><span class="n">expression_data</span><span class="o">.</span><span class="n">to_df</span><span class="p">()</span><span class="o">.</span><span class="n">T</span>  
+            <span class="n">expression_data</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="n">expression_data_filename</span><span class="p">,</span> <span class="n">index_label</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="c1"># having an index label throws off the matchup between the expression and anno files</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">expression_data_file</span> <span class="o">=</span> <span class="n">expression_data_filename</span>    
+        <span class="n">annotation_data_filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;annotation_data.csv&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">annotation_data_filename</span><span class="p">):</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">annotation_data_filename</span><span class="si">}</span><span class="s1"> already exists&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span><span class="o">.</span><span class="n">expression_data</span><span class="o">.</span><span class="n">obs</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span><span class="o">.</span><span class="n">expression_data</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="s1">&#39;cell&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="n">annotation_data_filename</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">annotation_data_file</span> <span class="o">=</span> <span class="n">annotation_data_filename</span></div>
+
+    
+<div class="viewcode-block" id="GeneBasisMethod.raw_to_sce">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.GeneBasisMethod.raw_to_sce">[docs]</a>
+    <span class="k">def</span> <span class="nf">raw_to_sce</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot; Used in geneBasis to convert csv data files into SingleCellExperiment </span>
+<span class="sd">        object used by geneBasis to select and evaluate panel</span>
+
+<span class="sd">        Parameters:</span>
+<span class="sd">        -----------</span>
+<span class="sd">        args : dict</span>
+<span class="sd">            Optional arguments to pass to geneBasis.raw_to_sce</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;converting data to SCE format...&#39;</span><span class="p">)</span>
+        <span class="n">default_args</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;counts_type&#39;</span><span class="p">:</span> <span class="s1">&#39;logcounts&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;transform_to_logcounts&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="s1">&#39;header&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> 
+            <span class="s1">&#39;sep&#39;</span><span class="p">:</span> <span class="s1">&#39;,&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;batch&#39;</span><span class="p">:</span> <span class="n">rinterface</span><span class="o">.</span><span class="n">NULL</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">default_args</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sce</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gB</span><span class="o">.</span><span class="n">raw_to_sce</span><span class="p">(</span><span class="n">counts_dir</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">expression_data_file</span><span class="p">,</span> <span class="n">meta_dir</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">annotation_data_file</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">)</span></div>
+
+    
+<div class="viewcode-block" id="GeneBasisMethod.filter_genes">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.GeneBasisMethod.filter_genes">[docs]</a>
+    <span class="k">def</span> <span class="nf">filter_genes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">starting_genes</span><span class="p">:</span> <span class="nb">list</span><span class="o">=</span><span class="p">[],</span> <span class="n">hvgs</span><span class="p">:</span> <span class="nb">list</span><span class="o">=</span><span class="p">[]):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">starting_genes</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">genes</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">hvgs</span> <span class="o">+</span> <span class="n">starting_genes</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span><span class="o">.</span><span class="n">select_genes</span><span class="p">(</span><span class="n">genes</span><span class="o">=</span><span class="n">genes</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="GeneBasisMethod.select_gene_panel">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.GeneBasisMethod.select_gene_panel">[docs]</a>
+    <span class="k">def</span> <span class="nf">select_gene_panel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">file_name</span><span class="p">:</span> <span class="nb">str</span><span class="o">=</span><span class="s1">&#39;gene_panel_selection&#39;</span><span class="p">,</span> <span class="n">panel_args</span><span class="p">:</span><span class="nb">dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">hpc_args</span><span class="p">:</span><span class="nb">dict</span><span class="o">=</span><span class="p">{},</span> 
+                          <span class="n">docker</span><span class="p">:</span> <span class="nb">str</span><span class="o">=</span><span class="s1">&#39;/allen/programs/celltypes/workgroups/rnaseqanalysis/bicore/singularity/genebasis.sif&#39;</span><span class="p">,</span> <span class="n">r_script</span><span class="p">:</span> <span class="nb">str</span><span class="o">=</span><span class="s1">&#39;geneBasis.R&#39;</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Paramters</span>
+<span class="sd">        ---------</span>
+<span class="sd">        size : int</span>
+<span class="sd">            Size of gene panel to select</span>
+<span class="sd">        data : ExpressionDataset</span>
+<span class="sd">            Gene expression dataset from which to derive panel</span>
+<span class="sd">        panel_args : dict | {}</span>
+<span class="sd">            Optional arguments to pass to geneBasis.gene_search</span>
+<span class="sd">        hpc_args : dict | {}</span>
+<span class="sd">            Optionally run on HPC, must at least specify `job_path`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">run_local</span><span class="p">:</span>
+            <span class="c1"># run locally</span>
+            <span class="c1"># check some R conversions to optional arguments</span>
+            <span class="k">if</span> <span class="nb">bool</span><span class="p">(</span><span class="n">panel_args</span><span class="p">):</span>
+                    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">panel_args</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                        <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                            <span class="n">panel_args</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">rinterface</span><span class="o">.</span><span class="n">NULL</span>
+                        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">list</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">element</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">for</span> <span class="n">element</span> <span class="ow">in</span> <span class="n">v</span><span class="p">):</span>
+                            <span class="n">panel_args</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">ro</span><span class="o">.</span><span class="n">vectors</span><span class="o">.</span><span class="n">StrVector</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sce</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">df_to_sce</span><span class="p">(</span><span class="n">args</span><span class="o">=</span><span class="n">panel_args</span><span class="p">)</span>
+            <span class="n">gene_panel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gB</span><span class="o">.</span><span class="n">gene_search</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sce</span><span class="p">,</span> <span class="n">n_genes_total</span> <span class="o">=</span> <span class="n">size</span><span class="p">,</span> <span class="o">**</span><span class="n">panel_args</span><span class="p">,</span> <span class="n">verbose</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+
+            <span class="n">gps</span> <span class="o">=</span> <span class="n">GenePanelSelection</span><span class="p">(</span>
+                <span class="n">exp_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span><span class="p">,</span>
+                <span class="n">gene_panel</span> <span class="o">=</span> <span class="n">gene_panel</span><span class="p">[</span><span class="s1">&#39;gene&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">to_list</span><span class="p">(),</span>
+                <span class="n">method</span> <span class="o">=</span> <span class="n">GeneBasisMethod</span><span class="p">,</span>
+                <span class="n">args</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="s1">&#39;n_genes_selected&#39;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">gene_panel</span><span class="p">),</span>
+                    <span class="s1">&#39;expression_data_type&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span><span class="o">.</span><span class="n">expression_type</span><span class="p">,</span>
+                    <span class="s1">&#39;file_name&#39;</span><span class="p">:</span> <span class="n">file_name</span><span class="p">,</span>
+                <span class="p">}</span>
+            <span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">gps</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">save_to_csv</span><span class="p">()</span>
+            <span class="n">job</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">run_on_hpc</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="n">size</span><span class="p">,</span> <span class="n">docker</span><span class="o">=</span><span class="n">docker</span><span class="p">,</span> <span class="n">r_script</span><span class="o">=</span><span class="n">r_script</span><span class="p">,</span> <span class="n">hpc_args</span><span class="o">=</span><span class="n">hpc_args</span><span class="p">,</span> <span class="n">panel_args</span><span class="o">=</span><span class="n">panel_args</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">job</span></div>
+
+        
+        
+<div class="viewcode-block" id="GeneBasisMethod.run_on_hpc">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.GeneBasisMethod.run_on_hpc">[docs]</a>
+    <span class="k">def</span> <span class="nf">run_on_hpc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">docker</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="s1">&#39;/allen/programs/celltypes/workgroups/rnaseqanalysis/bicore/singularity/genebasis.sif&#39;</span><span class="p">,</span> <span class="n">r_script</span><span class="p">:</span> <span class="nb">str</span><span class="o">=</span><span class="s1">&#39;geneBasis.R&#39;</span><span class="p">,</span> 
+                   <span class="n">hpc_args</span><span class="p">:</span><span class="nb">dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">panel_args</span><span class="p">:</span><span class="nb">dict</span><span class="o">=</span><span class="p">{}):</span>
+        
+        <span class="n">job_path</span> <span class="o">=</span> <span class="n">hpc_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;job_path&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">job_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;must specify a job path&#39;</span><span class="p">)</span>
+            <span class="k">return</span>
+        
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span><span class="o">.</span><span class="n">run_directory</span><span class="p">,</span> <span class="s1">&#39;geneBasis_args.json&#39;</span><span class="p">),</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+            <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">panel_args</span><span class="p">,</span> <span class="n">file</span><span class="p">)</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;building HPC job&#39;</span><span class="p">)</span>
+        <span class="n">hpc_default</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;hpc_host&#39;</span><span class="p">:</span> <span class="s1">&#39;hpc-login&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;job_path&#39;</span><span class="p">:</span> <span class="n">job_path</span><span class="p">,</span>
+            <span class="s1">&#39;partition&#39;</span><span class="p">:</span> <span class="s1">&#39;celltypes&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;job_name&#39;</span><span class="p">:</span> <span class="s1">&#39;geneBasis&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;nodes&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="s1">&#39;mincpus&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
+            <span class="s1">&#39;mem&#39;</span><span class="p">:</span> <span class="s1">&#39;500G&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;time&#39;</span><span class="p">:</span><span class="s1">&#39;24:00:00&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;mail_user&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s1">&#39;output&#39;</span><span class="p">:</span> <span class="n">job_path</span> <span class="o">+</span> <span class="s1">&#39;hpc_logs/%j.out&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;error&#39;</span><span class="p">:</span> <span class="n">job_path</span> <span class="o">+</span> <span class="s1">&#39;hpc_logs/%j.err&#39;</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="n">hpc_default</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">hpc_args</span><span class="p">)</span>
+        
+        <span class="n">command</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">                cd </span><span class="si">{</span><span class="n">job_path</span><span class="si">}</span>
+
+<span class="s2">                </span><span class="si">{</span><span class="n">docker</span><span class="si">}</span><span class="s2"> Rscript </span><span class="si">{</span><span class="n">r_script</span><span class="si">}</span><span class="s2"> --dat_path </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span><span class="o">.</span><span class="n">run_directory</span><span class="si">}</span><span class="s2"> --size </span><span class="si">{</span><span class="n">size</span><span class="si">}</span>
+<span class="s2">            &quot;&quot;&quot;</span>
+        
+        <span class="k">assert</span> <span class="s1">&#39;command&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">hpc_args</span>
+        <span class="n">hpc_default</span><span class="p">[</span><span class="s1">&#39;command&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">command</span>
+        <span class="n">job</span> <span class="o">=</span> <span class="n">run_slurm</span><span class="p">(</span><span class="o">**</span><span class="n">hpc_default</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">state</span><span class="p">(),</span> <span class="n">job</span><span class="o">.</span><span class="n">job_id</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">job</span></div>
+
+    
+<div class="viewcode-block" id="GeneBasisMethod.load_gene_panel">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.GeneBasisMethod.load_gene_panel">[docs]</a>
+    <span class="k">def</span> <span class="nf">load_gene_panel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">dict</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="n">gene_list</span> <span class="o">=</span> <span class="n">pandas</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span><span class="o">.</span><span class="n">run_directory</span><span class="p">,</span> <span class="s1">&#39;gene_list.csv&#39;</span><span class="p">),</span> <span class="n">names</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;gene&#39;</span><span class="p">],</span> <span class="n">header</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        
+        <span class="n">default_args</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;n_genes_selected&#39;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">gene_list</span><span class="p">),</span>
+                <span class="s1">&#39;expression_data_type&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span><span class="o">.</span><span class="n">expression_type</span><span class="p">,</span>
+                <span class="s1">&#39;file_name&#39;</span><span class="p">:</span> <span class="s1">&#39;gene_panel_selection&#39;</span><span class="p">,</span>
+                <span class="p">}</span>
+        
+        <span class="n">default_args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="n">gps</span> <span class="o">=</span> <span class="n">GenePanelSelection</span><span class="p">(</span>
+            <span class="n">exp_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span><span class="p">,</span>
+            <span class="n">gene_panel</span> <span class="o">=</span> <span class="n">gene_list</span><span class="p">[</span><span class="s1">&#39;gene&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">to_list</span><span class="p">(),</span>
+            <span class="n">method</span> <span class="o">=</span> <span class="n">GeneBasisMethod</span><span class="p">,</span>
+            <span class="n">args</span><span class="o">=</span><span class="n">default_args</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">gps</span></div>
+
+
+<div class="viewcode-block" id="GeneBasisMethod.neighborhood_score">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.GeneBasisMethod.neighborhood_score">[docs]</a>
+    <span class="k">def</span> <span class="nf">neighborhood_score</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gene_panel</span><span class="p">:</span> <span class="n">GenePanelSelection</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sce</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">df_to_sce</span><span class="p">()</span>
+        <span class="n">neighbor_score</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gB</span><span class="o">.</span><span class="n">evaluate_library</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sce</span><span class="p">,</span> 
+            <span class="n">genes_selection</span><span class="o">=</span><span class="n">ro</span><span class="o">.</span><span class="n">vectors</span><span class="o">.</span><span class="n">StrVector</span><span class="p">(</span><span class="n">gene_panel</span><span class="o">.</span><span class="n">gene_panel</span><span class="p">),</span>  
+            <span class="n">celltype_id</span> <span class="o">=</span> <span class="n">rinterface</span><span class="o">.</span><span class="n">NULL</span><span class="p">,</span>
+            <span class="n">return_cell_score_stat</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> 
+            <span class="n">return_gene_score_stat</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> 
+            <span class="n">return_celltype_stat</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> 
+            <span class="n">verbose</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="p">)</span>
+        <span class="n">neigh_df</span> <span class="o">=</span> <span class="n">neighbor_score</span><span class="o">.</span><span class="n">rx2</span><span class="p">[</span><span class="s1">&#39;cell_score_stat&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">neigh_df</span><span class="p">,</span> <span class="n">pandas</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">):</span>
+            <span class="c1"># this is highly dependent on the rpy2 package version</span>
+            <span class="k">if</span> <span class="s1">&#39;pandas2ri&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="nb">locals</span><span class="p">():</span>
+                <span class="n">neigh_df</span> <span class="o">=</span> <span class="n">ro</span><span class="o">.</span><span class="n">conversion</span><span class="o">.</span><span class="n">rpy2py</span><span class="p">(</span><span class="n">neigh_df</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">neigh_df</span> <span class="o">=</span> <span class="n">pandas2ri</span><span class="o">.</span><span class="n">rpy2py</span><span class="p">(</span><span class="n">neigh_df</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                    <span class="n">neigh_df</span> <span class="o">=</span> <span class="n">pandas2ri</span><span class="o">.</span><span class="n">ri2py</span><span class="p">(</span><span class="n">neigh_df</span><span class="p">)</span>
+        <span class="n">neigh_df</span> <span class="o">=</span> <span class="n">neigh_df</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="s1">&#39;cell&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;cell_score&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;neighborhood_cell_score&#39;</span><span class="p">})</span>
+        <span class="n">neigh_df</span> <span class="o">=</span> <span class="n">neigh_df</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">gene_panel</span><span class="o">.</span><span class="n">exp_data</span><span class="o">.</span><span class="n">expression_data</span><span class="o">.</span><span class="n">obs</span><span class="p">,</span> <span class="n">left_index</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">right_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">neigh_df</span></div>
+
+    
+<div class="viewcode-block" id="GeneBasisMethod.celltype_mapping">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.GeneBasisMethod.celltype_mapping">[docs]</a>
+    <span class="k">def</span> <span class="nf">celltype_mapping</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gene_panel</span><span class="p">:</span> <span class="n">GenePanelSelection</span><span class="p">,</span> <span class="n">levels</span><span class="p">:</span> <span class="nb">list</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;class&#39;</span><span class="p">,</span> <span class="s1">&#39;subclass&#39;</span><span class="p">,</span> <span class="s1">&#39;cluster&#39;</span><span class="p">]):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Performing celltype mapping&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sce</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">df_to_sce</span><span class="p">()</span>
+        <span class="n">frac_mapped_dict</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">confusion_dict</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">level</span> <span class="ow">in</span> <span class="n">levels</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Level: </span><span class="si">{</span><span class="n">level</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="n">cell_mapping</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gB</span><span class="o">.</span><span class="n">get_celltype_mapping</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">sce</span><span class="p">,</span> 
+                <span class="n">genes_selection</span><span class="o">=</span><span class="n">ro</span><span class="o">.</span><span class="n">vectors</span><span class="o">.</span><span class="n">StrVector</span><span class="p">(</span><span class="n">gene_panel</span><span class="o">.</span><span class="n">gene_panel</span><span class="p">),</span>  
+                <span class="n">celltype_id</span> <span class="o">=</span> <span class="n">level</span><span class="p">,</span>
+                <span class="n">return_stat</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> 
+                <span class="p">)</span>
+            <span class="n">frac_mapped_dict</span><span class="p">[</span><span class="n">level</span><span class="p">]</span> <span class="o">=</span> <span class="n">pandas2ri</span><span class="o">.</span><span class="n">rpy2py</span><span class="p">(</span><span class="n">cell_mapping</span><span class="o">.</span><span class="n">rx2</span><span class="p">[</span><span class="s1">&#39;stat&#39;</span><span class="p">])</span>
+            <span class="n">df</span> <span class="o">=</span> <span class="n">pandas2ri</span><span class="o">.</span><span class="n">rpy2py</span><span class="p">(</span><span class="n">cell_mapping</span><span class="o">.</span><span class="n">rx2</span><span class="p">[</span><span class="s1">&#39;mapping&#39;</span><span class="p">])</span>
+            <span class="n">confusion_matrix</span> <span class="o">=</span> <span class="n">pandas</span><span class="o">.</span><span class="n">pivot_table</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">values</span><span class="o">=</span><span class="s1">&#39;cell&#39;</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="s1">&#39;mapped_celltype&#39;</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="s1">&#39;celltype&#39;</span><span class="p">,</span> <span class="n">aggfunc</span><span class="o">=</span><span class="s1">&#39;count&#39;</span><span class="p">,</span> <span class="n">margins</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">confusion_dict</span><span class="p">[</span><span class="n">level</span><span class="p">]</span> <span class="o">=</span> <span class="n">confusion_matrix</span>
+
+        <span class="n">frac_mapped_df</span> <span class="o">=</span> <span class="n">pandas</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">frac_mapped_dict</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">confusion_matrix_df</span> <span class="o">=</span> <span class="n">pandas</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">confusion_dict</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">frac_mapped_df</span><span class="p">,</span> <span class="n">confusion_matrix_df</span></div>
+
+
+<div class="viewcode-block" id="GeneBasisMethod.panel_eval">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.GeneBasisMethod.panel_eval">[docs]</a>
+    <span class="k">def</span> <span class="nf">panel_eval</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gene_panel</span><span class="p">:</span> <span class="n">GenePanelSelection</span><span class="p">,</span> <span class="n">levels</span><span class="p">:</span> <span class="nb">list</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;class&#39;</span><span class="p">,</span> <span class="s1">&#39;subclass&#39;</span><span class="p">,</span> <span class="s1">&#39;cluster&#39;</span><span class="p">]):</span>
+        <span class="n">neighbor_score</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">neighborhood_score</span><span class="p">(</span><span class="n">gene_panel</span><span class="p">)</span>
+        <span class="n">frac_mapped</span><span class="p">,</span> <span class="n">confusion_matrix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">celltype_mapping</span><span class="p">(</span><span class="n">gene_panel</span><span class="p">,</span> <span class="n">levels</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">neighbor_score</span><span class="p">,</span> <span class="n">frac_mapped</span><span class="p">,</span> <span class="n">confusion_matrix</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="PROPOSEMethod">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.PROPOSEMethod">[docs]</a>
+<span class="k">class</span> <span class="nc">PROPOSEMethod</span><span class="p">(</span><span class="n">GenePanelMethod</span><span class="p">):</span>
+<div class="viewcode-block" id="PROPOSEMethod.select_gene_panel">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.PROPOSEMethod.select_gene_panel">[docs]</a>
+    <span class="k">def</span> <span class="nf">select_gene_panel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">ExpressionDataset</span><span class="p">,</span> <span class="n">use_classes</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">annotation_column</span><span class="o">=</span><span class="s1">&#39;cluster&#39;</span><span class="p">,</span> <span class="n">cuda_device</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">train_fraction</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">test_fraction</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">pre_eliminate</span><span class="o">=</span><span class="mi">500</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">GenePanelSelection</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">        Paramters</span>
+<span class="sd">        ---------</span>
+<span class="sd">        size : int</span>
+<span class="sd">            Size of gene panel to select</span>
+<span class="sd">        data : ExpressionDataset</span>
+<span class="sd">            Gene expression dataset from which to derive panel</span>
+<span class="sd">        use_classes : bool</span>
+<span class="sd">            If True, optimize for predicting classes rather than gene expression</span>
+<span class="sd">        annotation_column : str</span>
+<span class="sd">            Name of annotation column that holds classes (when use_clases is True)</span>
+<span class="sd">        cuda_device : int</span>
+<span class="sd">            Index of cuda GPU device to use</span>
+<span class="sd">        train_fraction : float</span>
+<span class="sd">            Fraction of expression data to use for training (samples not used for training and testing are used for validation)</span>
+<span class="sd">        test_fraction : float</span>
+<span class="sd">            Fraction of expression data to hold out for testing</span>
+<span class="sd">        pre_eliminate : int</span>
+<span class="sd">            Maximum size of gene set to process with model</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">propose</span> <span class="kn">import</span> <span class="n">PROPOSE</span><span class="p">,</span> <span class="n">HurdleLoss</span>
+        <span class="kn">from</span> <span class="nn">propose</span> <span class="kn">import</span> <span class="n">ExpressionDataset</span> <span class="k">as</span> <span class="n">ProposeExpressionDataset</span>
+        <span class="kn">import</span> <span class="nn">torch</span>
+        <span class="kn">import</span> <span class="nn">torch.nn</span> <span class="k">as</span> <span class="nn">nn</span>
+    
+        <span class="c1"># For data splitting</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">expression_data</span><span class="p">)</span>
+        <span class="n">n_train</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">train_fraction</span> <span class="o">*</span> <span class="n">n</span><span class="p">)</span>
+        <span class="n">n_test</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">test_fraction</span> <span class="o">*</span> <span class="n">n</span><span class="p">)</span>
+        <span class="n">all_rows</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">shuffle</span><span class="p">(</span><span class="n">all_rows</span><span class="p">)</span>
+        <span class="n">train_inds</span> <span class="o">=</span> <span class="n">all_rows</span><span class="p">[:</span><span class="n">n_train</span><span class="p">]</span>
+        <span class="n">val_inds</span> <span class="o">=</span> <span class="n">all_rows</span><span class="p">[</span><span class="n">n_train</span><span class="p">:</span><span class="o">-</span><span class="n">n_test</span><span class="p">]</span>
+        <span class="n">test_inds</span> <span class="o">=</span> <span class="n">all_rows</span><span class="p">[</span><span class="o">-</span><span class="n">n_test</span><span class="p">:]</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s1"> total examples, </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">train_inds</span><span class="p">)</span><span class="si">}</span><span class="s1"> training examples, </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">val_inds</span><span class="p">)</span><span class="si">}</span><span class="s1"> validation examples, </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">test_inds</span><span class="p">)</span><span class="si">}</span><span class="s1"> test examples&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Set up datasets</span>
+        <span class="n">binary</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span><span class="s1">&#39;binary&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">expression_data</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">use_classes</span><span class="p">:</span>
+            <span class="n">classes</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">annotation_data</span><span class="p">[</span><span class="n">annotation_column</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">class_codes</span> <span class="o">=</span> <span class="n">pandas</span><span class="o">.</span><span class="n">Categorical</span><span class="p">(</span><span class="n">classes</span><span class="p">)</span><span class="o">.</span><span class="n">codes</span>
+            <span class="n">train_dataset</span> <span class="o">=</span> <span class="n">ProposeExpressionDataset</span><span class="p">(</span><span class="n">binary</span><span class="p">[</span><span class="n">train_inds</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">class_codes</span><span class="p">[</span><span class="n">train_inds</span><span class="p">])</span>
+            <span class="n">val_dataset</span> <span class="o">=</span> <span class="n">ProposeExpressionDataset</span><span class="p">(</span><span class="n">binary</span><span class="p">[</span><span class="n">val_inds</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">class_codes</span><span class="p">[</span><span class="n">val_inds</span><span class="p">])</span>
+            <span class="n">loss_fn</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">CrossEntropyLoss</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">logcpm</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span><span class="s1">&#39;logcpm&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">expression_data</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">)</span>
+            <span class="n">train_dataset</span> <span class="o">=</span> <span class="n">ProposeExpressionDataset</span><span class="p">(</span><span class="n">binary</span><span class="p">[</span><span class="n">train_inds</span><span class="p">],</span> <span class="n">logcpm</span><span class="p">[</span><span class="n">train_inds</span><span class="p">])</span>
+            <span class="n">val_dataset</span> <span class="o">=</span> <span class="n">ProposeExpressionDataset</span><span class="p">(</span><span class="n">binary</span><span class="p">[</span><span class="n">val_inds</span><span class="p">],</span> <span class="n">logcpm</span><span class="p">[</span><span class="n">val_inds</span><span class="p">])</span>
+            <span class="n">loss_fn</span> <span class="o">=</span> <span class="n">HurdleLoss</span><span class="p">()</span>
+
+        <span class="n">selector</span> <span class="o">=</span> <span class="n">PROPOSE</span><span class="p">(</span>
+            <span class="n">train_dataset</span><span class="p">,</span>
+            <span class="n">val_dataset</span><span class="p">,</span>
+            <span class="n">loss_fn</span><span class="o">=</span><span class="n">loss_fn</span><span class="p">,</span>
+            <span class="n">device</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">(</span><span class="s1">&#39;cuda&#39;</span><span class="p">,</span> <span class="n">cuda_device</span><span class="p">),</span>
+            <span class="n">hidden</span><span class="o">=</span><span class="p">[</span><span class="mi">128</span><span class="p">,</span> <span class="mi">128</span><span class="p">]</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Eliminate many candidates</span>
+        <span class="n">candidates</span><span class="p">,</span> <span class="n">model</span> <span class="o">=</span> <span class="n">selector</span><span class="o">.</span><span class="n">eliminate</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">pre_eliminate</span><span class="p">,</span> <span class="n">mbsize</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span> <span class="n">max_nepochs</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span> <span class="n">lam_init</span><span class="o">=</span><span class="mf">0.00001</span><span class="p">)</span>
+
+        <span class="c1"># Select specific number of genes</span>
+        <span class="n">inds</span><span class="p">,</span> <span class="n">model</span> <span class="o">=</span> <span class="n">selector</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">num_genes</span><span class="o">=</span><span class="n">size</span><span class="p">,</span> <span class="n">mbsize</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span> <span class="n">max_nepochs</span><span class="o">=</span><span class="mi">500</span><span class="p">)</span>
+
+        <span class="n">gps</span> <span class="o">=</span> <span class="n">GenePanelSelection</span><span class="p">(</span>
+            <span class="n">exp_data</span> <span class="o">=</span> <span class="n">data</span><span class="p">,</span>
+            <span class="n">gene_panel</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">genes</span><span class="p">[</span><span class="n">inds</span><span class="p">],</span>
+            <span class="n">method</span> <span class="o">=</span> <span class="bp">self</span><span class="p">,</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;use_classes&#39;</span><span class="p">:</span> <span class="n">use_classes</span><span class="p">,</span>
+                <span class="s1">&#39;annotation_column&#39;</span><span class="p">:</span> <span class="n">annotation_column</span><span class="p">,</span>
+                <span class="s1">&#39;n_genes_selected&#39;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">inds</span><span class="p">),</span>
+                <span class="s1">&#39;train_inds&#39;</span><span class="p">:</span> <span class="n">train_inds</span><span class="p">,</span>
+                <span class="s1">&#39;validation_inds&#39;</span><span class="p">:</span> <span class="n">val_inds</span><span class="p">,</span>
+                <span class="s1">&#39;test_inds&#39;</span><span class="p">:</span> <span class="n">test_inds</span><span class="p">,</span>
+                <span class="s1">&#39;pre_candidates&#39;</span><span class="p">:</span> <span class="n">candidates</span><span class="p">,</span>
+                <span class="s1">&#39;model&#39;</span><span class="p">:</span> <span class="n">model</span><span class="p">,</span>
+                <span class="s1">&#39;train_fraction&#39;</span><span class="p">:</span> <span class="n">train_fraction</span><span class="p">,</span>
+                <span class="s1">&#39;test_fraction&#39;</span><span class="p">:</span> <span class="n">test_fraction</span><span class="p">,</span>
+                <span class="s1">&#39;pre_eliminate&#39;</span><span class="p">:</span> <span class="n">pre_eliminate</span><span class="p">,</span>
+            <span class="p">},</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">gps</span></div>
+</div>
+
+
+<div class="viewcode-block" id="mFISHtoolsMethod">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.mFISHtoolsMethod">[docs]</a>
+<span class="k">class</span> <span class="nc">mFISHtoolsMethod</span><span class="p">(</span><span class="n">GenePanelMethod</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exp_data</span><span class="p">:</span> <span class="n">ExpressionDataset</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span> <span class="o">=</span> <span class="n">exp_data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span><span class="o">.</span><span class="n">run_directory</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filter_genes_params</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="mFISHtoolsMethod.filter_genes">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.mFISHtoolsMethod.filter_genes">[docs]</a>
+    <span class="k">def</span> <span class="nf">filter_genes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">starting_genes</span><span class="p">:</span> <span class="nb">list</span><span class="o">=</span><span class="p">[],</span> <span class="n">num_binary_genes</span><span class="p">:</span> <span class="nb">int</span><span class="o">=</span><span class="mi">3000</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">):</span>
+        <span class="n">filter_genes_params</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;startingGenes&#39;</span><span class="p">:</span> <span class="n">starting_genes</span><span class="p">,</span>
+            <span class="s1">&#39;numBinaryGenes&#39;</span><span class="p">:</span> <span class="n">num_binary_genes</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="n">genes_not_in_exp_data</span> <span class="o">=</span> <span class="p">[</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">starting_genes</span> <span class="k">if</span> <span class="n">s</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span><span class="o">.</span><span class="n">expression_data</span><span class="o">.</span><span class="n">var_names</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">genes_not_in_exp_data</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;gene list not in exp_data: </span><span class="si">{</span><span class="n">genes_not_in_exp_data</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;reducing starting list to available genes&#39;</span><span class="p">)</span>
+            <span class="n">starting_genes</span> <span class="o">=</span> <span class="p">[</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">starting_genes</span> <span class="k">if</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span><span class="o">.</span><span class="n">expression_data</span><span class="o">.</span><span class="n">var_names</span><span class="p">]</span>
+
+        <span class="n">filter_genes_params</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="o">**</span><span class="n">args</span><span class="p">)</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">filter_genes_params</span> <span class="o">=</span> <span class="n">filter_genes_params</span></div>
+
+
+<div class="viewcode-block" id="mFISHtoolsMethod.select_gene_panel">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.mFISHtoolsMethod.select_gene_panel">[docs]</a>
+    <span class="k">def</span> <span class="nf">select_gene_panel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">cluster_label</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">panel_args</span><span class="p">:</span><span class="nb">dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">hpc_args</span><span class="p">:</span><span class="nb">dict</span><span class="o">=</span><span class="p">{},</span> 
+                          <span class="n">docker</span><span class="p">:</span> <span class="nb">str</span><span class="o">=</span><span class="s1">&#39;singularity exec --cleanenv docker://bicore/scrattch_mapping:latest&#39;</span><span class="p">,</span> <span class="n">r_script</span><span class="p">:</span> <span class="nb">str</span><span class="o">=</span><span class="s1">&#39;mFISHTools.R&#39;</span><span class="p">):</span>
+        
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;building temp ad_h5ad&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">build_panel_ad</span><span class="p">(</span><span class="n">size</span><span class="p">,</span> <span class="n">cluster_label</span><span class="p">,</span> <span class="n">panel_args</span><span class="p">)</span>
+        
+        <span class="n">job</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">run_on_hpc</span><span class="p">(</span><span class="n">docker</span><span class="o">=</span><span class="n">docker</span><span class="p">,</span> <span class="n">r_script</span><span class="o">=</span><span class="n">r_script</span><span class="p">,</span> <span class="n">hpc_args</span><span class="o">=</span><span class="n">hpc_args</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">job</span></div>
+
+
+<div class="viewcode-block" id="mFISHtoolsMethod.run_on_hpc">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.mFISHtoolsMethod.run_on_hpc">[docs]</a>
+    <span class="k">def</span> <span class="nf">run_on_hpc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">docker</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="s1">&#39;singularity exec --cleanenv docker://bicore/scrattch_mapping:latest&#39;</span><span class="p">,</span> <span class="n">r_script</span><span class="p">:</span> <span class="nb">str</span><span class="o">=</span><span class="s1">&#39;mFISHTools.R&#39;</span><span class="p">,</span> <span class="n">hpc_args</span><span class="p">:</span><span class="nb">dict</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="n">job_path</span> <span class="o">=</span> <span class="n">hpc_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;job_path&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">job_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;must specify a job path&#39;</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;building HPC job&#39;</span><span class="p">)</span>
+        <span class="n">hpc_default</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;hpc_host&#39;</span><span class="p">:</span> <span class="s1">&#39;hpc-login&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;job_path&#39;</span><span class="p">:</span> <span class="n">job_path</span><span class="p">,</span>
+            <span class="s1">&#39;partition&#39;</span><span class="p">:</span> <span class="s1">&#39;celltypes&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;job_name&#39;</span><span class="p">:</span> <span class="s1">&#39;mfishtools&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;nodes&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="s1">&#39;mincpus&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
+            <span class="s1">&#39;mem&#39;</span><span class="p">:</span> <span class="s1">&#39;500G&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;time&#39;</span><span class="p">:</span><span class="s1">&#39;24:00:00&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;mail_user&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s1">&#39;output&#39;</span><span class="p">:</span> <span class="n">job_path</span> <span class="o">+</span> <span class="s1">&#39;hpc_logs/%j.out&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;error&#39;</span><span class="p">:</span> <span class="n">job_path</span> <span class="o">+</span> <span class="s1">&#39;hpc_logs/%j.err&#39;</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="n">hpc_default</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">hpc_args</span><span class="p">)</span>
+        
+        <span class="n">command</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">                cd </span><span class="si">{</span><span class="n">job_path</span><span class="si">}</span>
+
+<span class="s2">                </span><span class="si">{</span><span class="n">docker</span><span class="si">}</span><span class="s2"> Rscript </span><span class="si">{</span><span class="n">r_script</span><span class="si">}</span><span class="s2"> --dat_path </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span><span class="si">}</span>
+<span class="s2">            &quot;&quot;&quot;</span>
+        
+        <span class="k">assert</span> <span class="s1">&#39;command&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">hpc_args</span>
+        <span class="n">hpc_default</span><span class="p">[</span><span class="s1">&#39;command&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">command</span>
+        <span class="n">job</span> <span class="o">=</span> <span class="n">run_slurm</span><span class="p">(</span><span class="o">**</span><span class="n">hpc_default</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">state</span><span class="p">(),</span> <span class="n">job</span><span class="o">.</span><span class="n">job_id</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">job</span></div>
+
+        
+<div class="viewcode-block" id="mFISHtoolsMethod.build_panel_ad">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.mFISHtoolsMethod.build_panel_ad">[docs]</a>
+    <span class="k">def</span> <span class="nf">build_panel_ad</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">cluster_label</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">panel_args</span><span class="p">:</span><span class="nb">dict</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="n">output_ad</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span><span class="o">.</span><span class="n">expression_data</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">output_ad</span><span class="o">.</span><span class="n">obs</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="n">cluster_label</span><span class="p">:</span> <span class="s1">&#39;cluster_label&#39;</span><span class="p">},</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="c1"># controlled strings for mFISHtools</span>
+        <span class="n">build_panel_params</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;panelSize&#39;</span><span class="p">:</span> <span class="n">size</span><span class="p">,</span>
+            <span class="s1">&#39;currentPanel&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">filter_genes_params</span><span class="p">[</span><span class="s1">&#39;startingGenes&#39;</span><span class="p">]</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">filter_genes_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">[]</span>
+        <span class="p">}</span>
+        <span class="n">build_panel_params</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="o">**</span><span class="n">panel_args</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">build_panel_params</span> <span class="o">=</span> <span class="n">build_panel_params</span>
+
+        <span class="n">output_ad</span><span class="o">.</span><span class="n">uns</span><span class="p">[</span><span class="s1">&#39;build_panel&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">build_panel_params</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">filter_genes_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">output_ad</span><span class="o">.</span><span class="n">uns</span><span class="p">[</span><span class="s1">&#39;filter_panel&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">filter_genes_params</span>
+
+        <span class="n">output_ad</span><span class="o">.</span><span class="n">write_h5ad</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span> <span class="o">+</span> <span class="s1">&#39;/mfishtools_ad_temp.h5ad&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="mFISHtoolsMethod.load_gene_panel">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.mFISHtoolsMethod.load_gene_panel">[docs]</a>
+    <span class="k">def</span> <span class="nf">load_gene_panel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">dict</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="n">gene_list</span> <span class="o">=</span> <span class="n">pandas</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span><span class="p">,</span> <span class="s1">&#39;gene_list.csv&#39;</span><span class="p">),</span> <span class="n">names</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;gene&#39;</span><span class="p">,</span> <span class="s1">&#39;frac_mapped&#39;</span><span class="p">],</span> <span class="n">header</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        
+        <span class="n">default_args</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;n_genes_selected&#39;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">gene_list</span><span class="p">),</span>
+                <span class="s1">&#39;expression_data_type&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span><span class="o">.</span><span class="n">expression_type</span><span class="p">,</span>
+                <span class="s1">&#39;file_name&#39;</span><span class="p">:</span> <span class="s1">&#39;gene_panel_selection&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;frac_mapped&#39;</span><span class="p">:</span> <span class="n">gene_list</span>
+                <span class="p">}</span>
+        
+        <span class="n">default_args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="n">gps</span> <span class="o">=</span> <span class="n">GenePanelSelection</span><span class="p">(</span>
+            <span class="n">exp_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp_data</span><span class="p">,</span>
+            <span class="n">gene_panel</span> <span class="o">=</span> <span class="n">gene_list</span><span class="p">[</span><span class="s1">&#39;gene&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">to_list</span><span class="p">(),</span>
+            <span class="n">method</span> <span class="o">=</span> <span class="bp">self</span><span class="p">,</span>
+            <span class="n">args</span><span class="o">=</span><span class="n">default_args</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span><span class="p">,</span> <span class="s1">&#39;mfishtools_ad_temp.h5ad&#39;</span><span class="p">)):</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;deleting mfishtools temp file...&#39;</span><span class="p">)</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_directory</span><span class="p">,</span> <span class="s1">&#39;mfishtools_ad_temp.h5ad&#39;</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">gps</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="SeuratMethod">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.SeuratMethod">[docs]</a>
+<span class="k">class</span> <span class="nc">SeuratMethod</span><span class="p">(</span><span class="n">GenePanelMethod</span><span class="p">):</span>
+<div class="viewcode-block" id="SeuratMethod.select_gene_panel">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.SeuratMethod.select_gene_panel">[docs]</a>
+    <span class="k">def</span> <span class="nf">select_gene_panel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">ExpressionDataset</span><span class="p">,</span> <span class="n">flavor</span><span class="o">=</span><span class="s1">&#39;seurat_v3&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">GenePanelSelection</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Paramters</span>
+<span class="sd">        ---------</span>
+<span class="sd">        size : int</span>
+<span class="sd">            Size of gene panel to select</span>
+<span class="sd">        data : ExpressionDataset</span>
+<span class="sd">            Gene expression dataset from which to derive panel</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">flavor</span> <span class="o">==</span> <span class="s1">&#39;seurat_v3&#39;</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">data</span><span class="o">.</span><span class="n">expression_type</span> <span class="o">==</span> <span class="s1">&#39;raw&#39;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">data</span><span class="o">.</span><span class="n">expression_type</span> <span class="o">==</span> <span class="s1">&#39;logcpm&#39;</span>
+
+        <span class="kn">import</span> <span class="nn">scanpy</span>
+        <span class="kn">from</span> <span class="nn">anndata</span> <span class="kn">import</span> <span class="n">AnnData</span>
+        <span class="n">ann</span> <span class="o">=</span> <span class="n">AnnData</span><span class="p">(</span><span class="n">X</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">expression_data</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s1">&#39;float32&#39;</span><span class="p">))</span>
+        <span class="n">annotations</span> <span class="o">=</span> <span class="n">scanpy</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">highly_variable_genes</span><span class="p">(</span><span class="n">ann</span><span class="p">,</span> <span class="n">n_top_genes</span><span class="o">=</span><span class="n">size</span><span class="p">,</span> <span class="n">flavor</span><span class="o">=</span><span class="n">flavor</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">flavor</span> <span class="o">==</span> <span class="s1">&#39;seurat_v3&#39;</span><span class="p">:</span>
+            <span class="n">inds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">annotations</span><span class="p">[</span><span class="s1">&#39;highly_variable_rank&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">inds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">annotations</span><span class="p">[</span><span class="s1">&#39;highly_variable&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="n">gps</span> <span class="o">=</span> <span class="n">GenePanelSelection</span><span class="p">(</span>
+            <span class="n">exp_data</span> <span class="o">=</span> <span class="n">data</span><span class="p">,</span>
+            <span class="n">gene_panel</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">genes</span><span class="p">[</span><span class="n">inds</span><span class="p">],</span>
+            <span class="n">method</span> <span class="o">=</span> <span class="bp">self</span><span class="p">,</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;n_genes_selected&#39;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">inds</span><span class="p">),</span>
+            <span class="p">},</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">gps</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="gene_basis_panel_eval">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.gene_basis_panel_eval">[docs]</a>
+<span class="k">def</span> <span class="nf">gene_basis_panel_eval</span><span class="p">(</span><span class="n">gene_panel</span><span class="p">:</span> <span class="n">GenePanelSelection</span><span class="p">,</span> <span class="n">levels</span><span class="p">:</span> <span class="nb">list</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;class&#39;</span><span class="p">,</span> <span class="s1">&#39;subclass&#39;</span><span class="p">,</span> <span class="s1">&#39;cluster&#39;</span><span class="p">],</span> <span class="n">file_name</span><span class="p">:</span> <span class="nb">str</span><span class="o">=</span><span class="s1">&#39;gene_basis_evaluation&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Peform gene panel evaluation using geneBasis. </span>
+<span class="sd">    Peforms two evaluations at various cell group levels:</span>
+<span class="sd">        1) Neighborhood score</span>
+<span class="sd">        2) Confusion matrix / fraction mapped correctly</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    gene_panel: GenePanelSelection</span>
+
+<span class="sd">    levels: list | [&#39;class&#39;, &#39;subclass&#39;, &#39;cluster&#39;]</span>
+<span class="sd">        List of cell group levels to perform confusion matrix. Defaults to [&#39;class&#39;, &#39;subclass&#39;, &#39;cluster&#39;]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">gene_basis</span> <span class="o">=</span> <span class="n">GeneBasisMethod</span><span class="p">(</span><span class="n">gene_panel</span><span class="o">.</span><span class="n">exp_data</span><span class="p">)</span>
+    <span class="n">panel_eval</span> <span class="o">=</span> <span class="n">gene_basis</span><span class="o">.</span><span class="n">panel_eval</span><span class="p">(</span><span class="n">gene_panel</span><span class="p">,</span> <span class="n">levels</span><span class="p">)</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">gene_panel</span><span class="o">.</span><span class="n">run_directory</span><span class="p">,</span> <span class="n">file_name</span><span class="p">),</span> <span class="s1">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+        <span class="n">pkl</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">panel_eval</span><span class="p">,</span> <span class="n">file</span><span class="p">)</span>
+        <span class="n">file</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">panel_eval</span></div>
+
+
+<div class="viewcode-block" id="marker_gene_eval">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.marker_gene_eval">[docs]</a>
+<span class="k">def</span> <span class="nf">marker_gene_eval</span><span class="p">(</span><span class="n">gene_panel</span><span class="p">:</span> <span class="n">GenePanelSelection</span><span class="p">,</span> <span class="n">marker_gene_files</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">cluster_col</span><span class="o">=</span><span class="s1">&#39;cluster&#39;</span><span class="p">,</span> <span class="n">gene_col</span><span class="o">=</span><span class="s1">&#39;gene&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Evaluates how many known marker genes are present in the gene panel</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    gene_panel : GenePanelSelection</span>
+<span class="sd">        GenePanelSelection with list of genes to perform evaluation on</span>
+<span class="sd">    marker_gene_files: dictionary</span>
+<span class="sd">        Dictionary where keys are the level (cluster, subclass, class) of the marker genes</span>
+<span class="sd">        and values are csv files with at one column designating the cell group (cluster_col)  </span>
+<span class="sd">        and another column specifying a marker gene for that group (gene_col)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">marker_gene_dict</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">level</span><span class="p">,</span> <span class="n">marker_gene_file</span> <span class="ow">in</span> <span class="n">marker_gene_files</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">marker_genes</span> <span class="o">=</span> <span class="n">pandas</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">marker_gene_file</span><span class="p">)</span>
+        <span class="n">marker_genes</span> <span class="o">=</span> <span class="n">marker_genes</span><span class="p">[[</span><span class="n">cluster_col</span><span class="p">,</span> <span class="n">gene_col</span><span class="p">]]</span>
+        <span class="n">marker_genes</span><span class="p">[</span><span class="s1">&#39;in_gene_panel&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">marker_genes</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="n">gene_col</span><span class="p">]</span> <span class="ow">in</span> <span class="n">gene_panel</span><span class="o">.</span><span class="n">gene_panel</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">marker_gene_dict</span><span class="p">[</span><span class="n">level</span><span class="p">]</span> <span class="o">=</span> <span class="n">marker_genes</span>
+    
+    <span class="n">marker_genes_df</span> <span class="o">=</span> <span class="n">pandas</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">marker_gene_dict</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">marker_genes_df</span></div>
+
+
+<div class="viewcode-block" id="norm_confusion_matrix">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.norm_confusion_matrix">[docs]</a>
+<span class="k">def</span> <span class="nf">norm_confusion_matrix</span><span class="p">(</span><span class="n">confusion_matrix</span><span class="p">:</span> <span class="n">pandas</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Normalize confusion matrix to fraction of mapped cells</span>
+
+<span class="sd">    Parameters:</span>
+<span class="sd">    -----------</span>
+<span class="sd">    confusion_matrix: pandas.Dataframe or pandas.MultiIndex</span>
+<span class="sd">        Dataframe or MultiIndex of pivot tables with known cell types</span>
+<span class="sd">        on the columns and mapped cell types on the rows with elements</span>
+<span class="sd">        containing counts. Marginal counts in a row call &#39;All&#39; also</span>
+<span class="sd">        required to calculate the fraction of correctly mapped cells.</span>
+<span class="sd">        Included when calling pandas.DataFrame.pivot_table(margins=True)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">confusion_matrix</span><span class="o">.</span><span class="n">columns</span><span class="p">,</span> <span class="n">pandas</span><span class="o">.</span><span class="n">MultiIndex</span><span class="p">):</span>
+        <span class="n">norm_matrix</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">level</span> <span class="ow">in</span> <span class="n">confusion_matrix</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">levels</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">to_list</span><span class="p">():</span>
+            <span class="n">table</span> <span class="o">=</span> <span class="n">confusion_matrix</span><span class="p">[</span><span class="n">level</span><span class="p">]</span><span class="o">.</span><span class="n">dropna</span><span class="p">(</span><span class="n">how</span><span class="o">=</span><span class="s1">&#39;all&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="s1">&#39;All&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">table</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+                <span class="n">table</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="s1">&#39;All&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">norm_table</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">/</span><span class="n">table</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="s1">&#39;All&#39;</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">norm_table</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="s1">&#39;All&#39;</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">norm_table</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">labels</span><span class="o">=</span><span class="s1">&#39;All&#39;</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">norm_matrix</span><span class="p">[</span><span class="n">level</span><span class="p">]</span> <span class="o">=</span> <span class="n">norm_table</span>
+        <span class="k">return</span> <span class="n">pandas</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">norm_matrix</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">table</span> <span class="o">=</span> <span class="n">confusion_matrix</span>
+        <span class="k">if</span> <span class="s1">&#39;All&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">table</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="n">table</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="s1">&#39;All&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">norm_matrix</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">/</span><span class="n">table</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="s1">&#39;All&#39;</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">norm_matrix</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="s1">&#39;All&#39;</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">norm_matrix</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">labels</span><span class="o">=</span><span class="s1">&#39;All&#39;</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">norm_matrix</span></div>
+
+
+<div class="viewcode-block" id="load_panel_eval">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.load_panel_eval">[docs]</a>
+<span class="k">def</span> <span class="nf">load_panel_eval</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+        <span class="nb">eval</span> <span class="o">=</span> <span class="n">pkl</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+        <span class="n">file</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+    
+    <span class="k">return</span> <span class="nb">eval</span></div>
+
+
+<div class="viewcode-block" id="run_mfishtools_fraction_mapped">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.run_mfishtools_fraction_mapped">[docs]</a>
+<span class="k">def</span> <span class="nf">run_mfishtools_fraction_mapped</span><span class="p">(</span><span class="n">gps</span><span class="p">:</span> <span class="n">GenePanelSelection</span><span class="p">,</span> <span class="n">cluster_label</span><span class="p">:</span> <span class="nb">str</span><span class="o">=</span><span class="s1">&#39;Cluster&#39;</span><span class="p">,</span> <span class="n">hpc_args</span><span class="p">:</span><span class="nb">dict</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="n">exp_data</span> <span class="o">=</span> <span class="n">gps</span><span class="o">.</span><span class="n">expression_dataset</span><span class="p">()</span>
+        <span class="n">mft</span> <span class="o">=</span> <span class="n">mFISHtoolsMethod</span><span class="p">(</span><span class="n">exp_data</span><span class="o">=</span><span class="n">exp_data</span><span class="p">)</span>
+
+        <span class="n">output_ad</span> <span class="o">=</span> <span class="n">exp_data</span><span class="o">.</span><span class="n">expression_data</span>
+        <span class="n">output_ad</span><span class="o">.</span><span class="n">obs</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="n">cluster_label</span><span class="p">:</span> <span class="s1">&#39;cluster_label&#39;</span><span class="p">},</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="c1"># controlled strings for mFISHtools</span>
+        <span class="n">output_ad</span><span class="o">.</span><span class="n">write_h5ad</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">mft</span><span class="o">.</span><span class="n">run_directory</span><span class="p">,</span> <span class="s1">&#39;mfishtools_ad_temp.h5ad&#39;</span><span class="p">))</span>
+        
+        <span class="n">docker</span> <span class="o">=</span> <span class="n">hpc_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;docker&#39;</span><span class="p">,</span> <span class="s1">&#39;singularity exec --cleanenv docker://bicore/scrattch_mapping:latest&#39;</span><span class="p">)</span>
+        <span class="n">r_script</span> <span class="o">=</span> <span class="n">hpc_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;r_script&#39;</span><span class="p">,</span> <span class="s1">&#39;mFISHtools_frac_mapped.R&#39;</span><span class="p">)</span>
+
+        <span class="n">hpc_args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;docker&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">hpc_args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;r_script&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        
+        <span class="n">job</span> <span class="o">=</span> <span class="n">mft</span><span class="o">.</span><span class="n">run_on_hpc</span><span class="p">(</span><span class="n">docker</span><span class="o">=</span><span class="n">docker</span><span class="p">,</span> <span class="n">r_script</span><span class="o">=</span><span class="n">r_script</span><span class="p">,</span> <span class="n">hpc_args</span><span class="o">=</span><span class="n">hpc_args</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">job</span></div>
+
+
+<div class="viewcode-block" id="load_mfishtools_fraction_mapped">
+<a class="viewcode-back" href="../../sis.html#sis.expression_dataset.load_mfishtools_fraction_mapped">[docs]</a>
+<span class="k">def</span> <span class="nf">load_mfishtools_fraction_mapped</span><span class="p">(</span><span class="n">gps</span><span class="p">:</span> <span class="n">GenePanelSelection</span><span class="p">):</span>
+    <span class="n">frac_mapped</span> <span class="o">=</span> <span class="n">pandas</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">gps</span><span class="o">.</span><span class="n">run_directory</span><span class="p">,</span> <span class="s1">&#39;frac_mapped.csv&#39;</span><span class="p">))[[</span><span class="s1">&#39;gene&#39;</span><span class="p">,</span> <span class="s1">&#39;frac_mapped&#39;</span><span class="p">]]</span>
+    <span class="n">gps</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="s1">&#39;frac_mapped&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">frac_mapped</span>
+    <span class="n">gps</span><span class="o">.</span><span class="n">save_selection</span><span class="p">()</span></div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">Spots-in-Spaaaaaace!</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2024, Allen Spatial Analysis Working Group.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 7.2.6</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 0.7.16</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
