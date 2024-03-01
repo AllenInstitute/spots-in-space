@@ -29,7 +29,7 @@ dependencies = ["numpy",
 ]
 
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=42", "versioneer-518"]
 build-backend = "setuptools.build_meta"
 
 [project.urls]
