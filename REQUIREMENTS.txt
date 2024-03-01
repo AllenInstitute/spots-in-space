@@ -11,3 +11,4 @@ tqdm
 shapely
 rasterio
 geopandas
+versioneer
