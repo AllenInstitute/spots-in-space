@@ -1,7 +1,7 @@
 """
 CellTypeMapping class and subclasses for mapping to spatial transcriptomics data to single-cell or 
 single-nucleus data reference using different mapping methods. Standard output is an anndata object
-of mapping results.
+of mapping results and json for reconstructing the class.
 
 """
 
@@ -37,6 +37,18 @@ class CellTypeMapping():
     
     def save_mapping(self, save_path: str|Path|None=None, file_name:str='mapping', meta:dict={}, replace=False):
         """Save mapping results as h5ad and CellTypeMapping class as json.
+
+        Parameters
+        ----------
+        save_path: str|Path|None, default None
+            Directory to save mapping results. If None will use self.run_directory
+        file_name: str, default 'mapping'
+            Name of file to save mapping results as
+        meta: dict, default {}
+            Additional metadata to save with mapping object
+        replace: bool, default False
+            If True will overwrite existing mapping results in save_path
+
         """
         
         self.meta.update(meta)
@@ -67,7 +79,30 @@ class CellTypeMapping():
             json.dump(class_dict, f)
 
     @classmethod
-    def load_from_timestamp(cls, directory: str|Path, timestamp: str, file_name: str='mapping', meta_only=False):
+    def load_from_timestamp(cls, directory: str|Path, timestamp: str, file_name: str='mapping', meta_only=False, ad_sp=False):
+        """
+        Load a CellTypeMapping object from a timestamped directory. If meta_only is True will only load metadata. 
+        If ad_sp is True will also load unmapped spatial data.
+
+        Parameters
+        ----------
+        directory: str|Path
+            Directory to load mapping results from
+        timestamp: str
+            Timestamp of mapping results to load
+        file_name: str, default 'mapping'
+            Name of file to load mapping results from
+        meta_only: bool, default False
+            If True will only load metadata
+        ad_sp: bool, default False
+            If True will also load unmapped spatial data and attach to self.ad_sp
+
+        Returns
+        -------
+        ctm: CellTypeMapping
+            CellTypeMapping object loaded from timestamped directory
+        
+        """
         if not isinstance(directory, Path):
             directory = Path(directory)
         path = directory.joinpath(timestamp)
@@ -81,6 +116,9 @@ class CellTypeMapping():
             ctm.ad_map = ad.read_h5ad(ctm.ad_map_file)
         else:
             print('No data loaded, only metadata')
+        if ad_sp is True and hasattr(ctm, 'ad_sp_file'):
+            ctm.ad_sp = ad.read_h5ad(ctm.ad_sp_file)    
+
         return ctm
     
     @classmethod
@@ -93,13 +131,24 @@ class CellTypeMapping():
         return ctm
     
     def reset_qc(self):
-        # reset qc status 
-        self.ad_map.obs['mapping_qc'] = 'pass'
+        """Reset mapping qc results to default values""" 
+
+        self.ad_map.obs['mapping_qc_pass'] = True
         self.ad_map.uns['qc_params'] = None
 
     def qc_mapping(self, qc_params: dict):
-        # QC mapping results using thresholds for various performance metrics in self.ad_map.obs
+        """QC mapping results using thresholds for various performance metrics in self.ad_map.obs
+        Assumes QC thresholds are lower bounds, i.e. cells with values below threshold will fail QC.
+        Stores boolean in column  `mapping_qc_pass` in self.ad_map.obs. 
+        Stores qc_params in self.ad_map.uns['qc_params']
 
+        Parameters
+        ----------
+        qc_params: dict
+            dictionary of qc parameters to use for mapping qc. Keys are column names in self.ad_map.obs 
+            and values are lower thresholds
+
+        """        
         qc_mask = None
         self.reset_qc()
         for param, thresh in qc_params.items():
@@ -108,11 +157,12 @@ class CellTypeMapping():
             else:
                 qc_mask = qc_mask & (self.ad_map.obs[param] < thresh)
             
-        self.ad_map.obs.loc[qc_mask, 'mapping_qc'] = 'fail'
+        self.ad_map.obs.loc[qc_mask, 'mapping_qc_pass'] = False
         self.ad_map.uns['qc_params'] = qc_params
     
     def spatial_umap(self, attr: str='ad_sp', umap_args: dict|None=None):
-        # UMAP spatial gene expression. Assumes X of anndata object is a cell x gene
+        """Run UMAP on data attribute of class and store results in obs of that class."""
+        
         umap_attr = getattr(self, attr)
 
         if umap_args is not None:
@@ -555,10 +605,24 @@ class CKMapping(CellTypeMapping):
             return fig
 
 class ScrattchMapping(CellTypeMapping):
+    """
+    Mapping using scrattch mapping R package. Mapping occurs on HPC through a separate script. 
+    This class prepares data for mapping and loads in results for analysis.
+    
+    """
+
     def __init__(self, sp_data: 'AnnData'|Path|str, taxonomy_path: str, save_path: Path|str, meta: dict={}):
         """
-        sp_data: AnnData object or filename of AnnData object representing spatial transcriptomics data
-        taxonomy_path: file path to where taxonomy lives on isolon
+        sp_data: AnnData|Path|str 
+            object or file path of AnnData object representing spatial transcriptomics data. Preferably a file path
+            is used to that the provenance of the data is clear. This data is not saved in the mapping object
+        taxonomy_path: str
+            file path to where taxonomy lives on Isolon
+        save_path: Path|str
+            Directory to save mapping results. A unique directory will be created within this directory to store
+            results.
+        meta: dict
+            Additional metadata to store with the mapping object.
     
         """
            
@@ -580,7 +644,25 @@ class ScrattchMapping(CellTypeMapping):
         self.save_mapping()
 
     def run_on_hpc(self, ad_map_args:dict={}, hpc_args:dict={}, docker: str='singularity exec --cleanenv docker://bicore/scrattch_mapping:latest', r_script: str='scrattch_mapping.R'):
+        """Construct mapping file and run mapping on HPC using scrattch_mapping R package.
 
+        Parameters
+        ----------
+        ad_map_args: dict, default {}
+            arguments to pass to make_mapping_anndata
+        hpc_args: dict, default {}
+            arguments to pass to run_slurm
+        docker: str, default 'singularity exec --cleanenv docker://bicore/scrattch_mapping:latest'
+            path to docker container for scrattch_mapping
+        r_script: str, default 'scrattch_mapping.R'
+            name of mapping script to run. Must be in the `job_path` directory set by hpc_args
+
+        Returns
+        -------
+        job: pyslurm.job.Job
+            job object from pyslurm.job.Job
+        
+        """
         self.make_mapping_anndata(**ad_map_args)
 
         print('building HPC job')
@@ -620,7 +702,7 @@ class ScrattchMapping(CellTypeMapping):
     
     def make_mapping_anndata(self, ad_sp_layer: str|None=None, training_genes: list|None=None, cell_qc: str|None=None, meta: dict={}):
         """
-        Makes anndata object for mapping that is compatible with scrattch_mapping.R script
+        Makes and saves to self.run_diretctory a temporary anndata object for mapping that is compatible with scrattch_mapping.R script.
 
         Parameters
         ----------
@@ -632,6 +714,9 @@ class ScrattchMapping(CellTypeMapping):
             list of genes to use for mapping, if None will use all genes in ad_sp.var_names
         cell_qc: str, default None
             column to use in ad_sp.obs to filter cells for mapping. Values in column must be boolean. If None all cells will be used
+        meta: dict, default {}
+            additional metadata to add to the anndata object
+
         """
         if training_genes is not None:
             genes = [tg for tg in training_genes if tg in self.ad_sp.var_names]
@@ -688,8 +773,10 @@ class ScrattchMapping(CellTypeMapping):
         self.ad_map = ad_map
 
     def load_scrattch_mapping_results(self):
-        # use to load scrattch mapping results back in for analysis
-        # results will be saved in obsm field of anndata in R script
+        """Load scrattch mapping results from self.run_directory. Add results to self.ad_map and save mapping object.
+        Delte temporary anndata file.
+        
+        """
         results_file = self.run_directory.joinpath('scrattch_map_temp.h5ad')
         if results_file.exists() is False:
             try:
@@ -710,7 +797,8 @@ class ScrattchMapping(CellTypeMapping):
             self.run_directory.joinpath('scrattch_map_temp.h5ad').unlink()
     
     def load_taxonomy_anndata(self):
-        # the taxonomy anndatas are pretty big, only load if necessary and backed so no changes inadvertantly get made. 
+        """Loads a backed version of taxonomy anndata from self.taxonomy_path. Add results to self.ad_sc."""
+         
         taxonomy_files = [os.path.join(dirpath,filename) for dirpath, _, filenames in os.walk(self.taxonomy_path) for filename in filenames if filename.endswith('taxonomy.h5ad')]
         if len(taxonomy_files) == 1:
             self.ad_sc = ad.read_h5ad(taxonomy_files[0], backed='r')
@@ -725,8 +813,8 @@ class ScrattchMapping(CellTypeMapping):
         violin = {'cut': 0}
         violin.update(args)
 
-        if qc_pass is True and 'mapping_qc' in self.ad_map.obs.columns:
-            data = self.ad_map.obs[self.ad_map.obs['mapping_qc']=='pass']
+        if qc_pass is True and 'mapping_qc_pass' in self.ad_map.obs.columns:
+            data = self.ad_map.obs[self.ad_map.obs['mapping_qc_pass']]
         else:
             data = self.ad_map.obs
 
@@ -758,8 +846,8 @@ class ScrattchMapping(CellTypeMapping):
             scatter = {'s': 10, 'alpha': 0.7, 'linewidth': 0}
             scatter.update(args)
 
-            if qc_pass is True and 'mapping_qc' in self.ad_map.obs.columns:
-                data = self.ad_map.obs[self.ad_map.obs['mapping_qc']=='pass']
+            if qc_pass is True and 'mapping_qc_pass' in self.ad_map.obs.columns:
+                data = self.ad_map.obs[self.ad_map.obs['mapping_qc_pass']]
             else:
                 data = self.ad_map.obs
 
