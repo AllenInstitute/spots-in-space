@@ -12,8 +12,8 @@ from datetime import datetime
 import inspect
 import anndata as ad
 import json
-from sawg.celltype_mapping import CellTypeMapping
-from sawg.hpc import run_slurm
+from sis.celltype_mapping import CellTypeMapping
+from sis.hpc import run_slurm
 
 _r_init_done = False
 rinterface = None

@@ -6,7 +6,6 @@ of mapping results.
 """
 
 from __future__ import annotations
-from lib2to3.pgen2 import driver
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -17,7 +16,7 @@ import matplotlib.pyplot as plt
 import json
 import anndata as ad
 import umap
-from .hpc import run_slurm
+from sis.hpc import run_slurm
 
 class CellTypeMapping():
     """Container class for cell type mapping methods
@@ -823,7 +822,7 @@ class ScrattchMapping(CellTypeMapping):
         return fig
         
     def get_confusion_matrix(self, pivot_cols, norm=True):
-        from sawg.expression_dataset import norm_confusion_matrix
+        from sis.expression_dataset import norm_confusion_matrix
         if type(pivot_cols)==dict:
             conf_dict = {}
             for level, pivot in pivot_cols.items():

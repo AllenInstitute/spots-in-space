@@ -20,13 +20,13 @@ def run_slurm_func(run_spec, conda_env=None, **kwds):
     pickle.dump(run_spec, open(pkl_file, 'wb'))
 
     assert 'command' not in kwds
-    kwds['command'] = f'conda run -p {conda_env} python -m sawg.hpc {pkl_file} $SLURM_ARRAY_TASK_ID'
+    kwds['command'] = f'conda run -p {conda_env} python -m sis.hpc {pkl_file} $SLURM_ARRAY_TASK_ID'
 
     return run_slurm(**kwds)
 
 
 def hpc_worker():
-    """Invoked when running `python -m sawg.hpc`
+    """Invoked when running `python -m sis.hpc`
     """
     pkl_file = sys.argv[1]
     run_specs = pickle.load(open(pkl_file, 'rb'))

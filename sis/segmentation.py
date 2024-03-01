@@ -14,7 +14,7 @@ import time
 from abc import abstractmethod
 import pandas as pd
 import anndata as ad
-import sawg
+import sis
 
 
 def run_segmentation(load_func, load_args:dict, subregion:dict|None, method_class, method_args:dict, result_file:str|None, cell_id_file:str|None):
@@ -649,7 +649,7 @@ class SegmentationRun:
         smaller region, set to a tuple corresponding to a bounding box.
 
     seg_method: SegmentationMethod
-        The segmentation method to use. Must be found in sawg.segmentation.
+        The segmentation method to use. Must be found in sis.segmentation.
 
     seg_opts: dict
         Options to pass to seg_method.
@@ -1072,7 +1072,7 @@ class SegmentationRun:
             
             # run_spec[i] = (function, args, kwargs)
             run_spec[i] = (
-                sawg.spot_table.run_cell_polygon_calculation,
+                sis.spot_table.run_cell_polygon_calculation,
                 (),
                 dict(
                     load_func=self.get_load_func(),
@@ -1179,7 +1179,7 @@ class SegmentationRun:
             config = json.load(f)
         seg_method_name = config['seg_method'].rpartition('.')[-1]
         if seg_method_name == 'CellposeSegmentationMethod':
-            config['seg_method'] = sawg.segmentation.CellposeSegmentationMethod
+            config['seg_method'] = sis.segmentation.CellposeSegmentationMethod
         else:
             raise NotImplementedError(f'Segmentation method {seg_method_name} not implemented.')
         if isinstance(config['subrgn'], list):
