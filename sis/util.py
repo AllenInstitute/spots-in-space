@@ -5,6 +5,7 @@ import pandas as pd
 import pathlib
 from pathlib import Path
 from scipy.io import mmwrite,mmread
+import scanpy as sc
 import gzip
 import shutil
 from zipfile import ZipFile
@@ -520,3 +521,44 @@ def plot_cbg_centroids(cell_by_gene: ad.AnnData, ax, x='center_x', y='center_y',
 
 def example_function():
     return 2
+
+def make_cirro_compatible(cell_by_gene: ad.AnnData):
+    '''Make an AnnData object compatible with Cirrocumulus visualization tool.
+    
+    Copy cell spatial coordinates to obsm, as expected by Cirrocumulus
+    (https://cirrocumulus.readthedocs.io). Also, generate UMAP from .X as an 
+    additional visualization option.
+
+    Parameters:
+        cell_by_gene: AnnData object output by 
+                      sis.spot_table.cell_by_gene_anndata()
+
+    Returns:
+        cell_by_gene_cirro: copy of cell_by_gene with cirrocumulus-compatible fields
+    '''
+    # confirm AnnData is in correct format
+    assert_message = 'cell_by_gene obs columns must match format output by sis.spot_table.cell_by_gene_anndata()' 
+    assert {'center_x','center_y','center_z'}.issubset(cell_by_gene.obs.columns), assert_message
+
+    cell_by_gene_cirro = cell_by_gene.copy()
+
+    # Copy cell coordinates to obsm
+    cell_by_gene_cirro.obsm['spatial'] = cell_by_gene_cirro.obs[
+                                                                ['center_x', 
+                                                                'center_y', 
+                                                                'center_z']
+                                                                ].to_numpy()
+    
+    # Generate UMAP of X as alternative visualization
+    # already cirro-compatible as it's stored in obsm['X_umap']
+    sc.pp.pca(cell_by_gene_cirro)
+    sc.pp.neighbors(cell_by_gene_cirro)
+    sc.tl.umap(cell_by_gene_cirro)
+    # Optional future update: UMAP of all layers (will run much slower)
+    # for layer in cell_by_gene.layers.keys():
+    #     sc.pp.pca(cell_by_gene, layer=layer)
+    #     sc.pp.neighbors(cell_by_gene, layer=layer)
+    #     sc.tl.umap(cell_by_gene, layer=layer)
+
+    return cell_by_gene_cirro
+
