@@ -1,73 +1,97 @@
+"""
+CellTypeMapping class and subclasses for mapping to spatial transcriptomics data to single-cell or 
+single-nucleus data reference using different mapping methods. Standard output is an anndata object
+of mapping results.
+
+"""
+
 from __future__ import annotations
 from lib2to3.pgen2 import driver
 import pandas as pd
-# from code.gene_panel_selection.gene_panel_selection import ExpressionDataset
-# from code.segmentation.segmentation import SpotTable
 import numpy as np
 from datetime import datetime
-import os
+from pathlib import Path
 from scipy import sparse
 import seaborn as sns
 import matplotlib.pyplot as plt
-import bz2
-import _pickle as cPickle
 import json
 import anndata as ad
 import umap
-from sawg.hpc import run_slurm
-
-try:
-    import tangram as tg
-except ImportError:
-    pass
+from .hpc import run_slurm
 
 class CellTypeMapping():
     """Container class for cell type mapping methods
     """
-    @property
-    def ordered_labels(self, reload=False):
-        if hasattr(self, '_ordered_labels') is False or self._ordered_labels is None or reload is True:
-            with open('//allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/snRNAseq_data/ordered_celltype_labels.json') as file:
-                self._ordered_labels = json.load(file)
-        return self._ordered_labels
-
+    
     def _create_run_directory(self, save_path):
         dir_ts = '{:0.3f}'.format(datetime.now().timestamp())
-        self.run_directory = os.path.join(save_path, dir_ts)
-        os.mkdir(self.run_directory)
+        if not isinstance(save_path, Path):
+            save_path = Path(save_path)
+        self.run_directory = save_path.joinpath(dir_ts)
+        self.run_directory.mkdir()
         print(f'Mapping UID: {dir_ts}')
 
     def _set_run_directory(self, save_path):
+        if not isinstance(save_path, Path):
+            save_path = Path(save_path)
         self.run_directory = save_path
-
-    def save_mapping(self, save_path: str|None=None, file_name:str='mapping', meta:dict={}, replace=False):
+    
+    def save_mapping(self, save_path: str|Path|None=None, file_name:str='mapping', meta:dict={}, replace=False):
+        """Save mapping results as h5ad and CellTypeMapping class as json.
+        """
+        
         self.meta.update(meta)
         if self.run_directory is None or replace is False:
             if save_path is None:
                 print('Must set a directory path')
                 return
             self._create_run_directory(save_path)
-        with open(os.path.join(self.run_directory, 'meta.json'), "w") as f:
-            json.dump(self.meta, f)
-        with bz2.BZ2File(os.path.join(self.run_directory, file_name + '.pbz2'), 'w') as f: 
-            cPickle.dump(self, f)
+        
+        # json serializable attributes
+        #TODO: add more checks for serializability
+        attrs = [attr for attr in dir(self) if not callable(getattr(self, attr)) and not attr.startswith("__")]
+        class_dict = {}
+        for attr in attrs:
+            if isinstance(getattr(self, attr), AnnData):
+                continue
+            
+            elif isinstance(getattr(self, attr), Path):
+                class_dict[attr] = getattr(self, attr).as_posix()
+            else:
+                class_dict[attr] = getattr(self, attr) 
+
+        if hasattr(self, 'ad_map'):
+            self.ad_map.write_h5ad(self.run_directory.joinpath(file_name + '.h5ad'))
+            class_dict['ad_map_file'] = self.run_directory.joinpath(file_name + '.h5ad').as_posix()
+
+        with open(self.run_directory.joinpath(file_name + '.json'), 'w') as f:
+            json.dump(class_dict, f)
 
     @classmethod
-    def load_from_timestamp(cls, directory: str, timestamp: str, file_name: str='mapping', meta_only=False):
-        path = os.path.join(directory, timestamp)
-        meta_file = os.path.join(path, 'meta.json')
-        if meta_only and os.path.exists(meta_file):
-            with open(meta_file) as f:
-                meta = json.load(f)
-                return meta
-        data_file = os.path.join(path, file_name + '.pbz2')
-        if os.path.exists(data_file) is False:
-            print(f'analysis file {file_name} does not exist for timestamp {timestamp} in directory {directory}')
+    def load_from_timestamp(cls, directory: str|Path, timestamp: str, file_name: str='mapping', meta_only=False):
+        if not isinstance(directory, Path):
+            directory = Path(directory)
+        path = directory.joinpath(timestamp)
+        json_file = path.joinpath(file_name + '.json')
+        if json_file.exists() is False:
+            print(f'analysis file {file_name}.json does not exist for timestamp {timestamp} in directory {directory}')
             return
-        ct_map = bz2.BZ2File(data_file, 'rb')
-        ct_map = cPickle.load(ct_map)
-
-        return ct_map
+        class_dict = json.load(open(json_file, 'r'))
+        ctm = cls.load_json(class_dict)
+        if meta_only is False and hasattr(ctm, 'ad_map_file'):
+            ctm.ad_map = ad.read_h5ad(ctm.ad_map_file)
+        else:
+            print('No data loaded, only metadata')
+        return ctm
+    
+    @classmethod
+    def load_json(cls, class_dict: dict):
+        ctm = cls.__new__(cls)
+        for attr, value in class_dict.items():
+            if attr.endswith('_file'):
+                value = Path(value)
+            setattr(ctm, attr, value)
+        return ctm
     
     def reset_qc(self):
         # reset qc status 
@@ -110,6 +134,7 @@ class TangramMapping(CellTypeMapping):
         sc_data: AnnData object or filename of AnnData object representing single-cell or singcle-nucleus data or None
         sp_data: AnnData object or filename of AnnData object representing spatial transcriptomics data or None
         """
+        import tangram as tg
         import scanpy as sc
 
         self.run_directory = None
@@ -131,8 +156,6 @@ class TangramMapping(CellTypeMapping):
         self.ad_sc = ad_sc
         self.ad_sp = ad_sp
         self.meta = meta
-
-        self._ordered_labels = None
 
     def set_training_genes(self, training_genes: list, meta: dict={}):
        
@@ -533,18 +556,18 @@ class CKMapping(CellTypeMapping):
             return fig
 
 class ScrattchMapping(CellTypeMapping):
-    def __init__(self, sp_data: 'AnnData'|str, taxonomy_path: str, meta: dict={}):
+    def __init__(self, sp_data: 'AnnData'|Path|str, taxonomy_path: str, save_path: Path|str, meta: dict={}):
         """
-        sp_data: AnnData object or filename of AnnData object representing spatial transcriptomics data or None
+        sp_data: AnnData object or filename of AnnData object representing spatial transcriptomics data
         taxonomy_path: file path to where taxonomy lives on isolon
-        sc_data: AnnData object or filename of AnnData object representing reference RNAseq data
+    
         """
            
         if not isinstance(sp_data, ad.AnnData):
-            print(f'loading spatial data from {sp_data}...')
             ad_sp = ad.read_h5ad(sp_data)
         else:
             ad_sp = sp_data
+            self.ad_sp_file = None
 
         meta.update({'mapping_method': 'scrattch mapping',
                      'taxonomy': taxonomy_path,
@@ -553,8 +576,9 @@ class ScrattchMapping(CellTypeMapping):
 
         self.ad_sp = ad_sp
         self.taxonomy_path = taxonomy_path
-        self.run_directory = None
         self.meta = meta
+        self._create_run_directory(save_path)
+        self.save_mapping()
 
     def run_on_hpc(self, ad_map_args:dict={}, hpc_args:dict={}, docker: str='singularity exec --cleanenv docker://bicore/scrattch_mapping:latest', r_script: str='scrattch_mapping.R'):
 
@@ -581,7 +605,7 @@ class ScrattchMapping(CellTypeMapping):
 
         hpc_default.update(hpc_args)
         
-        dat_path = self.run_directory.replace('\\', '/') # make sure format is correct for linux
+        dat_path = self.run_directory.as_posix() # make sure format is correct for linux
 
         command = f"""
                 cd {job_path}
@@ -595,14 +619,20 @@ class ScrattchMapping(CellTypeMapping):
         print(job.state(), job.job_id)
         return job
     
-    def make_mapping_anndata(self, save_path: str|None=None, ad_sp_layer: str|None=None, training_genes: list|None=None, cell_qc: str|None=None, meta: dict={}):
+    def make_mapping_anndata(self, ad_sp_layer: str|None=None, training_genes: list|None=None, cell_qc: str|None=None, meta: dict={}):
         """
-        save_path: where to save out mapping anndata object to load into R script
-        ad_sp_layer: scrattch_mapping requires log normalized data, identify where in the ad_sp object
-                    this data resides. If None it will be assumed the data is ad_sp.X otherwise identify
-                    key for ad_sp.layers
-        training_genes: list of genes to use for mapping, if None will use all genes in ad_sp.var_names
-        cell_qc: column to use in ad_sp.obs to filter cells for mapping. Values in column must be boolean. If None all cells will be used
+        Makes anndata object for mapping that is compatible with scrattch_mapping.R script
+
+        Parameters
+        ----------
+        ad_sp_layer: str, default None
+            scrattch_mapping requires log normalized data, identify where in the ad_sp object
+            this data resides. If None it will be assumed the data is ad_sp.X otherwise identify
+            key for ad_sp.layers
+        training_genes: list, default None
+            list of genes to use for mapping, if None will use all genes in ad_sp.var_names
+        cell_qc: str, default None
+            column to use in ad_sp.obs to filter cells for mapping. Values in column must be boolean. If None all cells will be used
         """
         if training_genes is not None:
             genes = [tg for tg in training_genes if tg in self.ad_sp.var_names]
@@ -639,6 +669,12 @@ class ScrattchMapping(CellTypeMapping):
                 ad_map.layers[l_name] = ad_map.layers[l_name].toarray()
 
         if cell_qc is not None:
+            if cell_qc not in ad_map.obs.columns:
+                print(f'cell_qc column {cell_qc} not found in ad_map.obs')
+                return
+            if ad_map.obs[cell_qc].dtype != bool:
+                print(f'cell_qc column {cell_qc} must be boolean')
+                return
             ad_map = ad_map[ad_map.obs[ad_map.obs[cell_qc]].index.to_list(), :]
 
         ad_map.uns['taxonomy_path'] = self.taxonomy_path
@@ -648,24 +684,17 @@ class ScrattchMapping(CellTypeMapping):
             ad_map.uns['taxonomy_cols'] = [prefix + 'label' for prefix in self.meta['taxonomy_cols']]
         
         self.meta.update(meta)
+        self.save_mapping(save_path=self.run_directory, replace=True)
+        ad_map.write_h5ad(self.run_directory.joinpath('scrattch_map_temp.h5ad'))
         self.ad_map = ad_map
-        if save_path is None and self.run_directory is None:
-            print('Must set a save path')
-        if save_path is not None:
-            print(f'Setting run directory to {save_path}')
-            self._create_run_directory(save_path)
-
-        ad_map.write_h5ad(os.path.join(self.run_directory, 'scrattch_map_temp.h5ad'))
 
     def load_scrattch_mapping_results(self):
         # use to load scrattch mapping results back in for analysis
         # results will be saved in obsm field of anndata in R script
-        print('loading results...')
-        results_file = os.path.join(self.run_directory, 'scrattch_map_temp.h5ad')
-        if os.path.exists(results_file) is False:
-            print('No scrattch_map_temp.h5ad file found in run directory, checking for previously saved results...')
+        results_file = self.run_directory.joinpath('scrattch_map_temp.h5ad')
+        if results_file.exists() is False:
             try:
-                mapping = ScrattchMapping.load_from_timestamp(os.path.dirname(self.run_directory), timestamp=os.path.basename(self.run_directory))
+                mapping = ScrattchMapping.load_from_timestamp(self.run_directory.parent, timestamp=self.run_directory.name)
                 self = mapping
             except:
                 pass
@@ -679,8 +708,7 @@ class ScrattchMapping(CellTypeMapping):
             self.ad_map.uns.update(scrattch_map_results.uns)
             self.save_mapping(save_path=self.run_directory, replace=True)
             # delete saved out anndata file
-            print('deleting scrattch-mapping temp file...')
-            os.remove(os.path.join(self.run_directory, 'scrattch_map_temp.h5ad'))
+            self.run_directory.joinpath('scrattch_map_temp.h5ad').unlink()
     
     def load_taxonomy_anndata(self):
         # the taxonomy anndatas are pretty big, only load if necessary and backed so no changes inadvertantly get made. 
@@ -744,6 +772,7 @@ class ScrattchMapping(CellTypeMapping):
                     sns.scatterplot(data=subdata, x='center_x', y='center_y', hue=level, ax=ax[i], hue_order=group, **scatter)
                     ax[i].set_title(group_name)
                     ax[i].legend(bbox_to_anchor=(1,1))
+                    ax[i].set_aspect('equal', adjustable='box', anchor='C')
                 
                 fig.set_tight_layout(True)
             
@@ -752,6 +781,7 @@ class ScrattchMapping(CellTypeMapping):
                 fig, ax = plt.subplots(figsize=(8, 8))
                 sns.scatterplot(data=data, x='center_x', y='center_y', hue=level,ax=ax, **scatter)
                 ax.legend(bbox_to_anchor=(1,1))
+                ax.set_aspect('equal', adjustable='box', anchor='C')
             
             return fig
 
