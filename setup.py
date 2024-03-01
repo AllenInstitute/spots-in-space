@@ -7,7 +7,7 @@ import versioneer
 
 
 install_requires = [
-    line.rstrip() for line in open(Path(__file__) / "REQUIREMENTS.txt")
+    line.rstrip() for line in open(Path(__file__).parent / "REQUIREMENTS.txt")
 ]
 
 setuptools.setup(
