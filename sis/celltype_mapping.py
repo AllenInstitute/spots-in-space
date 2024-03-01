@@ -178,7 +178,7 @@ class CellTypeMapping():
         raise NotImplementedError('mapping must be implementd in a subclass')
 
 class TangramMapping(CellTypeMapping):
-    def __init__(self, sc_data: 'AnnData'|str, sp_data: 'AnnData'|str, meta: dict={}):
+    def __init__(self, sc_data: 'AnnData'|str, sp_data: 'AnnData'|str, save_path: Path|str, meta: dict={}):
         """
         sc_data: AnnData object or filename of AnnData object representing single-cell or singcle-nucleus data or None
         sp_data: AnnData object or filename of AnnData object representing spatial transcriptomics data or None
@@ -186,14 +186,14 @@ class TangramMapping(CellTypeMapping):
         import tangram as tg
         import scanpy as sc
 
-        self.run_directory = None
-       
         if isinstance(sc_data, str):
             ad_sc = ad.read_h5ad(sc_data)
+            self.ad_sc_file = Path(sc_data)
         else:
             ad_sc = sc_data
         if isinstance(sp_data, str):
             ad_sp = ad.read_h5ad(sp_data)
+            self.ad_sp_file = Path(sp_data)
         else:
             ad_sp = sp_data
 
@@ -201,10 +201,11 @@ class TangramMapping(CellTypeMapping):
         sc.pp.normalize_total(ad_sc)
 
         meta.update({'mapping_method': 'Tangram'})
-
+        self.meta = meta
+        self._create_run_directory(save_path)
+        self.save_mapping()
         self.ad_sc = ad_sc
         self.ad_sp = ad_sp
-        self.meta = meta
 
     def set_training_genes(self, training_genes: list, meta: dict={}):
        
@@ -229,6 +230,7 @@ class TangramMapping(CellTypeMapping):
         self.ad_map = ad_map
         self.meta.update({'mode': mode, 'cluster_label': cluster_label})
         self.meta.update(meta)
+        self.save_mapping(replace=True)
 
     def project_genes(self, args:dict={}):
         """Project gene expression from RNAseq data to spatial data
@@ -404,6 +406,7 @@ class CKMapping(CellTypeMapping):
         if isinstance(sp_data, str):
             print('loading spatial data...')
             ad_sp = ad.read_h5ad(sp_data)
+            self.ad_sp_file = Path(sp_data)
         else:
             ad_sp = sp_data
 
@@ -515,7 +518,7 @@ class CKMapping(CellTypeMapping):
         self.ad_map = ad_map
         self.meta = meta
 
-        self.save_mapping(save_path=self.run_directory, file_name='ck_mapping', replace=True)
+        self.save_mapping(file_name='ck_mapping', replace=True)
     
     def plot_mapping_performance(self):
         fig = sns.jointplot(data = self.ad_map.obs, x='avg.cor', y='prob', hue='class_label', alpha=0.2)
