@@ -14,6 +14,7 @@ unary_union, polygonize = optional_import('shapely.ops', ['unary_union', 'polygo
 
 from .image import ImageFile, ImageStack, ImageTransform
 from . import util
+from . import __version__
 
 
 def run_cell_polygon_calculation(load_func, load_args:dict, subregion: str|tuple|None, cell_id_file:str|None, cell_subset_file:str|None, result_file:str|None, alpha_inv_coeff: float=1):
@@ -113,6 +114,7 @@ class SpotTable:
         self._cid_to_pcid = cid_to_pcid
         self._cell_index = None
         self._cell_bounds = None
+        self._unique_cell_ids = None
         self.cell_polygons = cell_polygons
 
         self.images = []
@@ -195,6 +197,8 @@ class SpotTable:
         self._production_cell_ids = cid
 
     def convert_cell_id(self, cell_id: int|str):
+        if self.production_cell_ids is None:
+            raise ValueError("production_cell_ids must be set to use convert_cell_id()")
         if isinstance(cell_id, (int, np.integer)):
             return self._cid_to_pcid[cell_id]
         elif isinstance(cell_id, str):
@@ -583,42 +587,36 @@ class SpotTable:
             filtered_table.cell_polygons = {cid: self.cell_polygons[cid] for cid in cells if cid in self.cell_polygons}
         return filtered_table
 
-    def cell_by_gene_dataframe(self, use_production_ids: bool=False, use_both_ids: bool=False):
-        """Return a pandas dataframe containing a cell-by-gene table derived from this spot table.
+    def cell_by_gene_dense_matrix(self, dtype='uint16'):
+        """Return a numpy array containing a cell-by-gene table derived from this spot table.
+        Also return cell_ids and gene_ids used to construct the matrix
         """
-        spot_df = pandas.DataFrame({'cell': self.production_cell_ids if use_production_ids or use_both_ids else self.cell_ids, 'gene': self.gene_ids})
+        filtered_table = self.filter_cells(real_cells=True) # Don't want to include unassigned cells
+        spot_df = pandas.DataFrame({'cell': filtered_table.cell_ids, 'gene': filtered_table.gene_ids})
         cell_by_gene_df = pandas.pivot_table(spot_df, columns='gene', index='cell', aggfunc=len, fill_value=0)
-        cell_by_gene_df.columns = self.map_gene_ids_to_names(cell_by_gene_df.columns)
-
-        if use_production_ids or use_both_ids: # Since the production ids are strings, we want to use natsort to sort by the integer part of the strings rather than sort the ids as strings
-            from natsort import index_natsorted, ns
-            cell_by_gene_df.sort_index(key=lambda col: np.argsort(index_natsorted(col, alg=ns.REAL)), inplace=True)
-
-        if use_both_ids:
-            cell_by_gene_df['cell_id'] = [self.convert_cell_id(id) for id in cell_by_gene_df.index]
         
-        return cell_by_gene_df
+        return cell_by_gene_df.to_numpy(dtype=dtype), cell_by_gene_df.index, cell_by_gene_df.columns
 
     def cell_by_gene_sparse_matrix(self, dtype='uint16'):
-        """Return cell-by-gene data in a CSR sparse matrix. 
-
+        """Return cell-by-gene data in a scipy.sparse.csr_matrix
         Also return cell_ids and gene_ids used to construct the matrix
         """
         import scipy.sparse
 
-        # collect cell and gene data
-        gene_ids = np.unique(self.gene_ids)
-        cell_ids = np.unique(self.cell_ids)
+        filtered_table = self.filter_cells(real_cells=True)
+        
+        # collect cell and gene data. we use inds b/c csr_matrix doesn't work with unordered integer names
+        gene_ids = np.unique(filtered_table.gene_ids)
+        cell_ids = np.unique(filtered_table.cell_ids)
         cell_id_inds = {cid:i for i,cid in enumerate(cell_ids)}
         gene_id_inds = {gid:i for i,gid in enumerate(gene_ids)}
 
         # count genes per cell into a dict format 
         #   {cell_index: {gene_index1: count1, ...}, ...}
-        print("Counting genes...")
         cellxgene_dict = {}
-        for i in tqdm(range(len(self))):
-            cind = cell_id_inds[self.cell_ids[i]]
-            gind = gene_id_inds[self.gene_ids[i]]
+        for i in range(len(filtered_table)):
+            cind = cell_id_inds[filtered_table.cell_ids[i]]
+            gind = gene_id_inds[filtered_table.gene_ids[i]]
             cellrow = cellxgene_dict.setdefault(cind, {})
             cellrow.setdefault(gind, 0)
             cellrow[gind] += 1
@@ -627,37 +625,68 @@ class SpotTable:
         data = []
         rowind = []
         colind = []
-        print("Generating sparse matrix...")
-        for cindex, cellrow in tqdm(cellxgene_dict.items()):
+        for cindex, cellrow in cellxgene_dict.items():
             for gindex, count in cellrow.items():
                 data.append(count)
                 rowind.append(cindex)
                 colind.append(gindex)
-
+        
         cellxgene = scipy.sparse.csr_matrix((data, (rowind, colind)), dtype=dtype)
         return cellxgene, cell_ids, gene_ids
 
-    def cell_by_gene_anndata(self, use_production_ids: bool=False, use_both_ids: bool=False, x_dtype='uint16'):
+    def cell_by_gene_anndata(self, x_format, x_dtype='uint16'):
         """Return a cell x gene table in AnnData format with cell centroids in x,y obs columns.
         """
         import anndata
-        print("Generating cell x gene table...")
-        cellxgene, cell_ids, gene_ids = self.cell_by_gene_sparse_matrix()
-        gene_names = self.map_gene_ids_to_names(gene_ids)
-        print("Calculating cell centroids...")
-        centroids = self.cell_centroids()
+        if self.production_cell_ids is None:
+            raise ValueError('production_cell_ids must be set to use cell_by_gene_anndata(). See SpotTable.generate_production_cell_ids()')
 
-        if use_production_ids or use_both_ids:
-            from natsort import natsorted, ns
-            cell_ids = natsorted(np.unique(self.production_cell_ids), alg=ns.REAL)
-
+        # Create the anndata.X
+        if x_format == 'sparse':
+            cellxgene, cell_ids, gene_ids = self.cell_by_gene_sparse_matrix(dtype=x_dtype)
+        elif x_format == 'dense':
+            cellxgene, cell_ids, gene_ids = self.cell_by_gene_dense_matrix(dtype=x_dtype)
+        else:
+            raise ValueError("x_format must be either 'dense' or 'sparse'")
         adata = anndata.AnnData(cellxgene)
-        adata.obs_names = cell_ids
-        adata.var_names = gene_names
-        if use_both_ids:
-            adata.obs['cell_id'] = [self.convert_cell_id(id) for id in cell_ids]
-        adata.obs['center_x'] = centroids[:, 0]
-        adata.obs['center_y'] = centroids[:, 1]
+
+        # Fill obs
+        adata.obs_names = [self.convert_cell_id(cid) for cid in cell_ids]
+        adata.obs = adata.obs.merge(self.cell_centroids(use_production_ids=True), how='left', left_index=True, right_index=True)
+        
+        # Calculate cell volumes
+        if self.cell_polygons is None or len(self.cell_polygons.keys()) == 0:
+            # Default to np.nan if no cell polygons
+            cell_feature_df = pandas.DataFrame(index=adata.obs.index)
+            cell_feature_df[['volume', 'area', 'polygon_center_x', 'polygon_center_y', 'polygon_center_z']] = np.nan
+        else:
+            cell_feature_df = self.get_cell_features(use_production_ids=True, disable_tqdm=True).set_index('production_cell_id')
+            cell_feature_df.rename(columns={"center_x": "polygon_center_x", "center_y": "polygon_center_y", "center_z": "polygon_center_z"}, inplace=True)
+        adata.obs = adata.obs.merge(cell_feature_df, how='left', left_index=True, right_index=True)
+        
+        adata.obs['SpotTable_cell_id'] = cell_ids
+
+        # Fill var
+        adata.var_names = self.map_gene_ids_to_names(gene_ids)
+        adata.var['probe_name'] = self.map_gene_ids_to_names(gene_ids)
+        adata.var['cells_with_reads'] = np.count_nonzero(cellxgene, axis=0) if x_format == 'dense' else cellxgene.getnnz(axis=0)
+        segmented_total_reads = np.sum(cellxgene, axis=0).astype(int) if x_format == 'dense' else np.sum(cellxgene.A, axis=0).astype(int)
+        adata.var['segmented_total_reads'] = segmented_total_reads
+        unseg_table = self[self.cell_ids <= 0]
+        unsegmented_total_reads = pandas.pivot_table(pandas.DataFrame({'cell': unseg_table.cell_ids, 'gene': unseg_table.gene_ids}), columns='gene', index='cell', aggfunc=len, fill_value=0).T[-1]
+        unsegmented_total_reads.index = self.map_gene_ids_to_names(unsegmented_total_reads.index)
+        adata.var['unsegmented_total_reads'] = unsegmented_total_reads
+        
+        # Fill uns
+        adata.uns = {
+                    'segmentation_metadata': {
+                                                "model_name": "FILL LATER (SegmentedSpotTable)",
+                                                "method": "FILL LATER (SegmentedSpotTable)",
+                                                "parameters": "FILL LATER (SegmentedSpotTable)",
+                                            },
+                    'cell_polygons': self.get_geojson_collection(use_production_ids=True),
+                    'SIS_repo_hash': __version__,
+                    }
         return adata
 
     def cell_bounds(self, cell_id: int | str):
@@ -677,14 +706,22 @@ class SpotTable:
 
         return self._cell_bounds[self.convert_cell_id(cell_id) if isinstance(cell_id, str) else cell_id]
 
-    def cell_centroids(self):
+    def cell_centroids(self, use_production_ids=False):
         """Return a Pandas DataFrame of cell centroids calculated mean of the x,y,z coordinates for each cell."""
         centroids = []
         for cid in self.unique_cell_ids():
             inds = self.cell_indices(cid)
             cell_ts_xyz = self.pos[inds]
             centroids.append(np.mean(cell_ts_xyz, axis=0))
-        return pandas.DataFrame(data=centroids, index=self.unique_cell_ids(), columns=['center_x', 'center_y', 'center_z'])
+        centroids = np.array(centroids)
+        
+        if centroids.shape[1] < 3: # If 2d, we still put in center_z column to keep consistent with 3d
+            empty = np.zeros((len(centroids),1))
+            empty[:] = np.nan
+            centroids = np.append(centroids, empty, axis=1)
+            
+        indices = [self.convert_cell_id(cid) for cid in self.unique_cell_ids()] if use_production_ids else self.unique_cell_ids()
+        return pandas.DataFrame(data=centroids, index=indices, columns=['center_x', 'center_y', 'center_z'])
 
     @staticmethod
     def cell_polygon(cell_points_array, alpha_inv):
@@ -816,11 +853,11 @@ class SpotTable:
                     weighted_z += z * polygon.area
                     
             volume = area * z_plane_thickness
-            centroid = np.array([[weighted_x / area, weighted_y / area, weighted_z / area]]) # we define centroid as a weighted average (by area) of centroids of polygons
+            center_x, center_y, center_z = weighted_x / area, weighted_y / area, weighted_z / area # we define centroid as a weighted average (by area) of centroids of polygons
             
-            return {"volume": volume, "centroid": centroid}
+            return {"volume": volume, "center_x": center_x, "center_y": center_y, "center_z": center_z}
         else: # If we have one polygon for each cell (either one representing all z-planes or just one z-plane)
-            return {"area": cell_polygon.area, "centroid": np.array(cell_polygon.centroid.coords)}
+            return {"area": cell_polygon.area, "center_x": cell_polygon.centroid.coords[0][0], "center_y": cell_polygon.centroid.coords[0][1]}
     
     
     def get_cell_features(self, z_plane_thickness=1.5, use_production_ids: bool=False, use_both_ids: bool=False, disable_tqdm=False):
@@ -828,12 +865,9 @@ class SpotTable:
         if self.cell_polygons is None or len(self.cell_polygons.keys()) == 0:
             raise ValueError("Cell polygons must be set before calculating cell features. See calculate_cell_polygons() or load_cell_polygons()")
 
-        vol_or_area = "volume" if dict in set(type(k) for k in self.cell_polygons.values()) else "area"
-        vol_or_area_inv = "area" if dict in set(type(k) for k in self.cell_polygons.values()) else "volume"
-
         cell_features = []
         for cid in tqdm(self.cell_polygons, disable=disable_tqdm):
-            feature_info = {"cell_id":cid}
+            feature_info = {"cell_id":cid, "volume": np.nan, "area": np.nan, "center_x": np.nan, "center_y": np.nan, "center_z": np.nan}
             if use_both_ids:
                 feature_info.update({"production_cell_id": self.convert_cell_id(cid)})
             if use_production_ids:
@@ -841,17 +875,41 @@ class SpotTable:
             
             if self.cell_polygons[cid]: # Sometimes polygons can be None
                 feature_info.update(self.calculate_cell_features(self.cell_polygons[cid], z_plane_thickness=z_plane_thickness))
-            else:
-                feature_info.update({vol_or_area:np.nan, "centroid":None})
 
             cell_features.append(feature_info)
         
         # Depending if we have separate polygons for each z-plane we want to set either the volume or area to NaN
         df = pandas.DataFrame.from_records(cell_features)
-        df[vol_or_area_inv] = np.nan
         
         return df
 
+
+    def get_geojson_collection(self, use_production_ids=False):
+        """
+        Create a geojson feature/geometry collection from the cell polygons
+        """
+        if dict in set(type(k) for k in self.cell_polygons.values()): # if cell polygons are separated by z-plane use feature collection which stores z-plane info
+            all_polygons = []
+            for cid in self.cell_polygons:
+                if self.cell_polygons[cid]:
+                    for z_plane, polygon in self.cell_polygons[cid].items():
+                        # Each z-plane is a separate feature
+                        all_polygons.append(geojson.Feature(geometry=polygon, id=self.convert_cell_id(cid) if use_production_ids else str(cid), z_plane=str(z_plane)))
+                else:
+                    all_polygons.append(geojson.Feature(geometry=None, id=self.convert_cell_id(cid) if use_production_ids else str(cid), z_plane=None))
+
+            return geojson.FeatureCollection(all_polygons)
+        else: # If cell polygons are not separated by z-plane, use previous implementation
+            geojsonROIs = []
+            for poly_key in self.cell_polygons.keys():
+                if self.cell_polygons[poly_key]:
+                    if len(self.cell_polygons[poly_key].exterior.coords) > 2:
+                        geojsonROIs.append(util.poly_to_geojson(self.cell_polygons[poly_key]))
+                else:
+                    geojsonROIs.append(None)
+            
+            return geojson.GeometryCollection(geojsonROIs)
+    
 
     def save_cell_polygons(self, save_path: Path|str, use_production_ids=False):
         """
@@ -870,30 +928,8 @@ class SpotTable:
             raise ValueError('No cell polygon data, cannot save file')
         
         if extension == '.geojson':
-            if dict in set(type(k) for k in self.cell_polygons.values()): # if cell polygons are separated by z-plane use feature collection which stores z-plane info
-                all_polygons = []
-                for cid in self.cell_polygons:
-                    if self.cell_polygons[cid]:
-                        for z_plane, polygon in self.cell_polygons[cid].items():
-                            # Each z-plane is a separate feature
-                            all_polygons.append(geojson.Feature(geometry=polygon, id=self.convert_cell_id(cid) if use_production_ids else str(cid), z_plane=str(z_plane)))
-                    else:
-                        all_polygons.append(geojson.Feature(geometry=None, id=self.convert_cell_id(cid) if use_production_ids else str(cid), z_plane=None))
-
-                with open(save_path, "w") as f:
-                    geojson.dump(geojson.FeatureCollection(all_polygons), f)
-
-            else: # If cell polygons are not separated by z-plane, use previous implementation
-                geojsonROIs = []
-                for poly_key in self.cell_polygons.keys():
-                    if self.cell_polygons[poly_key]:
-                        if len(self.cell_polygons[poly_key].exterior.coords) > 2:
-                            geojsonROIs.append(util.poly_to_geojson(self.cell_polygons[poly_key]))
-                    else:
-                        geojsonROIs.append(None)
-                
-                with open(save_path, 'w') as w:
-                    json.dump(geojson.GeometryCollection(geojsonROIs), w)
+            with open(save_path, "w") as f:
+                geojson.dump(self.get_geojson_collection(use_production_ids=use_production_ids), f)
         else:
             import pickle
             with open(save_path, "wb") as f:
