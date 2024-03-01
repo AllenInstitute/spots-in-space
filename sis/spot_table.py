@@ -14,8 +14,7 @@ unary_union, polygonize = optional_import('shapely.ops', ['unary_union', 'polygo
 
 from .image import ImageFile, ImageStack, ImageTransform
 from . import util
-from . import __version__
-
+from . import _version
 
 def run_cell_polygon_calculation(load_func, load_args:dict, subregion: str|tuple|None, cell_id_file:str|None, cell_subset_file:str|None, result_file:str|None, alpha_inv_coeff: float=1):
     """Load a spot table, calculate the cell polygons (possibly on a subset of cells), and save the result.
@@ -561,7 +560,7 @@ class SpotTable:
         min_spot_count : int|None
             Include only spots that are segmented to cells with a minimum number of spots
         """
-        assert(real_cells or min_spot_count, 'One of real_cells or min_spot_count must be specified')
+        assert real_cells or min_spot_count, 'One of real_cells or min_spot_count must be specified'
             
         cells, counts = np.unique(self.cell_ids, return_counts=True)
 
@@ -685,7 +684,7 @@ class SpotTable:
                                                 "parameters": "FILL LATER (SegmentedSpotTable)",
                                             },
                     'cell_polygons': self.get_geojson_collection(use_production_ids=True),
-                    'SIS_repo_hash': __version__,
+                    'SIS_repo_hash': _version.get_versions()['version'],
                     }
         return adata
 
