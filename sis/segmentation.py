@@ -756,7 +756,7 @@ class SegmentationRun:
                     metadata_cl[k] = v.as_posix()
                 elif inspect.isclass(v):
                     metadata_cl[k] = v.__module__ + '.' + v.__name__
-                elif not isinstance(v, str|tuple):
+                elif not isinstance(v, str|tuple|dict):
                     metadata_cl[k] = str(v)
 
             with open(self.meta_path, 'w') as f:
