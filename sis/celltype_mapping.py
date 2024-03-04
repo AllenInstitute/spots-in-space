@@ -63,7 +63,7 @@ class CellTypeMapping():
         attrs = [attr for attr in dir(self) if not callable(getattr(self, attr)) and not attr.startswith("__")]
         class_dict = {}
         for attr in attrs:
-            if isinstance(getattr(self, attr), AnnData):
+            if isinstance(getattr(self, attr), ad.AnnData):
                 continue
             
             elif isinstance(getattr(self, attr), Path):
@@ -106,6 +106,10 @@ class CellTypeMapping():
         if not isinstance(directory, Path):
             directory = Path(directory)
         path = directory.joinpath(timestamp)
+        # backwards compatability for old format
+        if path.joinpath(file_name + '.pbz2').exists():
+            ctm = cls._load_and_save_old_format(path.joinpath(file_name + '.pbz2'))  
+            return ctm
         json_file = path.joinpath(file_name + '.json')
         if json_file.exists() is False:
             print(f'analysis file {file_name}.json does not exist for timestamp {timestamp} in directory {directory}')
@@ -120,6 +124,39 @@ class CellTypeMapping():
             ctm.ad_sp = ad.read_h5ad(ctm.ad_sp_file)    
 
         return ctm
+    
+    @classmethod
+    def _load_and_save_old_format(cls, file_path: Path):
+        """Load mapping results from old format pickle file. Save out to new format json file and h5ad file.
+        Also save out self.ad_map to h5ad file since that was not explicitly tracked in old format. Old format
+        will be deleted after new format is saved.
+        """
+        import bz2
+        import _pickle as cPickle
+        import shutil
+
+        old_ctm = bz2.BZ2File(file_path, 'rb')
+        old_ctm = cPickle.load(old_ctm)
+        old_ctm.run_directory = Path(old_ctm.run_directory)
+        print('loaded old format, saving to new format')
+        if 'ScrattchMapping'  not in str(type(old_ctm)):
+            print('old format not recognized, proceed with caution')
+            return old_ctm
+        new_ctm = ScrattchMapping(sp_data=old_ctm.ad_sp, taxonomy_path=old_ctm.taxonomy_path, save_path=old_ctm.run_directory.parent, meta=old_ctm.meta)
+        # move any auxillary files to new directory
+        for file in old_ctm.run_directory.iterdir():
+            if file.name.endswith('.pbz2'):
+                continue
+            shutil.move(file, new_ctm.run_directory.joinpath(file.name))
+        attrs = [attr for attr in dir(old_ctm) if not callable(getattr(old_ctm, attr)) and not attr.startswith("__")]
+        for attr in attrs:
+            if not hasattr(new_ctm, attr):
+                setattr(new_ctm, attr, getattr(old_ctm, attr))
+        new_ctm.ad_sp.write_h5ad(new_ctm.run_directory.joinpath('ad_sp.h5ad'))
+        new_ctm.ad_sp_file = new_ctm.run_directory.joinpath('ad_sp.h5ad').as_posix()
+        new_ctm.save_mapping(replace=True)
+        shutil.rmtree(old_ctm.run_directory, ignore_errors=True)
+        return new_ctm
     
     @classmethod
     def load_json(cls, class_dict: dict):
@@ -644,7 +681,7 @@ class ScrattchMapping(CellTypeMapping):
         self.taxonomy_path = taxonomy_path
         self.meta = meta
         self._create_run_directory(save_path)
-        self.save_mapping()
+        self.save_mapping(replace=True)
 
     def run_on_hpc(self, ad_map_args:dict={}, hpc_args:dict={}, docker: str='singularity exec --cleanenv docker://bicore/scrattch_mapping:latest', r_script: str='scrattch_mapping.R'):
         """Construct mapping file and run mapping on HPC using scrattch_mapping R package.
