@@ -12,7 +12,7 @@ from __future__ import annotations
 from sis.celltype_mapping import ScrattchMapping, CellTypeMapping
 from sis.hpc import run_slurm_func
 from sis.qc import run_doublet_detection, calc_n_transcripts, calc_n_genes, calc_n_blanks
-from sis.segmentation import MerscopeSegmentationRun
+from sis.segmentation import MerscopeSegmentationPipeline
 from sis.spot_table import SpotTable
 from sis.util import load_config
 import anndata as ad
@@ -406,7 +406,7 @@ class MERSCOPESection(SpatialDataset):
         segmentation_path = self.segmentation_path
         individual_seg_dir = segmentation_path.joinpath(str(timestamp))
         assert not os.path.exists(individual_seg_dir)
-        seg_run = MerscopeSegmentationRun.from_spatial_dataset(self, individual_seg_dir, subrgn, seg_method, seg_opts, hpc_opts)
+        seg_run = MerscopeSegmentationPipeline.from_spatial_dataset(self, individual_seg_dir, subrgn, seg_method, seg_opts, hpc_opts)
         spot_table, cell_by_gene = seg_run.run(use_prod_cids=False)
 
         cell_by_gene.uns.update({

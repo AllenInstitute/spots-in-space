@@ -607,7 +607,7 @@ def dilate_labels(img, radius):
 
 
 
-class SegmentationRun:
+class SegmentationPipeline:
     """Base class for running segmentation on a whole section (or subregion).
     When the class is initialized, it creates the segmentation output directory
     and sets paths for intermediate files.
@@ -725,7 +725,7 @@ class SegmentationRun:
         """Update the metadata dictionary of segmentation input parameters.
 
         It is recommended to call this method whenever a function changes one of the
-        SegmentationRun attributes set upon intialization.
+        SegmentationPipeline attributes set upon intialization.
         """
         self.meta = {
                 'dt_file': self.detected_transcripts_file,
@@ -741,7 +741,7 @@ class SegmentationRun:
             }
 
     def save_metadata(self, overwrite=False):
-        """Save SegmentationRun metadata to a json file in the output directory.
+        """Save SegmentationPipeline metadata to a json file in the output directory.
 
         Parameters
         ----------
@@ -765,12 +765,12 @@ class SegmentationRun:
                 json.dump(metadata_cl, f)
 
     def load_metadata(self):
-        """Load the current SegmentationRun metadata json into a dictionary.
+        """Load the current SegmentationPipeline metadata json into a dictionary.
 
         Returns
         -------
         dict
-            SegmentationRun attributes and their values as stored in the metadata file.
+            SegmentationPipeline attributes and their values as stored in the metadata file.
         """
         with open(self.meta_path, 'r') as f:
             meta = json.load(f)
@@ -1343,13 +1343,13 @@ class SegmentationRun:
             self.polygon_subsets_path.rmdir()
 
     @classmethod
-    def from_spatial_dataset(cls, sp_dataset, output_dir, subrgn, seg_method, seg_opts, hpc_opts):
+    def from_spatial_dataset(cls, sp_dataset, output_dir, subrgn, seg_method, seg_opts, polygon_opts=None, seg_hpc_opts=None, polygon_hpc_opts=None, hpc_opts=None):
         """Alternate constructor to load from a SpatialDataset"""
         image_path = sp_dataset.images_path
         csv_file = sp_dataset.detected_transcripts_file
         cache_file = sp_dataset.detected_transcripts_cache
 
-        return cls(csv_file, image_path, output_dir, cache_file, subrgn, seg_method, seg_opts, hpc_opts)
+        return cls(csv_file, image_path, output_dir, cache_file, subrgn, seg_method, seg_opts, hpc_opts, polygon_opts, seg_hpc_opts, polygon_hpc_opts, hpc_opts)
 
     @classmethod
     def from_json(cls, json_file):
@@ -1367,7 +1367,7 @@ class SegmentationRun:
         return cls(**config)
 
 
-class MerscopeSegmentationRun(SegmentationRun):
+class MerscopeSegmentationPipeline(SegmentationPipeline):
     def __init__(
             self,
             dt_file: Path|str,
@@ -1404,7 +1404,7 @@ class MerscopeSegmentationRun(SegmentationRun):
         return load_args
 
 
-class StereoSeqSegmentationRun(SegmentationRun):
+class StereoSeqSegmentationPipeline(SegmentationPipeline):
     def __init__(
             self,
             dt_file: Path|str,
