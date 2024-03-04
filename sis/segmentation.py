@@ -884,14 +884,14 @@ class SegmentationRun:
 
         return subtable
 
-    def run(self, use_prod_cids: bool=True, prefix: str='', suffix: str='', overwrite: bool=False, clean_up: str|bool|None='all_ints'):
+    def run(self, x_format: str, prefix: str='', suffix: str='', overwrite: bool=False, clean_up: str|bool|None='all_ints'):
         """Run all steps to perform tiled segmentation.
 
         Parameters
         ----------
-        use_prod_cids: bool, optional
-            If True, generate production cell ids and use them to index cells
-            in the cell by gene table. Default True.
+        x_format: str
+            Desired format for the cell by gene anndata X. Options: 'dense' or
+            'sparse'.
         prefix: str, optional
             The string to prepend to all production cell ids.
         suffix: str, optional
@@ -926,7 +926,7 @@ class SegmentationRun:
         polygon_run_spec = self.get_polygon_run_spec(overwrite)
         jobs = self.submit_jobs('cell_polygons', polygon_run_spec, overwrite)
         cell_polygons, cell_polygons_skipped = self.merge_cell_polygons(run_spec=polygon_run_spec, overwrite=overwrite)
-        cell_by_gene = self.create_cell_by_gene(use_prod_cids=use_prod_cids, prefix=prefix, suffix=suffix, overwrite=overwrite)
+        cell_by_gene = self.create_cell_by_gene(x_format=x_format, prefix=prefix, suffix=suffix, overwrite=overwrite)
 
         if clean_up:
             clean_up = 'all_ints' if clean_up == True else clean_up # If the user decides to input true we'll just set that to all ints
@@ -1290,30 +1290,29 @@ class SegmentationRun:
         return self.spot_table.cell_polygons, skipped
     
     
-    def create_cell_by_gene(self, remove_bg=True, use_prod_cids=True, prefix='', suffix='', overwrite=False):
-        """Create and save a cell by gene file in Anndata format using 
-        the attached spot table.
+    def create_cell_by_gene(self, x_format: str, prefix='', suffix='', overwrite=False):
+        """Create and save a cell by gene AnnData object from the attached
+        spot table.
+        
+        Parameters
+        ----------
+        x_format: str
+            Desired format for the cell by gene anndata X. Options: 'dense' or
+            'sparse'.
+        prefix: str, optional
+            The string to prepend to all production cell ids.
+        suffix: str, optional
+            The string to append to all production cell ids.
+        overwrite: bool, optional
+            Whether to allow overwriting of output files. Default False.
+
+        Returns
+        -------
+        AnnData
+            The cell by gene table.
         """
-        if not use_prod_cids and (prefix != '' or suffix != ''):
-            print('Warning: Prefix and/or suffix have been set, but production cell ids are not being used.')
-
-        if use_prod_cids:
-            self.spot_table.generate_production_cell_ids(prefix=prefix, suffix=suffix)
-
-        subtable = self.spot_table.filter_cells(real_cells=remove_bg) if remove_bg else self.spot_table
-
-        cell_by_gene = subtable.cell_by_gene_anndata(use_both_ids=use_prod_cids)
-        
-        # Calculate cell volumes to add to cell by gene
-        print('Calculating cell volumes...')
-        if subtable.cell_polygons is None or len(subtable.cell_polygons.keys()) == 0:
-            # Default to np.nan if no cell polygons
-            cell_feature_df = pd.DataFrame(index=cell_by_gene.obs.index)
-            cell_feature_df[['volume', 'area']] = np.nan
-        else:
-            cell_feature_df = subtable.get_cell_features(use_both_ids=use_prod_cids).set_index('production_cell_id' if use_prod_cids else 'cell_id')
-        cell_by_gene.obs = cell_by_gene.obs.merge(cell_feature_df[['volume', 'area']], how='left', left_index=True, right_index=True)
-        
+        self.spot_table.generate_production_cell_ids(prefix=prefix, suffix=suffix)
+        cell_by_gene = self.spot_table.cell_by_gene_anndata(x_format=x_format)
         self.save_cbg(cell_by_gene, overwrite)
 
         return cell_by_gene
