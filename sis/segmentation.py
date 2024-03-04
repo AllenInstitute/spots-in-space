@@ -16,6 +16,8 @@ import pandas as pd
 import anndata as ad
 import sis
 
+from .optional_import import optional_import
+geojson = optional_import('geojson')
 
 def run_segmentation(load_func, load_args:dict, subregion:dict|None, method_class, method_args:dict, result_file:str|None, cell_id_file:str|None):
     """Load a spot table, run segmentation (possibly on a subregion), and save the SegmentationResult.
@@ -673,9 +675,6 @@ class SegmentationRun:
         self.output_dir = output_dir
         self.output_dir.mkdir(exist_ok=True)
 
-        # intermediate file paths
-        self.set_intermediate_file_paths()
-
         if (seg_hpc_opts is None and hpc_opts is None):
             raise ValueError("One of either seg_hpc_opts or hpc_opts must be provided.")
         if (polygon_hpc_opts is None and hpc_opts is None):
@@ -693,6 +692,9 @@ class SegmentationRun:
         self.polygon_opts.setdefault('save_file_extension', 'geojson')
         self.polygon_opts.setdefault('alpha_inv_coeff', 4/3)
         self.polygon_hpc_opts = hpc_opts if polygon_hpc_opts is None else polygon_hpc_opts
+
+        # intermediate file paths
+        self.set_intermediate_file_paths()
 
         # metadata dict of initial parameters
         self.meta_path = output_dir.joinpath('seg_meta.json')
@@ -717,8 +719,8 @@ class SegmentationRun:
         self.tile_save_path = output_dir.joinpath('seg_tiles/')
         self.cid_path = output_dir.joinpath('segmentation.npy')
         self.cbg_path = output_dir.joinpath('cell_by_gene.h5ad')
-        self.polygon_save_path = output_dir.joinpath('cell_polygons/')
-
+        self.polygon_subsets_path = output_dir.joinpath('cell_polygons/')
+        self.polygon_final_path = self.output_dir.joinpath(f'cell_polygons.{self.polygon_opts["save_file_extension"]}')
     def update_metadata(self):
         """Update the metadata dictionary of segmentation input parameters.
 
@@ -859,6 +861,10 @@ class SegmentationRun:
             raise FileExistsError('Cell by gene already saved and overwriting is not enabled.')
 
         else:
+            # geojson objects must be converted to strings before saving
+            for k, v in cell_by_gene.uns.items():
+                if isinstance(v, geojson.feature.FeatureCollection):
+                    cell_by_gene.uns[k] = geojson.dumps(v)
             cell_by_gene.write(self.cbg_path)
 
     def load_cbg(self):
@@ -1082,7 +1088,7 @@ class SegmentationRun:
         elif job_type == 'cell_polygons':
             run_spec_path = self.polygon_run_spec_path
             hpc_opts = self.polygon_hpc_opts
-            self._check_overwrite_dir(self.polygon_save_path, 'cell_polygons_subset_*', overwrite)
+            self._check_overwrite_dir(self.polygon_subsets_path, 'cell_polygons_subset_*', overwrite)
             default_mem = "10G"
             gpus_per_node = None
             status_str = 'Calculating cell polygons...'
@@ -1200,7 +1206,7 @@ class SegmentationRun:
         dict
             The polygon run specifications.
         """
-        self.polygon_save_path.mkdir(exist_ok=True)
+        self.polygon_subsets_path.mkdir(exist_ok=True)
 
         # Find all the cell ids
         unique_cells = np.unique(self.spot_table.cell_ids)
@@ -1223,7 +1229,7 @@ class SegmentationRun:
         run_spec = {}
         for i, (start_idx, end_idx) in enumerate(row_list):
             # Save an input file with the cell IDs to calculate for each job
-            np.save(self.polygon_save_path / f'cell_id_subset_{i}.npy', unique_cells[start_idx:end_idx])
+            np.save(self.polygon_subsets_path / f'cell_id_subset_{i}.npy', unique_cells[start_idx:end_idx])
             
             # run_spec[i] = (function, args, kwargs)
             run_spec[i] = (
@@ -1234,8 +1240,8 @@ class SegmentationRun:
                     load_args=self.get_load_args(),
                     subregion=self.subrgn,
                     cell_id_file=self.cid_path,
-                    cell_subset_file=self.polygon_save_path / f'cell_id_subset_{i}.npy',
-                    result_file=self.polygon_save_path / f'cell_polygons_subset_{i}.{self.polygon_opts["save_file_extension"]}',
+                    cell_subset_file=self.polygon_subsets_path / f'cell_id_subset_{i}.npy',
+                    result_file=self.polygon_subsets_path / f'cell_polygons_subset_{i}.{self.polygon_opts["save_file_extension"]}',
                     alpha_inv_coeff=self.polygon_opts['alpha_inv_coeff'],
                 )
             )
@@ -1283,7 +1289,7 @@ class SegmentationRun:
             print('Warning: Some tiles were skipped.')
 
         # save polygons
-        if not overwrite and self.output_dir / (f'cell_polygons.{self.polygon_opts["save_file_extension"]}').exists():
+        if not overwrite and self.polygon_final_path.exists():
             raise FileExistsError('cell polygons already saved and overwriting is not enabled.')
         self.spot_table.save_cell_polygons(self.output_dir / f'cell_polygons.{self.polygon_opts["save_file_extension"]}')
         
@@ -1332,9 +1338,9 @@ class SegmentationRun:
                 file_path.unlink()
             self.tile_save_path.rmdir()
         if mode == "all_ints" or mode == "polygon_ints":
-            for file_path in self.polygon_save_path.glob('*'):
+            for file_path in self.polygon_subsets_path.glob('*'):
                 file_path.unlink()
-            self.polygon_save_path.rmdir()
+            self.polygon_subsets_path.rmdir()
 
     @classmethod
     def from_spatial_dataset(cls, sp_dataset, output_dir, subrgn, seg_method, seg_opts, hpc_opts):
