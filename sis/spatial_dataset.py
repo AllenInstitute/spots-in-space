@@ -848,7 +848,7 @@ class StereoSeqSection(SpatialDataset):
 
         if method == ScrattchMapping:
             mapping = ScrattchMapping(
-                sp_data = ad_data,
+                sp_data = ad_file,
                 taxonomy_path = taxonomy_path,
                 save_path=self.mapping_path,
                 meta = {'taxonomy_name': taxonomy, 'taxonomy_cols': self.config['taxonomy_info'][taxonomy]['col_labels']}
