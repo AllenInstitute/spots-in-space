@@ -1303,7 +1303,7 @@ class SegmentationPipeline:
         return self.spot_table.cell_polygons, skipped
     
     
-    def create_cell_by_gene(self, x_format: str, prefix: str='', suffix str='', overwrite: bool=False):
+    def create_cell_by_gene(self, x_format: str, prefix: str='', suffix: str='', overwrite: bool=False):
         """Create and save a cell by gene AnnData object from the attached
         spot table.
         
