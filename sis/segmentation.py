@@ -28,7 +28,8 @@ def run_segmentation(load_func, load_args:dict, subregion:dict|None, method_clas
         The method of SpotTable used to load a dataset (e.g. SpotTable.load_merscope).
     load_args : dict
         Parameters passed to load_func.
-    subregion : dict, optional  #TODO: figure out format of dict
+    subregion : dict, optional
+        The subregion of the SpotTable to segment.
     method_class :
         The SegmentationMethod used for segmentation.
     method_args : dict
@@ -315,7 +316,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
         gauss_kernel : tuple
             Kernel used for gaussian smoothing of the image. Default (1, 3, 3).
         median_kernel : tuple
-            Kernel used for median smoothing image. 
+            Kernel used for median smoothing of the image. Default (2, 10, 20).
         """
 
         image_shape_full = (n_planes, *image_shape[1:3])
@@ -610,11 +611,9 @@ def dilate_labels(img, radius):
 class SegmentationPipeline:
     """Base class for running segmentation on a whole section (or subregion).
     When the class is initialized, it creates the segmentation output directory
-    and sets paths for intermediate files.
-
-    Each step has defined input and output files. Steps can be run individually
-    by calling their respective methods or in a defined sequence by calling the
-    run() method.
+    and sets paths for intermediate files. Each step has defined input and 
+    output files. Steps can be run individually by calling their respective 
+    methods or in a defined sequence by calling the run() method.
 
     Currently there is an assumption that the attributes set upon initialization
     are not changed by the user. If you change them, be warned that the 
@@ -711,6 +710,8 @@ class SegmentationPipeline:
 
     def set_intermediate_file_paths(self):
         """Define locations within the output directory to save intermediate and output files.
+        If you add a step to this pipeline that generates a file, specify its 
+        path here.
         """
         output_dir = self.output_dir
         self.regions_path = output_dir.joinpath('regions.json')
@@ -721,6 +722,7 @@ class SegmentationPipeline:
         self.cbg_path = output_dir.joinpath('cell_by_gene.h5ad')
         self.polygon_subsets_path = output_dir.joinpath('cell_polygons/')
         self.polygon_final_path = self.output_dir.joinpath(f'cell_polygons.{self.polygon_opts["save_file_extension"]}')
+
     def update_metadata(self):
         """Update the metadata dictionary of segmentation input parameters.
 
@@ -737,7 +739,7 @@ class SegmentationPipeline:
                 'seg_opts': self.seg_opts,
                 'polygon_opts': self.polygon_opts,
                 'seg_hpc_opts': self.seg_hpc_opts,
-                'polygon_hpc_opts': self.polygon_hpc_opts,
+                'polygon_hpc_opts': self.polygon_hpc_opts,  # hpc_opts not needed here
             }
 
     def save_metadata(self, overwrite=False):
@@ -752,6 +754,7 @@ class SegmentationPipeline:
             raise FileExistsError('Metadata already saved and overwriting is not enabled.')
 
         else:
+            # Make entries compatible with json
             metadata_cl = self.meta.copy()
             for k, v in self.meta.items():
                 if isinstance(v, PurePath):
@@ -778,7 +781,7 @@ class SegmentationPipeline:
         return meta
 
     def save_regions(self, regions: list, overwrite=False):
-        """Save the segmentation tile subregion corrdinates into a json file.
+        """Save the segmentation tile subregion coordinates into a json file.
 
         Parameters
         ----------
@@ -845,6 +848,7 @@ class SegmentationPipeline:
         return run_spec
 
     def save_cell_ids(self, cell_ids, overwrite=False):
+        """Save array of cell_ids to an npy file."""
         if not overwrite and self.cid_path.exists():
             raise FileExistsError('Cell ids already saved and overwriting is not enabled.')
 
@@ -852,11 +856,13 @@ class SegmentationPipeline:
             np.save(self.cid_path, cell_ids)
 
     def load_cell_ids(self):
+        """Load array of cell_ids from an npy file."""
         assert self.cid_path.exists()
         cell_ids = np.load(self.cid_path)
         return cell_ids
 
     def save_cbg(self, cell_by_gene, overwrite=False):
+        """Save the cell by gene anndata object."""
         if not overwrite and self.cbg_path.exists():
             raise FileExistsError('Cell by gene already saved and overwriting is not enabled.')
 
@@ -868,6 +874,7 @@ class SegmentationPipeline:
             cell_by_gene.write(self.cbg_path)
 
     def load_cbg(self):
+        """Load the cell by gene anndata object."""
         assert self.cbg_path.exists()
         cell_by_gene = ad.read_h5ad(self.cbg_path)
         return cell_by_gene
@@ -911,9 +918,9 @@ class SegmentationPipeline:
 
         Returns
         -------
-        SpotTable
+        sis.spot_table.SpotTable
             The segmented spot table.
-        AnnData
+        anndata.AnnData
             The cell by gene table.
         """
 
@@ -948,9 +955,9 @@ class SegmentationPipeline:
         
         Returns
         -------
-        SpotTable
+        sis.spot_table.SpotTable
             The segmented spot table with cell_ids attached.
-        AnnData
+        anndata.AnnData
             The cell by gene table.
         """
         self.spot_table.cell_ids = self.load_cell_ids()
@@ -962,7 +969,7 @@ class SegmentationPipeline:
 
         Parameters
         ----------
-        jobs : SlurmJobArray
+        jobs : sis.hpc.SlurmJobArray
             Submitted slurm jobs to track.
         """
         print(f'Job IDs: {jobs[0].job_id}-{jobs[-1].job_id.split("_")[-1]}')
@@ -974,7 +981,7 @@ class SegmentationPipeline:
         if not np.any([job.state().state == "COMPLETED" for job in jobs.jobs]):
             raise RuntimeError(f'All jobs failed. Please check error logs in {self.output_dir.joinpath("hpc-jobs")}')
 
-    def tile_seg_region(self, overwrite=False, max_tile_size: int=200, overlap: int=30):
+    def tile_seg_region(self, overwrite: bool=False, max_tile_size: int=200, overlap: int=30):
         """Split the attached SpotTable into rectangular subregions (tiles).
         Also saves the subregion coordinates into a json file.
 
@@ -989,8 +996,8 @@ class SegmentationPipeline:
         
         Returns
         -------
-        list
-            The grid of overlapping tiles, each of which is a SpotTable.
+        list of sis.spot_table.SpotTable
+            The grid of overlapping tiles.
         list
             Subregion coordinates for each tile.
         """
@@ -1074,7 +1081,7 @@ class SegmentationPipeline:
 
         Returns
         -------
-        SlurmJobArray
+        sis.hpc.SlurmJobArray
             Object representing submitted HPC jobs.
         """
         # Check job type and set variables
@@ -1135,7 +1142,7 @@ class SegmentationPipeline:
         run_spec : dict, optional
             Specifications to run tiled segmentation on the HPC.
             If not provided, will attempt to load from the standard location on disk.
-        tiles: list[SpotTable], optional
+        tiles: list of sis.spot_table.SpotTable, optional
             The individual tiles that were segmented.
             If not provided, will be generated from spot_table and run_spec.
         overwrite : bool, optional
@@ -1143,7 +1150,7 @@ class SegmentationPipeline:
         
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
             The array of cell_ids corresponding to each spot.
         list
             Information about merge conflicts collected during tile merging.
@@ -1296,7 +1303,7 @@ class SegmentationPipeline:
         return self.spot_table.cell_polygons, skipped
     
     
-    def create_cell_by_gene(self, x_format: str, prefix='', suffix='', overwrite=False):
+    def create_cell_by_gene(self, x_format: str, prefix: str='', suffix str='', overwrite: bool=False):
         """Create and save a cell by gene AnnData object from the attached
         spot table.
         
@@ -1314,7 +1321,7 @@ class SegmentationPipeline:
 
         Returns
         -------
-        AnnData
+        anndata.AnnData
             The cell by gene table.
         """
         self.spot_table.generate_production_cell_ids(prefix=prefix, suffix=suffix)
