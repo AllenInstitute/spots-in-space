@@ -1272,7 +1272,7 @@ class SpotTable:
         include_inds = self.cell_indices(include_cells)
         return include_inds
 
-    def merge_cells(self, other, padding=5):
+    def merge_cells(self, other, padding=5, union_threshold=0.5):
         """Merge cell IDs from SpotTable *other* into self.
 
         Returns a structure describing merge conflicts.
@@ -1323,7 +1323,7 @@ class SpotTable:
                 if overlap_cell == cell_id: continue
             
                 overlap_size = np.count_nonzero(np.in1d(overlapped_cell_inds[overlap_cell], old_inds))
-                if overlap_size / min(original_cell_size, size) > 0.5: # if the overlap transcripts represents >50% of the transcripts of the smaller cell i.e. the smaller cell is mostly 'absorbed'
+                if overlap_size / min(original_cell_size, size) > union_threshold: # if the overlap transcripts represents >threshold of the transcripts of the smaller cell i.e. the smaller cell is mostly 'absorbed'
                     to_combine.append(overlap_cell)
                 overlaps[overlap_cell] = overlap_size
                 overlap_pct[overlap_cell] = overlap_size / min(original_cell_size, size)
