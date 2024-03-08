@@ -1435,7 +1435,7 @@ class StereoSeqSegmentationPipeline(SegmentationPipeline):
     def get_load_args(self):
         """Get args to pass to loading function (e.g. when submitting jobs to hpc)."""
         load_args = {
-                'image_file': self.images_path,
+                'image_file': self.image_path,
                 'gem_file': self.detected_transcripts_file,
                 'cache_file': self.detected_transcripts_cache,
         }
