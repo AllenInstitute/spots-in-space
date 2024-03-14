@@ -1158,11 +1158,16 @@ class SegmentationPipeline:
 
         print('Merging tiles...')
         # Merging updates the spot table cell_ids in place
+        truncated_meta = {
+                'seg_method': str(self.seg_method),
+                'seg_opts': self.seg_opts,
+                'polygon_opts': self.polygon_opts
+                }
+
         self.seg_spot_table = SegmentedSpotTable.from_spot_table(
                 spot_table=self.raw_spot_table, 
                 cell_ids=np.empty(len(self.raw_spot_table), dtype=int),
-                seg_method=str(self.seg_method),
-                seg_opts=self.seg_opts
+                seg_metadata=truncated_meta,
                 )
         self.seg_spot_table.cell_ids[:] = -1
 

@@ -866,10 +866,8 @@ class SegmentedSpotTable(SpotTable):
     cell_polygons : dict, optional
         Polygons associated with each cell_id. Used to approximate the shapes
         of cells and measurements such as volume.
-    seg_method : str, optional
-        The method used for segmentation.
-    seg_opts : dict, optional
-        Options/parameters for segmentation.
+    seg_metadata: dict, optional
+        Metadata about segmentation, e.g. method, parameters, options
     """
 
     def __init__(self, 
@@ -878,8 +876,7 @@ class SegmentedSpotTable(SpotTable):
                  pcid_to_cid: None|dict=None,
                  cid_to_pcid: None|dict=None,
                  cell_polygons: None|dict=None,
-                 seg_method: None|str=None,
-                 seg_opts: None|dict=None,
+                 seg_metadata: None|dict=None,
                  **kwargs  # pass to parent SpotTable
                  ):
 
@@ -893,8 +890,7 @@ class SegmentedSpotTable(SpotTable):
         self._cell_bounds = None
         self._unique_cell_ids = None
         self.cell_polygons = cell_polygons
-        self.seg_method = seg_method
-        self.seg_opts = seg_opts
+        self.seg_metadata = seg_metadata
 
     @property
     def cell_ids(self):
@@ -1116,10 +1112,7 @@ class SegmentedSpotTable(SpotTable):
         
         # Fill uns
         adata.uns = {
-                    'segmentation_metadata': {
-                                                "seg_method": self.seg_method,
-                                                "seg_opts": self.seg_opts,
-                                            },
+                    'segmentation_metadata': self.seg_metadata, 
                     'cell_polygons': self.get_geojson_collection(use_production_ids=True),
                     'SIS_repo_hash': _version.get_versions()['version'],
                     }
@@ -1495,7 +1488,7 @@ class SegmentedSpotTable(SpotTable):
         return include_inds
 
     def merge_cells(self, other, padding=5):
-        """Merge cell IDs from SpotTable *other* into self.
+        """Merge cell IDs from SegmentedSpotTable *other* into self.
 
         Returns a structure describing merge conflicts.
         """
@@ -1561,7 +1554,7 @@ class SegmentedSpotTable(SpotTable):
         return conflicts
 
     def set_cell_ids_from_tiles(self, tiles, padding=5):
-        """Overwrite all cell IDs by merging from *tiles*, which may be a list of SpotTable
+        """Overwrite all cell IDs by merging from *tiles*, which may be a list of SegmentedSpotTable
         or SegmentationResult instances.
         """
         from .segmentation import SegmentationResult
@@ -1580,12 +1573,13 @@ class SegmentedSpotTable(SpotTable):
     def load_baysor(cls, file_name: str, **kwds):
         """Return a new SegmentedSpotTable loaded from a baysor result file.
         """
-        result = sis.segmentation.load_baysor_result(file_name, **kwds)
+        from .segmentation import load_baysor_result
+        result = load_baysor_result(file_name, **kwds)
         pos = result[['x', 'y', 'z']].view(dtype=result.dtypes.fields['x'][0]).reshape(len(result), 3)
-        return cls(pos=pos, gene_ids=result['gene'], cell_ids=result['cell'], seg_method='Baysor')
+        return cls(pos=pos, gene_ids=result['gene'], cell_ids=result['cell'], seg_metadata={'seg_method': 'Baysor'})
 
     @staticmethod
-    def load_merscope_cell_ids(csv_file, max_rows: int|None=None):
+    def load_merscope_cell_ids(csv_file: str, max_rows: int|None=None):
         """Load the original segmentation for a MERSCOPE dataset."""
         print('Loading MERSCOPE cell ids...')
         with open(csv_file, 'r') as f:
@@ -1607,7 +1601,7 @@ class SegmentedSpotTable(SpotTable):
         raw_spot_table = SpotTable.load_merscope(csv_file=csv_file, cache_file=cache_file, image_path=image_path, max_rows=max_rows)
         cell_ids = SegmentedSpotTable.load_merscope_cell_ids(csv_file, max_rows=max_rows)
 
-        return cls.from_spot_table(spot_table=raw_spot_table, cell_ids=cell_ids, seg_method='MERSCOPE')
+        return cls.from_spot_table(spot_table=raw_spot_table, cell_ids=cell_ids, seg_metadata={'seg_method': 'MERSCOPE'})
 
     @classmethod
     def load_stereoseq(cls, gem_file: str|None=None, cache_file: str|None=None, gem_cols: dict|tuple=(('gene', 0), ('x', 1), ('y', 2), ('MIDcounts', 3)), 
@@ -1649,7 +1643,7 @@ class SegmentedSpotTable(SpotTable):
             'cell_ids': self.cell_ids,
         }
 
-        kwds = ['seg_method', 'seg_opts', 'production_cell_ids', '_pcid_to_cid', '_cid_to_pcid', 'cell_polygons']
+        kwds = ['seg_metadata', 'production_cell_ids', '_pcid_to_cid', '_cid_to_pcid', 'cell_polygons']
         fields.update({kwd: getattr(self, kwd) for kwd in kwds if getattr(self, kwd) is not None})
 
         np.savez_compressed(npz_file, **fields) 
@@ -1739,8 +1733,7 @@ class SegmentedSpotTable(SpotTable):
                 '_cid_to_pcid', 
                 'images', 
                 'cell_polygons',
-                'seg_method',
-                'seg_opts'
+                'seg_metadata',
                 ]:
             if name not in init_kwargs:
                 val = getattr(self, name)
