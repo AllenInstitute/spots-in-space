@@ -149,6 +149,14 @@ class CellposeSegmentationMethod(SegmentationMethod):
             manual_diam = self.options['cell_dia'] / self.options['px_size']
             cp_opts.update({'diameter': manual_diam})
         
+        # Limit the z-planes to be segmented by checking transcript z distribution
+        if 'detect_z_planes' in self.options and self.options['detect_z_planes']:
+            z_planes = spot_table.detect_z_planes(float_cut=self.options['detect_z_planes'])
+            if 'nuclei' in self.options['images']:
+                self.options['images']['nuclei']['frames'] = z_planes
+            if 'cyto' in self.options['images']:
+                self.options['images']['cyto']['frames'] = z_planes
+        
         # collect images
         images = {}
         if 'nuclei' in self.options['images']:
@@ -229,6 +237,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
             input_spot_table=spot_table,
             cellpose_output=cellpose_output,
             image_transform=first_image.transform,
+            detect_z_planes=self.options['detect_z_planes'] if 'detect_z_planes' in self.options and self.options['detect_z_planes'] else None,
         )
             
         return result
@@ -256,7 +265,14 @@ class CellposeSegmentationMethod(SegmentationMethod):
             opts.update(self._suggest_image_spec(spot_table, px_size, images))
             return self.get_total_mrna_image(spot_table, **opts)
         else:
-            return spot_table.get_image(channel=img_spec['channel'], frame=img_spec.get('frame', None))
+            # Support both multiple frames and individual frames
+            if 'frames' in img_spec:
+                return spot_table.get_image(channel=img_spec['channel'], frames=img_spec['frames'])
+            elif 'frame' in img_spec:
+                return spot_table.get_image(channel=img_spec['channel'], frame=img_spec['frame'])
+            else:
+                return spot_table.get_image(channel=img_spec['channel'])
+            
 
     def _suggest_image_spec(self, spot_table, px_size, images):
         """Given a pixel size, return {'image_shape': shape, 'image_transform': tr} covering the entire area of spot_table.
@@ -277,7 +293,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
         
         return {'image_shape': (1, shape[0], shape[1]), 'image_transform': image_tr}
 
-    def get_total_mrna_image(self, spot_table, image_shape:tuple, image_transform:ImageTransform, n_planes:int, frame:int|None=None, gauss_kernel=(1, 3, 3), median_kernel=(2, 10, 10)):
+    def get_total_mrna_image(self, spot_table, image_shape:tuple, image_transform:ImageTransform, n_planes:int, frame: int|None=None, frames:tuple|None=None, gauss_kernel=(1, 3, 3), median_kernel=(2, 10, 10)):
 
         image_shape_full = (n_planes, *image_shape[1:3])
         density_img = np.zeros(image_shape_full, dtype='float32')
@@ -299,13 +315,14 @@ class CellposeSegmentationMethod(SegmentationMethod):
         density_img = scipy.ndimage.gaussian_filter(density_img, gauss_kernel)
         density_img = scipy.ndimage.median_filter(density_img, median_kernel)
 
-        if frame is not None:
+        if frames is not None:
+            return Image(density_img[..., np.newaxis], transform=image_transform, channels=['Total mRNA'], name=None).get_frames(frames)
+        elif frame is not None:
             return Image(density_img[..., np.newaxis], transform=image_transform, channels=['Total mRNA'], name=None).get_frame(frame)
-
         else:
             return Image(density_img[..., np.newaxis], transform=image_transform, channels=['Total mRNA'], name=None)
 
-    def map_spots_to_img_px(self, spot_table:SpotTable, image:Image|None=None, image_transform:ImageTransform|None=None, image_shape:tuple|None=None):
+    def map_spots_to_img_px(self, spot_table:SpotTable, image:Image|None=None, image_transform:ImageTransform|None=None, image_shape:tuple|None=None, detect_z_planes: float|None=None):
         """Map spot table (x, y, z) positions to image (frame, row, col). 
 
         Optionally, provide the *image_transform* and *image_shape* instead of *image*.
@@ -315,6 +332,12 @@ class CellposeSegmentationMethod(SegmentationMethod):
             image_shape = image.shape
             image_transform = image.transform
 
+        if detect_z_planes:
+            # Limit the z-planes to assigned to pixels (useful for xenium data)
+            z_planes = spot_table.detect_z_planes(float_cut=detect_z_planes)
+            z_mask = np.isin(spot_table.z, [z for z in range(*z_planes)])
+            spot_table = spot_table[z_mask]
+
         spot_xy = spot_table.pos[:, :2]
         spot_px_rc = np.floor(image_transform.map_to_pixels(spot_xy)).astype(int)
 
@@ -323,6 +346,8 @@ class CellposeSegmentationMethod(SegmentationMethod):
             spot_px_z = np.zeros(len(spot_table), dtype=int)
         else:
             spot_px_z = spot_table.z.astype(int)
+            if detect_z_planes: # If we are limiting the z-planes, we need to shift the z values to start at 0
+                spot_px_z -= z_planes[0]
 
         # some spots may be a little past the edge of the image; 
         # just clip these as they'll be discarded when tiles are merged anyway
@@ -333,11 +358,12 @@ class CellposeSegmentationMethod(SegmentationMethod):
 
 
 class CellposeSegmentationResult(SegmentationResult):
-    def __init__(self, method:SegmentationMethod, input_spot_table:SpotTable, cellpose_output:dict, image_transform:ImageTransform):
+    def __init__(self, method:SegmentationMethod, input_spot_table:SpotTable, cellpose_output:dict, image_transform:ImageTransform, detect_z_planes: float|None=None):
         super().__init__(method, input_spot_table)
         self.cellpose_output = cellpose_output
         self.image_transform = image_transform
         self._cell_ids = None
+        self.detect_z_planes = detect_z_planes
         
     @property
     def cell_ids(self):
@@ -347,7 +373,7 @@ class CellposeSegmentationResult(SegmentationResult):
         if self._cell_ids is None:
             spot_table = self.input_spot_table
             mask_img = self.mask_image
-            spot_px = self.method.map_spots_to_img_px(spot_table, mask_img)
+            spot_px = self.method.map_spots_to_img_px(spot_table, mask_img, detect_z_planes=self.detect_z_planes)
 
             # assign segmented cell IDs to a new table
             masks = mask_img.get_data()
@@ -567,7 +593,7 @@ def dilate_labels(img, radius):
     return interpolated
 
 
-def merge_segmentation_results(spot_table: SpotTable, run_spec: dict, tiles: list[SpotTable]|None = None):
+def merge_segmentation_results(spot_table: SpotTable, run_spec: dict, tiles: list[SpotTable]|None = None, detect_z_planes: float|None=None):
     """Merge results of a tiled segmentation, updating spot_table.cell_ids in place.
 
     Parameters
@@ -610,8 +636,14 @@ def merge_segmentation_results(spot_table: SpotTable, run_spec: dict, tiles: lis
             # Recreate each tile from spot_table and run_spec
             tile_rgn = tile_spec[2]['subregion']
             tile = spot_table.get_subregion(xlim = tile_rgn[0], ylim = tile_rgn[1])
-
-        tile.cell_ids = np.load(cell_id_file)
+        
+        if detect_z_planes: # If we detected z-planes to segment on, we must account for that now
+            z_plane_mask = tile.z_plane_mask(tile.detect_z_planes(float_cut=detect_z_planes))
+            tile.cell_ids[z_plane_mask] = np.load(cell_id_file)
+            tile.cell_ids[~z_plane_mask] = 0
+        else:
+            tile.cell_ids = np.load(cell_id_file)
+            
         result = spot_table.merge_cells(tile, padding=5)
         merge_results.append(result)
 
@@ -1022,7 +1054,7 @@ class SegmentationRun:
 
         print('Merging tiles...')
         # Merging updates the spot table cell_ids in place
-        cell_ids, merge_results, skipped = merge_segmentation_results(self.spot_table, run_spec, None)
+        cell_ids, merge_results, skipped = merge_segmentation_results(self.spot_table, run_spec, None, detect_z_planes=self.seg_opts['options'].get('detect_z_planes', None))
 
         if len(run_spec) == len(skipped):
             raise RuntimeError('All tiles were skipped, check error logs.')
@@ -1259,5 +1291,46 @@ class StereoSeqSegmentationRun(SegmentationRun):
                 load_args[k] = v.as_posix()
 
         load_args.update({'skiprows': 7, 'image_channel': 'nuclear'})
+
+        return load_args
+
+
+class XeniumSegmentationRun(SegmentationRun):
+    def __init__(
+            self,
+            dt_file: Path|str,
+            image_path: Path|str,
+            output_dir: Path|str,
+            dt_cache: Path|str|None,
+            subrgn: str|tuple,
+            seg_method: SegmentationMethod,
+            seg_opts: dict,
+            polygon_opts: dict|None=None,
+            seg_hpc_opts: dict|None=None,
+            polygon_hpc_opts: dict|None=None,
+            hpc_opts: dict|None=None,
+            z_depth: int=3.0,
+            ):
+        super().__init__(dt_file, image_path, output_dir, dt_cache, subrgn, seg_method, seg_opts, polygon_opts, seg_hpc_opts=seg_hpc_opts, polygon_hpc_opts=polygon_hpc_opts, hpc_opts=hpc_opts)
+        
+        self.z_depth = z_depth # This is used for binning z-locations to image planes
+
+    def get_load_func(self):
+        """Get the function to load a spot table."""
+        return SpotTable.load_xenium
+
+    def get_load_args(self):
+        """Get args to pass to loading function (e.g. when submitting jobs to hpc)."""
+        load_args = {
+                'image_path': self.image_path,
+                'csv_file': self.detected_transcripts_file,
+                'cache_file': self.detected_transcripts_cache,
+        }
+        for k, v in load_args.items():
+            if isinstance(v, Path):
+                load_args[k] = v.as_posix()
+
+        load_args['max_rows'] = None
+        load_args['z_depth'] = self.z_depth
 
         return load_args

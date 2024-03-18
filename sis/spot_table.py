@@ -484,6 +484,51 @@ class SpotTable:
 
         return table
 
+
+    @classmethod
+    def load_xenium(cls, csv_file: str, cache_file: str, image_path: str=None, max_rows: int=None, z_depth: float=3.0):
+        """Load Xenium data from a detected transcripts CSV file.
+        CSV reading is slow, so optionally cache the result to a .npz file.
+        """
+        if (cache_file is None) or (not Path(cache_file).exists()):
+
+            if max_rows:
+                spot_dataframe = pandas.read_csv(csv_file, nrows=max_rows)
+            else:
+                spot_dataframe = pandas.read_csv(csv_file)
+
+            print("Loaded Xenium data with shape "+str(spot_dataframe.shape))
+
+            pos= spot_dataframe.loc[:,["x_location","y_location","z_location"]].values
+            z_bins = np.arange(0, np.max(pos[:, 2]) + z_depth, z_depth) # bin float z locations to integers
+            pos[:, 2] = (np.digitize(pos[:,2], z_bins) - 1).astype(int)
+
+            gene_names = spot_dataframe.loc[:,"feature_name"].values
+
+            cell_ids = spot_dataframe.loc[:,'cell_id'].values
+
+            # make a spot table!
+            table = SpotTable(pos=pos, gene_names=gene_names, cell_ids=cell_ids)
+
+            if cache_file is not None:                
+                print("Recompressing to npz..")
+                table.save_npz(cache_file)
+
+        else:
+            print("Loading from npz..")
+            # table = SpotTable.load_npz(cache_file) # There is an error loading cell_ids since it is an object array and SpotTable.load_npz doesn't allow pickle
+            table = SpotTable(**np.load(cache_file, allow_pickle=True))
+
+        # if requested, look for images as well (these are not saved in cache file)
+        images = None
+        if image_path is not None:
+            images = ImageStack.load_xenium_stacks(image_path)
+            for img in images:
+                table.add_image(img)
+
+        return table
+    
+
     def save_npz(self, npz_file):
         fields = {
             'pos': self.pos,
@@ -549,6 +594,29 @@ class SpotTable:
         self._pcid_to_cid = pcid_to_cid
         self._cid_to_pcid = cid_to_pcid
 
+
+    def detect_z_planes(self, float_cut: float|None=None):
+        """Return a tuple containing (min z-plane, max z-plane + 1).
+        """
+        if float_cut:
+            z_planes, z_counts = np.unique(self.z, return_counts=True)
+            z_counts = z_counts / np.sum(z_counts)
+            z_planes = z_planes[z_counts >= float_cut]
+        else:
+            z_planes = np.unique(self.z)
+
+        return int(np.min(z_planes)), int(np.max(z_planes)) + 1
+
+
+    def z_plane_mask(self, z_planes: tuple):
+        """Return a mask of the SpotTable containing only spots in the specified z_planes
+        Z-planes are specified as a tuple [min, max) to align with the output of detect_z_planes.
+        
+        Input:
+            z_planes: tuple containing the min (inclusive) and max (exclusive) z_planes to keep
+        """
+        return np.isin(self.z, [z for z in range(*z_planes)])
+    
     
     def filter_cells(self, real_cells=None, min_spot_count=None):
         """Return a filtered spot table containing only cells matching the filter criteria.
@@ -1520,7 +1588,7 @@ class SpotTable:
             raise Exception(f"An image named {image.name} is already attached")
         self.images.append(image)
 
-    def get_image(self, name=None, channel=None, frame=None):
+    def get_image(self, name=None, channel=None, frame:int|None=None, frames:tuple|None=None):
         """Return the image with the given name or channel name
         """
         if name is not None:
@@ -1540,7 +1608,9 @@ class SpotTable:
         if channel is not None:
             selected_img = selected_img.get_channel(channel)
 
-        if frame is not None:
+        if frames is not None:
+            selected_img = selected_img.get_frames(frames)
+        elif frame is not None:
             selected_img = selected_img.get_frame(frame)
 
         return selected_img            

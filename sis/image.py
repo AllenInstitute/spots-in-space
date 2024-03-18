@@ -4,6 +4,7 @@ import os, glob, re
 import numpy as np
 from .optional_import import optional_import
 rasterio = optional_import('rasterio')
+tifffile = optional_import('tifffile')
 
 
 class ImageBase:
@@ -44,9 +45,12 @@ class ImageBase:
         return ImageView(self, rows=region[0], cols=region[1])
 
     def get_frame(self, frame):
+        return self.get_frames((frame, frame+1))
+    
+    def get_frames(self, frames):
         z_len = self.shape[0]
-        assert frame < z_len
-        return ImageView(self, frames=(frame, frame+1))
+        assert frames[1] <= z_len
+        return ImageView(self, frames=frames)
 
     def show(self, ax=None, frame=None, channel=None, **kwds):
         if ax is None:
@@ -275,6 +279,100 @@ class ImageTransform:
         return ImageTransform(m)
 
 
+class XeniumImageFile(ImageBase):
+    def __init__(self, file: str, transform:ImageTransform, axes: list|None,
+                  channels: list,z_index:int, name: str|None,
+                  pyramid_level: int= 0):
+        """Represents a single image stored on disk, carrying metadata about:
+        - The file containing image data
+        - The transform that maps from pixel coordinates to spot table coordinates
+        - Which axes are which
+        - What is represented by each channel
+        Image data are lazy-loaded so that we can handle subregions without loading the entire image
+        
+        Parameters
+        ----------
+        file : str
+            Path to image file
+        transform : ndarray
+            ImageTransform relating (row, col) image pixel coordinates to (x, y) spot coordinates.
+        axes : list
+            List of axis names giving order of axes in *file*; options are 'frame', 'row', 'col', 'channel'
+        channels : list
+            List of names given to each channel (e.g.: 'dapi')
+        name : str|None
+            Optional unique identifier for this image
+        """
+        super().__init__()
+        self.file = file
+        self.transform = transform
+        self.axes = axes
+        self.channels = channels
+        self.name = name
+        self.z_index = z_index  # hold this constant within each "XeniumImageFile" for now
+        self.pyramid_level = pyramid_level
+        self._shape = None
+        self.whole_image_array = None
+
+    @classmethod
+    def load_xenium(cls,image_file,  transform_matrix,z_index, channel = "DAPI", name = None, pyramid_level = 0):
+        tr = ImageTransform(transform_matrix[::-1])
+        return XeniumImageFile(file=image_file, transform=tr, axes=['frame', 'row', 'col', 'channel'],
+                                channels=[channel], z_index= z_index, name=name,
+                                pyramid_level = pyramid_level)
+
+    @property
+    def shape(self):
+        if self._shape is None:
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                with tifffile.TiffFile(self.file) as tcontext:
+                    self._shape = (1, tcontext.series[0].shape[1],tcontext.series[0].shape[2], 1)
+        return self._shape
+
+    def _standard_image_shape(self, img_data):
+        if img_data.ndim == 2:
+            img_data = img_data[np.newaxis, :,:]
+        return img_data
+
+    def get_data(self, channel=None):
+        """Return array of image data.
+        If the image has multiple channels, then the name of the channel to return must be given.
+        """
+        # index = self._get_channel_index(channel)
+        if isinstance( self.whole_image_array, type(None)):
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                with tifffile.TiffFile(self.file) as src:
+                    self.whole_image_array = self._standard_image_shape(src.series[0][self.z_index].asarray())   
+        return self.whole_image_array
+
+    def get_sub_data(self, frames: tuple, rows: tuple, cols: tuple, channel: str|None=None):
+        """Get image data for a subregion
+        Parameters
+        ----------
+        frames : tuple
+            (first_frame, last_frame)
+        rows : tuple
+            (first_row, last_row+1)
+        cols : tuple
+            (first_col, last_col+1)
+        channel : str | None
+            Name of channel to return data from
+        """
+        # index = self._get_channel_index(channel)
+
+        if isinstance(self.whole_image_array, type(None)):
+            self.get_data(channel = channel)
+        return self._standard_image_shape(self.whole_image_array[0][rows[0]:rows[1],cols[0]:cols[1]])
+
+    def _get_channel_index(self, channel):
+        if channel is None and len(self.channels) == 1:
+            return 0
+        else:
+            return self.channels.index(channel) 
+        
+
 class ImageStack(ImageBase):
     """A stack of Image z-planes
 
@@ -315,6 +413,51 @@ class ImageStack(ImageBase):
             for z_ind in z_inds:
                 img_file = image_meta[stain, z_ind]
                 img = ImageFile.load_merscope(img_file, transform_file, channel=stain)
+                images.append(img)
+            stacks.append(ImageStack(images))
+
+        return stacks
+
+    @classmethod
+    def load_xenium_stacks(cls, xenium_image_file, pyramid_to_keep=None, max_z_to_take=None):
+        """Read standard Xenium image mosaic tiff file, returning list of XeniumImageFiles
+        """
+        import xml.etree.ElementTree as ET
+        
+        tiff_image_file = tifffile.TiffFile(xenium_image_file)
+
+        # this file should have OME metadata:
+        metadata_root = ET.fromstring(tiff_image_file.ome_metadata)
+        # extract the pixel size 
+        for child in metadata_root:
+            if "Image" in child.tag:
+                for cc in child:
+                    if "Pixels" in cc.tag:
+                        um_per_pixel_x = float(cc.attrib["PhysicalSizeX"])
+                        um_per_pixel_y = float(cc.attrib["PhysicalSizeY"])
+        # and turn this into a transformation matrix
+        affine_matrix = np.eye(3)[:2,:]
+        affine_matrix[0,0] = um_per_pixel_x
+        affine_matrix[1,1] = um_per_pixel_y
+        m3 = np.eye(3)
+        m3[:2] = affine_matrix
+        um_to_pixel_matrix =  np.linalg.inv(m3)[:2]
+
+        # the Xenium OME-TIFF file is an image pyramid. 
+        #I'm basing everything here on the highest resolution level.
+        image_file_shape = tiff_image_file.series[0].shape
+
+        # MAX_Z_TO_TAKE = 8
+        # z_inds = list(range(image_file_shape[0]))[:5]
+        z_inds = list(range(image_file_shape[0]))
+        if max_z_to_take:
+            z_inds = z_inds[:min(max_z_to_take, image_file_shape[0])]
+        # leave this list of `stacks` to account for future versions with multiple stains
+        stacks = []
+        for stain in ["DAPI"]:
+            images = []
+            for z_ind in z_inds:
+                img = XeniumImageFile.load_xenium(xenium_image_file, um_to_pixel_matrix, z_index=z_ind, channel=stain, pyramid_level=pyramid_to_keep)
                 images.append(img)
             stacks.append(ImageStack(images))
 
