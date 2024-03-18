@@ -1272,7 +1272,7 @@ class SpotTable:
         include_inds = self.cell_indices(include_cells)
         return include_inds
 
-    def merge_cells(self, other, padding=5):
+    def merge_cells(self, other, padding=5, union_threshold=0.5):
         """Merge cell IDs from SpotTable *other* into self.
 
         Returns a structure describing merge conflicts.
@@ -1295,16 +1295,10 @@ class SpotTable:
         self.cell_ids[self_inds] = other.cell_ids[tile_inds]
         self.cell_ids_changed()
 
-        # At this point the merge is done
-        # ------------------------------- 
-        # the rest is just collecting information about possible merge conflicts
+        # At this point the primary merge is done the rest is solving conflicts
         new_state = self[other.parent_inds]
-
-        # cells in original state that were affected by merge
-        affected_cell_ids = set(original_state.cell_ids[tile_inds]) - set([-1, 0])
-
-        # all cells present in new merge area
-        new_cell_ids = set(new_state.cell_ids) - set([-1, 0])
+        affected_cell_ids = set(original_state.cell_ids[tile_inds]) - set([-1, 0]) # cells in original state that were affected by merge
+        new_cell_ids = set(new_state.cell_ids) - set([-1, 0]) # all cells present in new merge area
 
         # set of cells that were partially replaced by the merge
         # (cells that were affected by the merge, but not completely replaced by the merge)
@@ -1314,26 +1308,43 @@ class SpotTable:
         for cell_id in partial_merge_cells:
             old_inds = original_state.cell_indices(cell_id)
             new_inds = new_state.cell_indices(cell_id)
-
-            # which new cells replaced part of the old cell?
+        
             overlapped_cells = set(new_state.cell_ids[old_inds]) - set([-1, 0])
             overlapped_cell_inds = {cid:new_state.cell_indices(cid) for cid in overlapped_cells}
-
-            # how big are the overlapping cells?
+        
             original_cell_size = len(old_inds)
             reduced_cell_size = len(new_inds)
             overlapped_cell_sizes = {cid:len(inds) for cid, inds in overlapped_cell_inds.items()}
             overlapped_cell_parent_inds = {cid:new_state.map_indices_to_parent(inds) for cid, inds in overlapped_cell_inds.items()}
+            overlaps = {}
+            overlap_pct = {}
+            to_combine = []
+            for overlap_cell, size in overlapped_cell_sizes.items():
+                if overlap_cell == cell_id: continue
+            
+                overlap_size = np.count_nonzero(np.in1d(overlapped_cell_inds[overlap_cell], old_inds))
+                if overlap_size / min(original_cell_size, size) > union_threshold: # if the overlap transcripts represents >threshold of the transcripts of the smaller cell i.e. the smaller cell is mostly 'absorbed'
+                    to_combine.append(overlap_cell)
+                overlaps[overlap_cell] = overlap_size
+                overlap_pct[overlap_cell] = overlap_size / min(original_cell_size, size)
 
+            new_indices = new_state.map_indices_to_parent(new_state.cell_indices([overlap_cell for overlap_cell in to_combine]+ [cell_id]))
+            self.cell_ids[new_indices] = cell_id
+            self.cell_ids_changed()
+            
+            # Keep track of the conflict resolution process
             conflicts.append({
                 'original_cell_id': cell_id,
                 'original_size': original_cell_size,
                 'size_after_merge': reduced_cell_size,
-                'size_ratio': reduced_cell_size / original_cell_size,
                 'original_indices': new_state.map_indices_to_parent(old_inds),
                 'overlapped_cells': overlapped_cells,
                 'overlapped_cell_sizes': overlapped_cell_sizes,
                 'overlapped_cell_indices': overlapped_cell_parent_inds,
+                'merged_cells': to_combine,
+                'merged_cell_overlap_sizes': overlaps,
+                'merged_cell_overlap_ratios': overlap_pct,
+                'new_indices': new_indices
             })
 
         return conflicts
