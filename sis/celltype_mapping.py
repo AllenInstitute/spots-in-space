@@ -1158,7 +1158,7 @@ class MapMyCells(CellTypeMapping):
         config_dict = json.load(open(self.mapping_config_file, 'r'))
         return config_dict
 
-    def load_mapping_results(self, extended_results=False):
+    def load_mapping_results(self):
         """
         Load mapping results from self.run_directory. Add results to self.ad_map and save mapping object.
         """
@@ -1178,19 +1178,24 @@ class MapMyCells(CellTypeMapping):
             self.ad_map = ad.read_h5ad(self.ad_sp_file)
 
         self.ad_map.obs = self.ad_map.obs.merge(csv_results, left_index=True, right_index=True, how='left')
+
+        extended_results = self.load_extended_mapping_results()
+        if extended_results is not None:
+            self.ad_map.uns['extended_results'] = json.dumps(extended_results)
+        
         self.save_mapping(replace=True)
 
-        if extended_results:
-            return self.load_extended_mapping_results()
-
     def load_extended_mapping_results(self):
+        
+        if 'extended_results' in self.ad_map.uns.keys():
+            return json.loads(self.ad_map.uns['extended_results'])
+        
         config_dict = self.load_mapping_config_json()
         if config_dict is None:
             return
         
         extended_results_file = Path(config_dict['extended_result_path'])
         if extended_results_file.is_file():
-            extended_results = json.load(open(extended_results_file, 'r'))
+            return json.load(open(extended_results_file, 'r'))
         
-        return extended_results
 
