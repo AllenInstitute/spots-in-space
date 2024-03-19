@@ -845,20 +845,25 @@ class StereoSeqSection(SpatialDataset):
 
         if taxonomy is not None:
             taxonomy_path = self.config['taxonomy_info'][taxonomy]['path']
+            taxonomy_file = self.config['taxonomy_info'][taxonomy].get('file', 'AI_taxonomy.h5ad')
 
         if method == ScrattchMapping:
             mapping = ScrattchMapping(
                 sp_data = ad_file,
                 taxonomy_path = taxonomy_path,
                 save_path=self.mapping_path,
-                meta = {'taxonomy_name': taxonomy, 'taxonomy_cols': self.config['taxonomy_info'][taxonomy]['col_labels']}
+                meta = {
+                    'taxonomy_name': taxonomy, 
+                    'taxonomy_cols': self.config['taxonomy_info'][taxonomy]['col_labels'],
+                    'taxonomy_file': taxonomy_file
+                    }
             )
         else:
             print(f'Mapping method not instantiated for {method}')
             return
         
         if training_genes == 'hvgs' and taxonomy is not None:
-            taxonomy_ad = ad.read_h5ad(Path(taxonomy_path).joinpath('AI_taxonomy.h5ad'), backed='r')
+            taxonomy_ad = ad.read_h5ad(Path(taxonomy_path).joinpath(taxonomy_file), backed='r')
             training_genes = taxonomy_ad.var[taxonomy_ad.var['highly_variable_genes']==True].index.to_list()
             meta = {'training_genes': 'taxonomy highly variable genes'}
        
