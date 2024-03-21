@@ -1,7 +1,6 @@
 from __future__ import annotations
 import os, json
 from pathlib import Path
-import warnings
 
 import numpy as np
 from scipy.spatial import Delaunay
@@ -122,6 +121,32 @@ class SpotTable:
     def __len__(self):
         return len(self.pos)
 
+    def __getitem__(self, item: np.ndarray):
+        """Return a subset of this SpotTable.
+
+        *item* may be an integer array of indices to select, or a boolean mask array.
+        """
+        pos = self.pos[item]
+        gene_ids = self.gene_ids[item]
+
+        if len(pos) > 0:
+            parent_region = ((pos[:,0].min(), pos[:,0].max()), (pos[:,1].min(), pos[:,1].max()))
+        else:
+            parent_region = None
+
+        subset = type(self)(
+            pos=pos,
+            gene_ids=gene_ids,
+            gene_id_to_name=self.gene_id_to_name,
+            parent_table=self, 
+            parent_inds=np.arange(len(self))[item],
+            parent_region=parent_region,
+        )
+
+        subset.images = self.images[:]
+            
+        return subset
+    
     def dataframe(self, cols=['x', 'y', 'z', 'gene_ids']):
         """Return a dataframe containing the specified columns.
 
@@ -531,32 +556,6 @@ class SpotTable:
         parent_mask[self.parent_inds] = mask
         return parent_mask
     
-    def __getitem__(self, item: np.ndarray):
-        """Return a subset of this SpotTable.
-
-        *item* may be an integer array of indices to select, or a boolean mask array.
-        """
-        pos = self.pos[item]
-        gene_ids = self.gene_ids[item]
-
-        if len(pos) > 0:
-            parent_region = ((pos[:,0].min(), pos[:,0].max()), (pos[:,1].min(), pos[:,1].max()))
-        else:
-            parent_region = None
-
-        subset = type(self)(
-            pos=pos,
-            gene_ids=gene_ids,
-            gene_id_to_name=self.gene_id_to_name,
-            parent_table=self, 
-            parent_inds=np.arange(len(self))[item],
-            parent_region=parent_region,
-        )
-
-        subset.images = self.images[:]
-            
-        return subset
-    
     def copy(self, deep:bool=False, **kwds):
         """Return a copy of self, optionally with some attributes replaced.
         """
@@ -926,6 +925,44 @@ class SegmentedSpotTable:
         self._unique_cell_ids = None
         self.cell_polygons = cell_polygons
         self.seg_metadata = seg_metadata
+
+    def __len__(self):
+        return len(self.cell_ids)
+
+    def __getattr__(self, name):
+        """This method enables SegmentedSpotTable to act as a proxy for
+        attributes in SpotTable. If the user attempts to look up an attribute
+        that is not found in SegmentedSpotTable, this method will try to look
+        for this attribute in the attached SpotTable object instead."""
+
+        try:
+            attr = getattr(self.spot_table, name)
+        except AttributeError as e:
+            # add additional info to the error message before raising
+            e.args += (f'{name} is not available in the SegmentedSpotTable object or the attached SpotTable.',)
+            raise
+
+        return attr
+
+    def __getitem__(self, item: np.ndarray):
+        """Return a subset of this SegmentedSpotTable.
+
+        *item* may be an integer array of indices to select, or a boolean mask array.
+        """
+        spot_table = self.spot_table[item]
+        cell_ids = self.cell_ids[item]
+        production_cell_ids = None if self.production_cell_ids is None else self.production_cell_ids[item]
+         # cell_polygons is not converted because we cannot guarantee the polygons will stay the same after subsetting
+
+        subset = type(self)(
+                spot_table=spot_table,
+                cell_ids=cell_ids, 
+                production_cell_ids=production_cell_ids, 
+                pcid_to_cid=self._pcid_to_cid,
+                cid_to_pcid=self._cid_to_pcid,
+        )
+            
+        return subset
 
     @property
     def cell_ids(self):
@@ -1796,34 +1833,6 @@ class SegmentedSpotTable:
         palette[-5] = (1, 0, 0)
         return palette
 
-    def __len__(self):
-        return len(self.cell_ids)
-
-    def __getattr__(self, name):
-        attr = getattr(self.spot_table, name)
-        warnings.warn(f'{name} is not an attribute of SegmentedSpotTable, but was found in the attached SpotTable.', stacklevel=2)
-        return attr
-
-    def __getitem__(self, item: np.ndarray):
-        """Return a subset of this SegmentedSpotTable.
-
-        *item* may be an integer array of indices to select, or a boolean mask array.
-        """
-        spot_table = self.spot_table[item]
-        cell_ids = self.cell_ids[item]
-        production_cell_ids = None if self.production_cell_ids is None else self.production_cell_ids[item]
-         # cell_polygons is not converted because we cannot guarantee the polygons will stay the same after subsetting
-
-        subset = type(self)(
-                spot_table=spot_table,
-                cell_ids=cell_ids, 
-                production_cell_ids=production_cell_ids, 
-                pcid_to_cid=self._pcid_to_cid,
-                cid_to_pcid=self._cid_to_pcid,
-        )
-            
-        return subset
-
     def copy(self, deep:bool=False, **kwds):
         """Return a copy of self, optionally with some attributes replaced.
         Currently doesn't support replacing attributes of SpotTable (I'm not
@@ -1845,7 +1854,7 @@ class SegmentedSpotTable:
         return SegmentedSpotTable(spot_table=spot_table, **init_kwargs)
 
     def get_subregion(self, xlim: tuple, ylim: tuple, incl_end: bool=False):
-        """Return a SpotTable including the subset of this table inside the region xlim, ylim
+        """Return a SegmentedSpotTable including the subset of this table inside the region xlim, ylim
         """
         subtable = self.spot_table.get_subregion(xlim, ylim, incl_end)
         seg_subtable = self[subtable.parent_inds]
