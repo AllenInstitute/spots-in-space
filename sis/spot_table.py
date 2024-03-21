@@ -423,6 +423,7 @@ class SpotTable:
         1/3/2024: new cellbin.gem doesn't have `in_cell`, let's not worry about it and just specify the column 
         that the cell ID is in
         """
+        xyscale = 0.5
         assert cell_col == None
 
         if image_file is not None:
@@ -1681,7 +1682,7 @@ class SegmentedSpotTable:
         raise NotImplementedError('Loading native cell ids for StereoSeq is not supported. Use SpotTable.load_stereoseq to load detected transcripts.')
 
     @classmethod
-    def load_npz(cls, npz_file: str, images: Image|list[Image]|None=None, allow_pickle: bool=False):
+    def load_npz(cls, npz_file: str, images: ImageBase|list[ImageBase]|None=None, allow_pickle: bool=False):
         """Load from an NPZ file.
 
         Parameters
@@ -1842,3 +1843,11 @@ class SegmentedSpotTable:
                 init_kwargs[name] = val
             
         return SegmentedSpotTable(spot_table=spot_table, **init_kwargs)
+
+    def get_subregion(self, xlim: tuple, ylim: tuple, incl_end: bool=False):
+        """Return a SpotTable including the subset of this table inside the region xlim, ylim
+        """
+        subtable = self.spot_table.get_subregion(xlim, ylim, incl_end)
+        seg_subtable = self[subtable.parent_inds]
+
+        return seg_subtable
