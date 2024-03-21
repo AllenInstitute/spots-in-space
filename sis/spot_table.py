@@ -31,18 +31,18 @@ def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file: str|No
         # Load a SegmentedSpotTable with cell_ids included
         print('Loading SegmentedSpotTable...', end='')
         seg_spot_table = load_func(**load_args)
-        spot_table = seg_spot_table.spot_table
 
     if subregion is not None:
-        subregion = spot_table.get_image(channel=subregion).bounds() if isinstance(subregion, str) else subregion
-        spot_table = spot_table.get_subregion(*subregion)
-    print(f"subregion {subregion} {len(spot_table)}")
+        subregion = seg_spot_table.get_image(channel=subregion).bounds() if isinstance(subregion, str) else subregion
+        seg_spot_table = seg_spot_table.get_subregion(*subregion)
+
+    print(f"subregion {subregion} {len(seg_spot_table)}")
     print('[DONE]')
 
     if cell_subset_file is not None:
         cells_to_run = np.load(cell_subset_file)
     else:
-        cells_to_run = np.unique(spot_table.cell_ids)
+        cells_to_run = np.unique(seg_spot_table.cell_ids)
         cells_to_run = np.delete(cells_to_run, np.where((cells_to_run == 0) | (cells_to_run == -1)))
 
     print('Calculating Cell Polygons...')
