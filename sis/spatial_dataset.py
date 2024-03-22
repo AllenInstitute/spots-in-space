@@ -20,6 +20,7 @@ import os, sys, datetime, glob, pickle, time
 import json
 from abc import abstractmethod
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 import seaborn as sns
 import matplotlib.pyplot as plt
 import pickle as pkl
@@ -45,14 +46,14 @@ SPATIALDATASET_VERSION = 2
 
 class SpatialDataset:
     # wrapper class
-    def __init__(self, barcode):
+    def __init__(self, barcode, configfile=None):
         self.barcode = barcode
         self.version = SPATIALDATASET_VERSION
-        self.config = load_config()
+        self.config = load_config(configfile)
         
     @classmethod
-    def load_from_barcode(cls, barcode: str, dataset_type: 'SpatialDataset', file_name='spatial_dataset'):
-        config = load_config()
+    def load_from_barcode(cls, barcode: str, dataset_type: 'SpatialDataset', file_name='spatial_dataset', configfile=None):
+        config = load_config(configfile)
         if dataset_type == MERSCOPESection:
             data_path = Path(config['merscope_save_path']).joinpath(str(barcode), file_name)
         if dataset_type == StereoSeqSection:
@@ -66,8 +67,8 @@ class SpatialDataset:
             file.close()
             dataset._convert_str_to_paths()
             print(f'SpatialDataset {data_path} loaded...')
-            if dataset.version != version:
-                print(f'Warning: SpatialDataset version {dataset.version} does not match current version {version}')
+            if dataset.version != SPATIALDATASET_VERSION:
+                print(f'Warning: SpatialDataset version {dataset.version} does not match current version {SPATIALDATASET_VERSION}')
         return dataset
 
     def save_dataset(self, file_name: str='spatial_dataset'):
@@ -287,21 +288,20 @@ class SpatialDataset:
 
 class MERSCOPESection(SpatialDataset):
 
+    pts_qc_filt = pts_schema.MetadataFilterInput(type=pts_schema.DataTypeFilterInput(name=pts_schema.StringOperationFilterInput(eq="QCMetadata")))
+    pts_request_filt = pts_schema.MetadataFilterInput(type=pts_schema.DataTypeFilterInput(name=pts_schema.StringOperationFilterInput(eq="MerscopeImagingRequestMetadata")))
 
-    def __init__(self, barcode):
-        pts_qc_filt = pts_schema.MetadataFilterInput(type=pts_schema.DataTypeFilterInput(name=pts_schema.StringOperationFilterInput(eq="QCMetadata")))
-        pts_request_filt = pts_schema.MetadataFilterInput(type=pts_schema.DataTypeFilterInput(name=pts_schema.StringOperationFilterInput(eq="MerscopeImagingRequestMetadata")))
-
-        config = load_config()
+    def __init__(self, barcode, configfile=None):
+        config = load_config(configfile)
         save_path = Path(config['merscope_save_path']).joinpath(str(barcode))
         if os.path.exists(save_path.joinpath('spatial_dataset')):
             print(f'SpatialDataset already exists and will be loaded. If you want to reprocess this dataset delete the file and start over')
-            cached = SpatialDataset.load_from_barcode(barcode, MERSCOPESection)
+            cached = SpatialDataset.load_from_barcode(barcode, MERSCOPESection, configfile=configfile)
             self.__dict__ = cached.__dict__
             self.get_analysis_status()
         
         else:
-            SpatialDataset.__init__(self, barcode)
+            SpatialDataset.__init__(self, barcode, configfile=configfile)
             self.save_path = save_path
             self.save_path.mkdir(exist_ok=True)
             
@@ -353,9 +353,13 @@ class MERSCOPESection(SpatialDataset):
         if len(instances) > 1:
             for instance in instances:
                 if instance.storage['storage_provider'] == 'Isilon::POSIX':
-                    return instance.download_url
+                    url = instance.download_url
         else:
-            return instances[0].download_url
+            url = instances[0].download_url
+        
+        # parse file URIs and reformat, for now
+        if url.startswith('file'):
+            return unquote(urlparse(url).path)
 
     def get_section_data_paths(self):      
         platform = sys.platform # don't like this but need to edit the file names to be read by Windows
@@ -643,18 +647,18 @@ class MERSCOPESection(SpatialDataset):
 
 class StereoSeqSection(SpatialDataset):
     
-    def __init__(self, barcode):
-        config = load_config()
+    def __init__(self, barcode, configfile=None):
+        config = load_config(configfile)
         save_path = Path(config['stereoseq_save_path']).joinpath(barcode)
         if Path.is_file(save_path.joinpath('spatial_dataset')):
             print(f'SpatialDataset already exists and will be loaded. If you want to reprocess this dataset delete the file and start over')
-            cached = SpatialDataset.load_from_barcode(barcode, StereoSeqSection)
+            cached = SpatialDataset.load_from_barcode(barcode, StereoSeqSection, configfile=configfile)
             self.__dict__ = cached.__dict__
             print('QC status:')
             print(self.qc)
 
         else:
-            SpatialDataset.__init__(self, barcode)
+            SpatialDataset.__init__(self, barcode, configfile=configfile)
             self.save_path = save_path
 
             if not Path.exists(self.save_path):
