@@ -128,7 +128,6 @@ def load_config(configfile: str|Path|None=None):
 
     elif configfile is None:
         configfile = Path(__file__).parents[1].joinpath('spatial_config.yml').resolve()
-        print(configfile)
         
     if configfile.is_file():
         if hasattr(yaml, 'FullLoader'):
