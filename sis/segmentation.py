@@ -1246,9 +1246,9 @@ class SegmentationPipeline:
                     load_func=self.get_load_func(),
                     load_args=self.get_load_args(),
                     subregion=self.subrgn,
-                    cell_id_file=self.cid_path,
-                    cell_subset_file=self.polygon_subsets_path / f'cell_id_subset_{i}.npy',
-                    result_file=self.polygon_subsets_path / f'cell_polygons_subset_{i}.{self.polygon_opts["save_file_extension"]}',
+                    cell_id_file=self.cid_path.as_posix(),
+                    cell_subset_file=self.polygon_subsets_path.joinpath(f'cell_id_subset_{i}.npy').as_posix(),
+                    result_file=self.polygon_subsets_path.joinpath(f'cell_polygons_subset_{i}.{self.polygon_opts["save_file_extension"]}').as_posix(),
                     alpha_inv_coeff=self.polygon_opts['alpha_inv_coeff'],
                 )
             )

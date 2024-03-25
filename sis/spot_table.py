@@ -683,7 +683,7 @@ class SpotTable:
                                                 "method": "FILL LATER (SegmentedSpotTable)",
                                                 "parameters": "FILL LATER (SegmentedSpotTable)",
                                             },
-                    'cell_polygons': self.get_geojson_collection(use_production_ids=True),
+                    'cell_polygons': None if self.cell_polygons is None else self.get_geojson_collection(use_production_ids=True),
                     'SIS_repo_hash': _version.get_versions()['version'],
                     }
         return adata
