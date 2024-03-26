@@ -897,7 +897,7 @@ class SegmentationPipeline:
 
         return subtable
 
-    def run(self, x_format: str, prefix: str='', suffix: str='', overwrite: bool=False, clean_up: str|bool|None='all_ints'):
+    def run(self, x_format: str, prefix: str='', suffix: str='', overwrite: bool=False, clean_up: str|bool|None='all_ints', tile_size: int=200):
         """Run all steps to perform tiled segmentation.
 
         Parameters
@@ -915,6 +915,10 @@ class SegmentationPipeline:
             Whether or not to clean up intermediate files after segmentation
             Accepts: 'all_ints', 'seg_ints', 'polygon_ints', 'none', True, False, None
             Default: cleans up all intermediate files.
+        tile_size: int, optional
+            The maximum size of tiles to segment. Default 200. Increasing this
+            parameter may also require increasing time and/or memory limits in
+            seg_hpc_opts.
 
         Returns
         -------
@@ -932,7 +936,7 @@ class SegmentationPipeline:
         self.spot_table = self.load_spot_table()
 
         # run all steps in sequence
-        tiles, regions = self.tile_seg_region(overwrite)
+        tiles, regions = self.tile_seg_region(overwrite=overwrite, max_tile_size=tile_size)
         seg_run_spec = self.get_seg_run_spec(regions=regions, overwrite=overwrite, result_files=False if clean_up else True)
         jobs = self.submit_jobs('segmentation', seg_run_spec, overwrite)
         cell_ids, merge_results, seg_skipped = self.merge_segmented_tiles(run_spec=seg_run_spec, tiles=tiles, overwrite=overwrite)
