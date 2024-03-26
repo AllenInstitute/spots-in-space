@@ -360,6 +360,8 @@ class MERSCOPESection(SpatialDataset):
         # parse file URIs and reformat, for now
         if url.startswith('file'):
             return unquote(urlparse(url).path)
+        else:
+            return url
 
     def get_section_data_paths(self):      
         platform = sys.platform # don't like this but need to edit the file names to be read by Windows
