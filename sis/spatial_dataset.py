@@ -291,11 +291,11 @@ class MERSCOPESection(SpatialDataset):
     pts_qc_filt = pts_schema.MetadataFilterInput(type=pts_schema.DataTypeFilterInput(name=pts_schema.StringOperationFilterInput(eq="QCMetadata")))
     pts_request_filt = pts_schema.MetadataFilterInput(type=pts_schema.DataTypeFilterInput(name=pts_schema.StringOperationFilterInput(eq="MerscopeImagingRequestMetadata")))
 
-    def __init__(self, barcode, configfile=None):
+    def __init__(self, barcode, configfile=None, overwrite=False):
         config = load_config(configfile)
         save_path = Path(config['merscope_save_path']).joinpath(str(barcode))
-        if os.path.exists(save_path.joinpath('spatial_dataset')):
-            print(f'SpatialDataset already exists and will be loaded. If you want to reprocess this dataset delete the file and start over')
+        if os.path.exists(save_path.joinpath('spatial_dataset')) and not overwrite:
+            print(f'SpatialDataset already exists and will be loaded. If you want to reprocess this dataset, set overwrite to True')
             cached = SpatialDataset.load_from_barcode(barcode, MERSCOPESection, configfile=configfile)
             self.__dict__ = cached.__dict__
             self.get_analysis_status()
@@ -647,11 +647,11 @@ class MERSCOPESection(SpatialDataset):
 
 class StereoSeqSection(SpatialDataset):
     
-    def __init__(self, barcode, configfile=None):
+    def __init__(self, barcode, configfile=None, overwrite=False):
         config = load_config(configfile)
         save_path = Path(config['stereoseq_save_path']).joinpath(barcode)
-        if Path.is_file(save_path.joinpath('spatial_dataset')):
-            print(f'SpatialDataset already exists and will be loaded. If you want to reprocess this dataset delete the file and start over')
+        if Path.is_file(save_path.joinpath('spatial_dataset')) and not overwrite:
+            print(f'SpatialDataset already exists and will be loaded. If you want to reprocess this dataset, set overwrite to True')
             cached = SpatialDataset.load_from_barcode(barcode, StereoSeqSection, configfile=configfile)
             self.__dict__ = cached.__dict__
             print('QC status:')
