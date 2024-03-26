@@ -517,34 +517,49 @@ class SpotTable:
 
         return gene_ids, gene_to_id, id_to_gene
 
-    def generate_production_cell_ids(self, prefix: str='', suffix: str=''):
+    def generate_production_cell_ids(self, prefix: str|None=None, suffix: str|None=None):
         """ Generates cell ids which count up from 1 to the total cell count rather than jumping between integers.
             Production cell ids are of type string to allow for concatenating a prefix and/or suffix to the id
-
+            If no prefix or suffix are specified, a UUID is used as a prefix
+    
             Parameters
             ----------
-            prefix : str
+            prefix : str | None
                 String to prepend to all production cell ids
-            suffix : str
+            suffix : str | None
                 String to postpend to all production cell ids
-
+    
             Sets
             ----------
             self.production_cell_ids
         """
-        
-        unique_cell_ids = np.unique(self.cell_ids) # Pull out unique cell ids
-        unique_cell_ids = np.delete(unique_cell_ids, np.where((unique_cell_ids == 0) | (unique_cell_ids == -1))) # Remove background ids
-
-        cid_to_pcid = dict(zip(unique_cell_ids, np.char.mod(f'{prefix}%d{suffix}', np.arange(1, len(unique_cell_ids)+1)))) # Create dictionary to map cell ids to production ids 
+    
+        # Since we are assigning -1 to non-assigned transcript, we need to support negatives values
+        self.cell_ids = self.cell_ids.astype(np.int64)
+        self.cell_ids_changed()
+    
+        # If neither prefix nor suffix is set, a UUID is assigned as a prefix
+        if prefix is None and suffix is None:
+            import uuid
+            prefix = str(uuid.uuid4()) + "_"
+            suffix = ''
+        elif suffix is None: # If just the suffix is None, we set it to an empty string so it doesn't print out
+            suffix = ''
+        elif prefix is None: # If just the prefix is None, we set it to an empty string so it doesn't print out
+            prefix = ''
+            
+        # Create dictionary to map cell ids to production ids 
+        cid_to_pcid = dict(zip(self.unique_cell_ids(), np.char.mod(f'{prefix}%d{suffix}', np.arange(1, len(self.unique_cell_ids())+1))))
         cid_to_pcid[-1] = "-1"
-        pcid_to_cid = dict(zip(np.char.mod(f'{prefix}%d{suffix}', np.arange(1, len(unique_cell_ids)+1)), unique_cell_ids)) # Create dictionary to map production cell ids to cell ids 
+    
+        # Create dictionary to map production cell ids to cell ids 
+        pcid_to_cid = dict(zip(np.char.mod(f'{prefix}%d{suffix}', np.arange(1, len(self.unique_cell_ids())+1)), self.unique_cell_ids())) 
         pcid_to_cid["-1"] = -1
-
+    
         # We set the cell ids which are 0 to -1 b/c they both mean background and we want to be consistent when we use a dictionary which goes b/w production & normal cell ids
         self.cell_ids[self.cell_ids == 0] = -1 
         self.cell_ids_changed()
-
+    
         self.production_cell_ids = np.vectorize(cid_to_pcid.get)(self.cell_ids)
         self._pcid_to_cid = pcid_to_cid
         self._cid_to_pcid = cid_to_pcid
