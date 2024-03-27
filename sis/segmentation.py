@@ -906,7 +906,7 @@ class SegmentationPipeline:
         subtable = table.get_subregion(xlim=subrgn[0], ylim=subrgn[1])
         self.raw_spot_table = subtable
 
-    def run(self, x_format: str, prefix: str='', suffix: str='', overwrite: bool=False, clean_up: str|bool|None='all_ints'):
+    def run(self, x_format: str, prefix: str='', suffix: str='', overwrite: bool=False, clean_up: str|bool|None='all_ints', tile_size: int=200):
         """Run all steps to perform tiled segmentation.
 
         Parameters
@@ -924,6 +924,10 @@ class SegmentationPipeline:
             Whether or not to clean up intermediate files after segmentation
             Accepts: 'all_ints', 'seg_ints', 'polygon_ints', 'none', True, False, None
             Default: cleans up all intermediate files.
+        tile_size: int, optional
+            The maximum size of tiles to segment. Default 200. Increasing this
+            parameter may also require increasing time and/or memory limits in
+            seg_hpc_opts.
 
         Returns
         -------
@@ -941,7 +945,7 @@ class SegmentationPipeline:
         self.load_raw_spot_table()
 
         # run all steps in sequence
-        tiles, regions = self.tile_seg_region(overwrite)
+        tiles, regions = self.tile_seg_region(overwrite=overwrite, max_tile_size=tile_size)
         seg_run_spec = self.get_seg_run_spec(regions=regions, overwrite=overwrite, result_files=False if clean_up else True)
         jobs = self.submit_jobs('segmentation', seg_run_spec, overwrite)
         cell_ids, merge_results, seg_skipped = self.merge_segmented_tiles(run_spec=seg_run_spec, tiles=tiles, overwrite=overwrite)
@@ -1254,10 +1258,10 @@ class SegmentationPipeline:
                 dict(
                     load_func=self.get_load_func(),
                     load_args=self.get_load_args(),
-                    cell_id_file=self.cid_path,
                     subregion=self.subrgn,
-                    cell_subset_file=self.polygon_subsets_path / f'cell_id_subset_{i}.npy',
-                    result_file=self.polygon_subsets_path / f'cell_polygons_subset_{i}.{self.polygon_opts["save_file_extension"]}',
+                    cell_id_file=self.cid_path.as_posix(),
+                    cell_subset_file=self.polygon_subsets_path.joinpath(f'cell_id_subset_{i}.npy').as_posix(),
+                    result_file=self.polygon_subsets_path.joinpath(f'cell_polygons_subset_{i}.{self.polygon_opts["save_file_extension"]}').as_posix(),
                     alpha_inv_coeff=self.polygon_opts['alpha_inv_coeff'],
                 )
             )
@@ -1444,7 +1448,7 @@ class StereoSeqSegmentationPipeline(SegmentationPipeline):
     def get_load_args(self):
         """Get args to pass to loading function (e.g. when submitting jobs to hpc)."""
         load_args = {
-                'image_file': self.images_path,
+                'image_file': self.image_path,
                 'gem_file': self.detected_transcripts_file,
                 'cache_file': self.detected_transcripts_cache,
         }

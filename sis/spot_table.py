@@ -529,7 +529,6 @@ class SpotTable:
 
         return gene_ids, gene_to_id, id_to_gene
 
-
     def gene_indices(self, gene_names=None, gene_ids=None):
         """Return an array of indices where the detected transcript is in either gene_names or gene_ids
         """
@@ -1028,39 +1027,53 @@ class SegmentedSpotTable:
             return np.delete(unique_cell_ids, np.where((unique_cell_ids == 0) | (unique_cell_ids == -1))) # Remove background ids
         else:
             return self._unique_cell_ids
-        
-    def generate_production_cell_ids(self, prefix: str='', suffix: str=''):
+  
+    def generate_production_cell_ids(self, prefix: str|None=None, suffix: str|None=None):
         """ Generates cell ids which count up from 1 to the total cell count rather than jumping between integers.
             Production cell ids are of type string to allow for concatenating a prefix and/or suffix to the id
-
+            If no prefix or suffix are specified, a UUID is used as a prefix
+    
             Parameters
             ----------
-            prefix : str
+            prefix : str | None
                 String to prepend to all production cell ids
-            suffix : str
+            suffix : str | None
                 String to postpend to all production cell ids
-
+    
             Sets
             ----------
             self.production_cell_ids
         """
-        
-        unique_cell_ids = np.unique(self.cell_ids) # Pull out unique cell ids
-        unique_cell_ids = np.delete(unique_cell_ids, np.where((unique_cell_ids == 0) | (unique_cell_ids == -1))) # Remove background ids
-
-        cid_to_pcid = dict(zip(unique_cell_ids, np.char.mod(f'{prefix}%d{suffix}', np.arange(1, len(unique_cell_ids)+1)))) # Create dictionary to map cell ids to production ids 
+    
+        # Since we are assigning -1 to non-assigned transcript, we need to support negatives values
+        self.cell_ids = self.cell_ids.astype(np.int64)
+        self.cell_ids_changed()
+    
+        # If neither prefix nor suffix is set, a UUID is assigned as a prefix
+        if prefix is None and suffix is None:
+            import uuid
+            prefix = str(uuid.uuid4()) + "_"
+            suffix = ''
+        elif suffix is None: # If just the suffix is None, we set it to an empty string so it doesn't print out
+            suffix = ''
+        elif prefix is None: # If just the prefix is None, we set it to an empty string so it doesn't print out
+            prefix = ''
+            
+        # Create dictionary to map cell ids to production ids 
+        cid_to_pcid = dict(zip(self.unique_cell_ids(), np.char.mod(f'{prefix}%d{suffix}', np.arange(1, len(self.unique_cell_ids())+1))))
         cid_to_pcid[-1] = "-1"
-        pcid_to_cid = dict(zip(np.char.mod(f'{prefix}%d{suffix}', np.arange(1, len(unique_cell_ids)+1)), unique_cell_ids)) # Create dictionary to map production cell ids to cell ids 
+    
+        # Create dictionary to map production cell ids to cell ids 
+        pcid_to_cid = dict(zip(np.char.mod(f'{prefix}%d{suffix}', np.arange(1, len(self.unique_cell_ids())+1)), self.unique_cell_ids())) 
         pcid_to_cid["-1"] = -1
-
+    
         # We set the cell ids which are 0 to -1 b/c they both mean background and we want to be consistent when we use a dictionary which goes b/w production & normal cell ids
         self.cell_ids[self.cell_ids == 0] = -1 
         self.cell_ids_changed()
-
+    
         self.production_cell_ids = np.vectorize(cid_to_pcid.get)(self.cell_ids)
         self._pcid_to_cid = pcid_to_cid
         self._cid_to_pcid = cid_to_pcid
-
     
     def filter_cells(self, real_cells=None, min_spot_count=None):
         """Return a filtered spot table containing only cells matching the filter criteria.
@@ -1566,8 +1579,8 @@ class SegmentedSpotTable:
         include_inds = self.cell_indices(include_cells)
         return include_inds
 
-    def merge_cells(self, other, padding=5):
-        """Merge cell IDs from SegmentedSpotTable *other* into self.
+    def merge_cells(self, other, padding=5, union_threshold=0.5):
+        """Merge cell IDs from SpotTable *other* into self.
 
         Returns a structure describing merge conflicts.
         """
@@ -1589,16 +1602,10 @@ class SegmentedSpotTable:
         self.cell_ids[self_inds] = other.cell_ids[tile_inds]
         self.cell_ids_changed()
 
-        # At this point the merge is done
-        # ------------------------------- 
-        # the rest is just collecting information about possible merge conflicts
-        new_state = self[other.spot_table.parent_inds]
-
-        # cells in original state that were affected by merge
-        affected_cell_ids = set(original_state.cell_ids[tile_inds]) - set([-1, 0])
-
-        # all cells present in new merge area
-        new_cell_ids = set(new_state.cell_ids) - set([-1, 0])
+        # At this point the primary merge is done the rest is solving conflicts
+        new_state = self[other.parent_inds]
+        affected_cell_ids = set(original_state.cell_ids[tile_inds]) - set([-1, 0]) # cells in original state that were affected by merge
+        new_cell_ids = set(new_state.cell_ids) - set([-1, 0]) # all cells present in new merge area
 
         # set of cells that were partially replaced by the merge
         # (cells that were affected by the merge, but not completely replaced by the merge)
@@ -1608,26 +1615,43 @@ class SegmentedSpotTable:
         for cell_id in partial_merge_cells:
             old_inds = original_state.cell_indices(cell_id)
             new_inds = new_state.cell_indices(cell_id)
-
-            # which new cells replaced part of the old cell?
+        
             overlapped_cells = set(new_state.cell_ids[old_inds]) - set([-1, 0])
             overlapped_cell_inds = {cid:new_state.cell_indices(cid) for cid in overlapped_cells}
-
-            # how big are the overlapping cells?
+        
             original_cell_size = len(old_inds)
             reduced_cell_size = len(new_inds)
             overlapped_cell_sizes = {cid:len(inds) for cid, inds in overlapped_cell_inds.items()}
-            overlapped_cell_parent_inds = {cid:new_state.spot_table.map_indices_to_parent(inds) for cid, inds in overlapped_cell_inds.items()}
+            overlapped_cell_parent_inds = {cid:new_state.map_indices_to_parent(inds) for cid, inds in overlapped_cell_inds.items()}
+            overlaps = {}
+            overlap_pct = {}
+            to_combine = []
+            for overlap_cell, size in overlapped_cell_sizes.items():
+                if overlap_cell == cell_id: continue
+            
+                overlap_size = np.count_nonzero(np.in1d(overlapped_cell_inds[overlap_cell], old_inds))
+                if overlap_size / min(original_cell_size, size) > union_threshold: # if the overlap transcripts represents >threshold of the transcripts of the smaller cell i.e. the smaller cell is mostly 'absorbed'
+                    to_combine.append(overlap_cell)
+                overlaps[overlap_cell] = overlap_size
+                overlap_pct[overlap_cell] = overlap_size / min(original_cell_size, size)
 
+            new_indices = new_state.map_indices_to_parent(new_state.cell_indices([overlap_cell for overlap_cell in to_combine]+ [cell_id]))
+            self.cell_ids[new_indices] = cell_id
+            self.cell_ids_changed()
+            
+            # Keep track of the conflict resolution process
             conflicts.append({
                 'original_cell_id': cell_id,
                 'original_size': original_cell_size,
                 'size_after_merge': reduced_cell_size,
-                'size_ratio': reduced_cell_size / original_cell_size,
-                'original_indices': new_state.spot_table.map_indices_to_parent(old_inds),
+                'original_indices': new_state.map_indices_to_parent(old_inds),
                 'overlapped_cells': overlapped_cells,
                 'overlapped_cell_sizes': overlapped_cell_sizes,
                 'overlapped_cell_indices': overlapped_cell_parent_inds,
+                'merged_cells': to_combine,
+                'merged_cell_overlap_sizes': overlaps,
+                'merged_cell_overlap_ratios': overlap_pct,
+                'new_indices': new_indices
             })
 
         return conflicts
