@@ -22,8 +22,12 @@ def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file: str|No
     """
     if cell_id_file is not None:
         # Load a raw SpotTable and add cell ids
+        # If using a subregion, the cell_id_file should only include cell_ids for that subregion
         print('Loading SpotTable and cell ids...', end='')
         spot_table = load_func(**load_args)
+        if subregion is not None:
+            subregion = spot_table.get_image(channel=subregion).bounds() if isinstance(subregion, str) else subregion
+            spot_table = spot_table.get_subregion(*subregion)
         cell_ids = np.load(cell_id_file)
         seg_spot_table = SegmentedSpotTable(spot_table, cell_ids)
 
@@ -31,10 +35,9 @@ def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file: str|No
         # Load a SegmentedSpotTable with cell_ids included
         print('Loading SegmentedSpotTable...', end='')
         seg_spot_table = load_func(**load_args)
-
-    if subregion is not None:
-        subregion = seg_spot_table.get_image(channel=subregion).bounds() if isinstance(subregion, str) else subregion
-        seg_spot_table = seg_spot_table.get_subregion(*subregion)
+        if subregion is not None:
+            subregion = seg_spot_table.get_image(channel=subregion).bounds() if isinstance(subregion, str) else subregion
+            seg_spot_table = seg_spot_table.get_subregion(*subregion)
 
     print(f"subregion {subregion} {len(seg_spot_table)}")
     print('[DONE]')

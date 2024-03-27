@@ -1207,9 +1207,6 @@ class SegmentationPipeline:
         # save cell_ids
         self.save_cell_ids(cell_ids, overwrite)
 
-        # save segmented spot table
-        self.save_seg_spot_table(overwrite=overwrite)
-
         return cell_ids, merge_results, skipped
 
     def get_polygon_run_spec(self, overwrite: bool=False):
@@ -1255,9 +1252,9 @@ class SegmentationPipeline:
                 sis.spot_table.run_cell_polygon_calculation,
                 (),
                 dict(
-                    load_func=SegmentedSpotTable.load_npz,
-                    load_args={'npz_file': self.spot_table_path, 'allow_pickle': True},
-                    cell_id_file=None,
+                    load_func=self.get_load_func(),
+                    load_args=self.get_load_args(),
+                    cell_id_file=self.cid_path,
                     subregion=self.subrgn,
                     cell_subset_file=self.polygon_subsets_path / f'cell_id_subset_{i}.npy',
                     result_file=self.polygon_subsets_path / f'cell_polygons_subset_{i}.{self.polygon_opts["save_file_extension"]}',
@@ -1311,9 +1308,6 @@ class SegmentationPipeline:
         if not overwrite and self.polygon_final_path.exists():
             raise FileExistsError('cell polygons already saved and overwriting is not enabled.')
         self.seg_spot_table.save_cell_polygons(self.output_dir / f'cell_polygons.{self.polygon_opts["save_file_extension"]}')
-
-        # save segmented spot table
-        self.save_seg_spot_table(overwrite=overwrite)
 
         return self.seg_spot_table.cell_polygons, skipped
     
