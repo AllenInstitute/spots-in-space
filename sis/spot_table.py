@@ -917,7 +917,10 @@ class SegmentedSpotTable:
             cell_polygons: None|dict=None,
             seg_metadata: None|dict=None
             ):
-        
+                
+        if len(cell_ids) != len(spot_table):
+            raise ValueError(f"Number of cell_ids {len(cell_ids)} does not match number of spots {len(spot_table)}")
+
         self.spot_table = spot_table
         self._cell_ids = cell_ids
         self._production_cell_ids = production_cell_ids
