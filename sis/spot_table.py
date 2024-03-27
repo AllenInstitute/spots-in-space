@@ -1117,7 +1117,7 @@ class SegmentedSpotTable:
         Also return cell_ids and gene_ids used to construct the matrix
         """
         filtered_table = self.filter_cells(real_cells=True) # Don't want to include unassigned cells
-        spot_df = self.dataframe(cols=['cell_ids', 'gene_ids']).rename({'cell_ids': 'cell', 'gene_ids': 'gene'}, axis=1)
+        spot_df = filtered_table.dataframe(cols=['cell_ids', 'gene_ids']).rename({'cell_ids': 'cell', 'gene_ids': 'gene'}, axis=1)
         cell_by_gene_df = pandas.pivot_table(spot_df, columns='gene', index='cell', aggfunc=len, fill_value=0)
         
         return cell_by_gene_df.to_numpy(dtype=dtype), cell_by_gene_df.index, cell_by_gene_df.columns
@@ -1774,7 +1774,17 @@ class SegmentedSpotTable:
                 gene_id_to_name=fields['gene_id_to_name'],
                 images=images
                 )
-        sst_fields = {k: fields[k] for k in fields.keys() if k not in ['pos', 'gene_ids', 'gene_id_to_name']}
+        
+        # handle underscores and object arrays
+        sst_fields = {
+            'cell_ids': fields['cell_ids'],
+            'seg_metadata': fields['seg_metadata'].item(),
+            'production_cell_ids': fields['production_cell_ids'],
+            'pcid_to_cid': fields['_pcid_to_cid'].item(),
+            'cid_to_pcid': fields['_cid_to_pcid'].item(),
+            'cell_polygons': fields['cell_polygons'].item()
+        }
+
         return cls(spot_table=spot_table, **sst_fields)
 
     def save_npz(self, npz_file: str):
@@ -1793,7 +1803,7 @@ class SegmentedSpotTable:
         }
 
         kwds = ['seg_metadata', 'production_cell_ids', '_pcid_to_cid', '_cid_to_pcid', 'cell_polygons']
-        fields.update({kwd: getattr(self, kwd) for kwd in kwds if getattr(self, kwd) is not None})
+        fields.update({kwd: getattr(self, kwd) for kwd in kwds})
 
         np.savez_compressed(npz_file, **fields) 
 
