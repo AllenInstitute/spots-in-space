@@ -1131,7 +1131,7 @@ class SegmentedSpotTable:
         filtered_table = self.filter_cells(real_cells=True)
         
         # collect cell and gene data. we use inds b/c csr_matrix doesn't work with unordered integer names
-        gene_ids = np.unique(filtered_table.spot_table.gene_ids)
+        gene_ids = np.unique(filtered_table.gene_ids)
         cell_ids = np.unique(filtered_table.cell_ids)
         cell_id_inds = {cid:i for i,cid in enumerate(cell_ids)}
         gene_id_inds = {gid:i for i,gid in enumerate(gene_ids)}
@@ -1141,7 +1141,7 @@ class SegmentedSpotTable:
         cellxgene_dict = {}
         for i in range(len(filtered_table)):
             cind = cell_id_inds[filtered_table.cell_ids[i]]
-            gind = gene_id_inds[filtered_table.spot_table.gene_ids[i]]
+            gind = gene_id_inds[filtered_table.gene_ids[i]]
             cellrow = cellxgene_dict.setdefault(cind, {})
             cellrow.setdefault(gind, 0)
             cellrow[gind] += 1
@@ -1192,14 +1192,14 @@ class SegmentedSpotTable:
         adata.obs['SpotTable_cell_id'] = cell_ids
 
         # Fill var
-        adata.var_names = self.spot_table.map_gene_ids_to_names(gene_ids)
-        adata.var['probe_name'] = self.spot_table.map_gene_ids_to_names(gene_ids)
+        adata.var_names = self.map_gene_ids_to_names(gene_ids)
+        adata.var['probe_name'] = self.map_gene_ids_to_names(gene_ids)
         adata.var['cells_with_reads'] = np.count_nonzero(cellxgene, axis=0) if x_format == 'dense' else cellxgene.getnnz(axis=0)
         segmented_total_reads = np.sum(cellxgene, axis=0).astype(int) if x_format == 'dense' else np.sum(cellxgene.A, axis=0).astype(int)
         adata.var['segmented_total_reads'] = segmented_total_reads
         unseg_table = self[self.cell_ids <= 0]
-        unsegmented_total_reads = pandas.pivot_table(pandas.DataFrame({'cell': unseg_table.cell_ids, 'gene': unseg_table.spot_table.gene_ids}), columns='gene', index='cell', aggfunc=len, fill_value=0).T[-1]
-        unsegmented_total_reads.index = self.spot_table.map_gene_ids_to_names(unsegmented_total_reads.index)
+        unsegmented_total_reads = pandas.pivot_table(pandas.DataFrame({'cell': unseg_table.cell_ids, 'gene': unseg_table.gene_ids}), columns='gene', index='cell', aggfunc=len, fill_value=0).T[-1]
+        unsegmented_total_reads.index = self.map_gene_ids_to_names(unsegmented_total_reads.index)
         adata.var['unsegmented_total_reads'] = unsegmented_total_reads
         
         # Fill uns
@@ -1217,7 +1217,7 @@ class SegmentedSpotTable:
             self._cell_bounds = {}
             for cid in np.unique(self.cell_ids):
                 inds = self.cell_indices(cid)
-                rows = self.spot_table.pos[inds]
+                rows = self.pos[inds]
                 self._cell_bounds[cid] = (
                     rows[:,0].min(),
                     rows[:,0].max(),
@@ -1232,7 +1232,7 @@ class SegmentedSpotTable:
         centroids = []
         for cid in self.unique_cell_ids():
             inds = self.cell_indices(cid)
-            cell_ts_xyz = self.spot_table.pos[inds]
+            cell_ts_xyz = self.pos[inds]
             centroids.append(np.mean(cell_ts_xyz, axis=0))
         centroids = np.array(centroids)
         
@@ -1348,7 +1348,7 @@ class SegmentedSpotTable:
             inds = self.cell_indices(cid)
 
             if separate_z_planes:
-                xyz_pos = self.spot_table.pos[inds]
+                xyz_pos = self.pos[inds]
                 for z_plane in np.unique(xyz_pos[:, 2]):
                     xy_pos = xyz_pos[xyz_pos[:, 2] == z_plane][:, :2]
                     optimal_poly = self.calculate_optimal_polygon(xy_pos, alpha_inv, alpha_inv_coeff=alpha_inv_coeff)
@@ -1356,7 +1356,7 @@ class SegmentedSpotTable:
                         self.cell_polygons.setdefault(cid, {})[z_plane] = optimal_poly
                 self.cell_polygons.setdefault(cid, None) # If none of the z-planes had a polygon, set to None
             else:
-                xy_pos = self.spot_table.pos[inds][:, :2]
+                xy_pos = self.pos[inds][:, :2]
                 self.cell_polygons[cid] = self.calculate_optimal_polygon(xy_pos, alpha_inv, alpha_inv_coeff=alpha_inv_coeff)
 
 
@@ -1482,7 +1482,7 @@ class SegmentedSpotTable:
             unique_cells = np.unique(self.cell_ids)
             unique_cells = np.delete(unique_cells, np.where((unique_cells == 0) | (unique_cells == -1)))
             cell_id_type = type(unique_cells[0])
-            z_plane_type = None if self.spot_table.pos.shape[1] < 3 else type(self.spot_table.pos[0, 2])
+            z_plane_type = None if self.pos.shape[1] < 3 else type(self.pos[0, 2])
     
             if polygon_json['type'] == 'FeatureCollection':
                 for feature in tqdm(polygon_json['features'], disable=disable_tqdm):
@@ -1572,7 +1572,7 @@ class SegmentedSpotTable:
 
         This is used to exclude cells near the edge of a tile, where the segmentation becomes unreliable.
         """
-        tile_xlim, tile_ylim = self.spot_table.parent_region
+        tile_xlim, tile_ylim = self.parent_region
         include_xlim = (tile_xlim[0] + padding, tile_xlim[1] - padding) 
         include_ylim = (tile_ylim[0] + padding, tile_ylim[1] - padding) 
         include_cells = self.cells_inside_region(xlim=include_xlim, ylim=include_ylim)
@@ -1593,10 +1593,10 @@ class SegmentedSpotTable:
 
         # get indices of all cells that are not close to the edge of the tile partial cells from edge of tile
         tile_inds = other.cell_indices_within_padding(padding=padding)
-        self_inds = other.spot_table.map_indices_to_parent(tile_inds)
+        self_inds = other.map_indices_to_parent(tile_inds)
 
         # keep track of state before merge so we can look for conflicts afterward
-        original_state = self[other.spot_table.parent_inds]
+        original_state = self[other.parent_inds]
 
         # copy all retained cells from first tile to full table
         self.cell_ids[self_inds] = other.cell_ids[tile_inds]
@@ -1796,9 +1796,9 @@ class SegmentedSpotTable:
             Output path for the npz file.
         """
         fields = {
-            'pos': self.spot_table.pos,
-            'gene_ids': self.spot_table.gene_ids, 
-            'gene_id_to_name': self.spot_table.gene_id_to_name,
+            'pos': self.pos,
+            'gene_ids': self.gene_ids, 
+            'gene_id_to_name': self.gene_id_to_name,
             'cell_ids': self.cell_ids,
         }
 
