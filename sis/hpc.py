@@ -356,15 +356,13 @@ def sacct(host, job_id, cache_duration=10):
     if last_time is None or now - last_time > cache_duration:
         stat = run(host, ['sacct', f'--job={job_id}', '--format=JobID%20,State%20', '-X'])
         lines = stat.split('\n')
-        cols = re.split(r'\s+', lines[0].strip())
         table = {}
         for line in lines[2:]:
             line = line.strip()
             if line == '':
                 continue
             tokens = re.split(r'\s+', line)
-            fields = {cols[i]:field for i,field in enumerate(tokens)}
-            table[fields.pop('JobID')] = fields
+            table[tokens[0]] = {'State': tokens[1]} # index rather than iterate because cancelled is formatted: '15420407_1   CANCELLED by 20416
         _last_sacct[job_id] = (now, table)
     else:
         table = last_state
