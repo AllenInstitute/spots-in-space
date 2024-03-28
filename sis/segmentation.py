@@ -4,7 +4,7 @@ import scipy.ndimage, scipy.interpolate
 import numpy as np
 from tqdm.autonotebook import tqdm
 from .hpc import SlurmJobArray, run_slurm_func
-from .spot_table import SpotTable
+from .spot_table import SpotTable, SegmentedSpotTable
 from .image import Image, ImageBase, ImageTransform
 
 import inspect
@@ -70,7 +70,7 @@ class SegmentationResult:
         raise NotImplementedError()        
 
     def spot_table(self, min_spots=None):
-        """Return a new SpotTable with cell_ids determined by the segmentation.
+        """Return a SegmentedSpotTable with cell_ids determined by the segmentation.
 
         if min_spots is given, then it specifies the threshold below which cells will be discarded
         """
@@ -84,7 +84,7 @@ class SegmentationResult:
                     mask = cell_ids == cid
                     cell_ids[mask] = 0
 
-        return self.input_spot_table.copy(cell_ids=cell_ids)
+        return SegmentedSpotTable(self.input_spot_table, cell_ids)
 
     def save(self, filename):
         pickle.dump(self, open(filename, 'wb'))
@@ -414,9 +414,6 @@ class CellposeSegmentationResult(SegmentationResult):
             masks = masks[..., np.newaxis]
         return Image(data=masks, transform=self.image_transform, channels=['Cellpose Mask'], name=None)
         
-    def show(self, ax):
-        """Display segmentation result in matplotlib axes
-        """
         
 
 class BaysorSegmentationMethod(SegmentationMethod):
@@ -719,6 +716,7 @@ class SegmentationPipeline:
         self.polygon_run_spec_path = output_dir.joinpath('polygon_run_spec.pkl')
         self.tile_save_path = output_dir.joinpath('seg_tiles/')
         self.cid_path = output_dir.joinpath('segmentation.npy')
+        self.spot_table_path = output_dir.joinpath('seg_spot_table.npz')
         self.cbg_path = output_dir.joinpath('cell_by_gene.h5ad')
         self.polygon_subsets_path = output_dir.joinpath('cell_polygons/')
         self.polygon_final_path = self.output_dir.joinpath(f'cell_polygons.{self.polygon_opts["save_file_extension"]}')
@@ -861,6 +859,18 @@ class SegmentationPipeline:
         cell_ids = np.load(self.cid_path)
         return cell_ids
 
+    def save_seg_spot_table(self, overwrite=False):
+        if not overwrite and self.spot_table_path.exists():
+            raise FileExistsError('Segmented spot table already saved and overwriting is not enabled.')
+
+        else:
+            self.seg_spot_table.save_npz(self.spot_table_path)
+
+    def load_seg_spot_table(self, allow_pickle=True):
+        assert self.spot_table_path.exists()
+        seg_spot_table = SegmentedSpotTable.load_npz(self.spot_table_path, allow_pickle=allow_pickle)
+        return seg_spot_table
+
     def save_cbg(self, cell_by_gene, overwrite=False):
         """Save the cell by gene anndata object."""
         if not overwrite and self.cbg_path.exists():
@@ -879,9 +889,9 @@ class SegmentationPipeline:
         cell_by_gene = ad.read_h5ad(self.cbg_path)
         return cell_by_gene
 
-    def load_spot_table(self):
-        """Load the spot table and crop it by subregion.
-        Currently, this returns the spot table rather than setting it as an attribute.
+    def load_raw_spot_table(self):
+        """Load the raw spot table, crop it by subregion. and set as an
+        attribute.
         """
         load_func = self.get_load_func()
         load_args = self.get_load_args()
@@ -894,8 +904,7 @@ class SegmentationPipeline:
             subrgn = self.subrgn 
 
         subtable = table.get_subregion(xlim=subrgn[0], ylim=subrgn[1])
-
-        return subtable
+        self.raw_spot_table = subtable
 
     def run(self, x_format: str, prefix: str='', suffix: str='', overwrite: bool=False, clean_up: str|bool|None='all_ints', tile_size: int=200):
         """Run all steps to perform tiled segmentation.
@@ -922,7 +931,7 @@ class SegmentationPipeline:
 
         Returns
         -------
-        sis.spot_table.SpotTable
+        sis.spot_table.SegmentedSpotTable
             The segmented spot table.
         anndata.AnnData
             The cell by gene table.
@@ -932,8 +941,8 @@ class SegmentationPipeline:
         self.update_metadata()
         self.save_metadata(overwrite)
 
-        # load the spot table corresponding to the segmentation region
-        self.spot_table = self.load_spot_table()
+        # load the raw spot table corresponding to the segmentation region
+        self.load_raw_spot_table()
 
         # run all steps in sequence
         tiles, regions = self.tile_seg_region(overwrite=overwrite, max_tile_size=tile_size)
@@ -945,28 +954,16 @@ class SegmentationPipeline:
         cell_polygons, cell_polygons_skipped = self.merge_cell_polygons(run_spec=polygon_run_spec, overwrite=overwrite)
         cell_by_gene = self.create_cell_by_gene(x_format=x_format, prefix=prefix, suffix=suffix, overwrite=overwrite)
 
+        self.save_seg_spot_table(overwrite=overwrite)
+
         if clean_up:
             clean_up = 'all_ints' if clean_up == True else clean_up # If the user decides to input true we'll just set that to all ints
             self.clean_up(clean_up)
 
-        return self.spot_table, cell_by_gene
+        return self.seg_spot_table, cell_by_gene
 
     def resume(self):
         raise NotImplementedError('Resuming from previous segmentation not implemented.')
-
-    def load_results(self):
-        """Load the results of a finished segmentation.
-        
-        Returns
-        -------
-        sis.spot_table.SpotTable
-            The segmented spot table with cell_ids attached.
-        anndata.AnnData
-            The cell by gene table.
-        """
-        self.spot_table.cell_ids = self.load_cell_ids()
-        cell_by_gene = self.load_cbg()
-        return self.spot_table, cell_by_gene
 
     def track_job_progress(self, jobs: SlurmJobArray):
         """Track progress of submitted hpc jobs until all jobs have ended.
@@ -1006,7 +1003,7 @@ class SegmentationPipeline:
             Subregion coordinates for each tile.
         """
         print('Tiling segmentation region...')
-        subtable = self.spot_table
+        subtable = self.raw_spot_table
 
         tiles = subtable.grid_tiles(max_tile_size=max_tile_size, overlap=overlap)
         regions = [tile.parent_region for tile in tiles]
@@ -1137,16 +1134,17 @@ class SegmentationPipeline:
 
         return jobs
 
-    def merge_segmented_tiles(self, run_spec: dict|None=None, tiles: list[SpotTable]|None=None, overwrite: bool=False):
+    def merge_segmented_tiles(self, run_spec: dict|None=None, tiles: list[SegmentedSpotTable]|None=None, overwrite: bool=False):
         """Merge segmented tiles to generate and save the array of cell_ids.
-        The attached spot table is updated with the new cell_ids in place.
+        A new SegmentedSpotTable is created from the raw SpotTable and 
+        updated with cell ids in place.
 
         Parameters
         ----------
         run_spec : dict, optional
             Specifications to run tiled segmentation on the HPC.
             If not provided, will attempt to load from the standard location on disk.
-        tiles: list of sis.spot_table.SpotTable, optional
+        tiles: list of sis.spot_table.SegmentedSpotTable, optional
             The individual tiles that were segmented.
             If not provided, will be generated from spot_table and run_spec.
         overwrite : bool, optional
@@ -1166,8 +1164,18 @@ class SegmentationPipeline:
 
         print('Merging tiles...')
         # Merging updates the spot table cell_ids in place
-        self.spot_table.cell_ids = np.empty(len(self.spot_table), dtype=int)
-        self.spot_table.cell_ids[:] = -1
+        truncated_meta = {
+                'seg_method': str(self.seg_method),
+                'seg_opts': self.seg_opts,
+                'polygon_opts': self.polygon_opts
+                }
+
+        self.seg_spot_table = SegmentedSpotTable(
+                spot_table=self.raw_spot_table, 
+                cell_ids=np.empty(len(self.raw_spot_table), dtype=int),
+                seg_metadata=truncated_meta,
+                )
+        self.seg_spot_table.cell_ids[:] = -1
 
         merge_results = []
         skipped = []
@@ -1185,13 +1193,14 @@ class SegmentationPipeline:
             else:
                 # Recreate each tile from spot_table and run_spec
                 tile_rgn = tile_spec[2]['subregion']
-                tile = self.spot_table.get_subregion(xlim = tile_rgn[0], ylim = tile_rgn[1])
-
-            tile.cell_ids = np.load(cell_id_file)
-            result = self.spot_table.merge_cells(tile, padding=5)
+                tile = self.raw_spot_table.get_subregion(xlim = tile_rgn[0], ylim = tile_rgn[1])
+            
+            tile_cids = np.load(cell_id_file)
+            tile = SegmentedSpotTable(tile, tile_cids)
+            result = self.seg_spot_table.merge_cells(tile, padding=5)
             merge_results.append(result)
 
-        cell_ids = self.spot_table.cell_ids
+        cell_ids = self.seg_spot_table.cell_ids
 
         if len(run_spec) == len(skipped):
             raise RuntimeError('All tiles were skipped, check error logs.')
@@ -1220,7 +1229,7 @@ class SegmentationPipeline:
         self.polygon_subsets_path.mkdir(exist_ok=True)
 
         # Find all the cell ids
-        unique_cells = np.unique(self.spot_table.cell_ids)
+        unique_cells = np.unique(self.seg_spot_table.cell_ids)
         unique_cells = np.delete(unique_cells, np.where((unique_cells == 0) | (unique_cells == -1)))
         num_cells = len(unique_cells)
 
@@ -1291,7 +1300,7 @@ class SegmentationPipeline:
                 skipped.append(i)
                 continue
 
-            self.spot_table.load_cell_polygons(result_file, reset_cache=False, disable_tqdm=True) # The reset_cache=False is important to allow reading in the various cell subsets without overwriting
+            self.seg_spot_table.load_cell_polygons(result_file, reset_cache=False, disable_tqdm=True) # The reset_cache=False is important to allow reading in the various cell subsets without overwriting
 
         if len(run_spec) == len(skipped):
             raise RuntimeError('All tiles were skipped, check error logs.')
@@ -1302,9 +1311,9 @@ class SegmentationPipeline:
         # save polygons
         if not overwrite and self.polygon_final_path.exists():
             raise FileExistsError('cell polygons already saved and overwriting is not enabled.')
-        self.spot_table.save_cell_polygons(self.output_dir / f'cell_polygons.{self.polygon_opts["save_file_extension"]}')
-        
-        return self.spot_table.cell_polygons, skipped
+        self.seg_spot_table.save_cell_polygons(self.output_dir / f'cell_polygons.{self.polygon_opts["save_file_extension"]}')
+
+        return self.seg_spot_table.cell_polygons, skipped
     
     
     def create_cell_by_gene(self, x_format: str, prefix: str='', suffix: str='', overwrite: bool=False):
@@ -1328,8 +1337,8 @@ class SegmentationPipeline:
         anndata.AnnData
             The cell by gene table.
         """
-        self.spot_table.generate_production_cell_ids(prefix=prefix, suffix=suffix)
-        cell_by_gene = self.spot_table.cell_by_gene_anndata(x_format=x_format)
+        self.seg_spot_table.generate_production_cell_ids(prefix=prefix, suffix=suffix)
+        cell_by_gene = self.seg_spot_table.cell_by_gene_anndata(x_format=x_format)
         self.save_cbg(cell_by_gene, overwrite)
 
         return cell_by_gene
