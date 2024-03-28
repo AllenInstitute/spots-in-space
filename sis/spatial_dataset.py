@@ -314,6 +314,10 @@ class MERSCOPESection(SpatialDataset):
             self.qc_path = self.save_path.joinpath(self.config['qc_dir']) if self.config.get('qc_dir') is not None else None
             if self.qc_path is not None and not self.qc_path.exists():
                 self.qc_path.mkdir()
+            self.doublet_path = self.save_path.joinpath(self.config['doublet_dir']) if self.config.get('doublet_dir') is not None else None
+            if self.doublet_path is not None and not self.doublet_path.exists():
+                self.doublet_path.mkdir()
+
 
             self.broad_region = None
             self.get_section_metadata()
@@ -482,7 +486,7 @@ class MERSCOPESection(SpatialDataset):
         return cbg_copy
 
     def check_doublet_detection_status(self):
-        doublet_dir = self.qc_path
+        doublet_dir = self.doublet_path
         dd_runs = [f.name for f in os.scandir(doublet_dir) if f.is_dir()]
         if len(dd_runs) == 0:
             status = None
@@ -508,7 +512,7 @@ class MERSCOPESection(SpatialDataset):
     def run_doublet_detection_on_section(self, cell_by_gene, method, method_kwargs, hpc_args, filter_col):
         """Submits a job to run doublet detection on a GPU node on the HPC."""
         timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-        doublet_dir = self.qc_path.joinpath(timestamp)
+        doublet_dir = self.doublet_path.joinpath(timestamp)
         doublet_dir.mkdir()
 
         run_spec = (run_doublet_detection, (), {
@@ -564,7 +568,7 @@ class MERSCOPESection(SpatialDataset):
         return cbg_copy, timestamp
 
     def load_doublet_anndata(self, timestamp):
-        doublet_ad_path = self.qc_path.joinpath(timestamp, 'cell_by_gene_doublets.h5ad')
+        doublet_ad_path = self.doublet_path.joinpath(timestamp, 'cell_by_gene_doublets.h5ad')
         return ad.read_h5ad(doublet_ad_path)
 
     def make_anndata(self, cell_by_gene, file_name='sp_anndata.h5ad'):
