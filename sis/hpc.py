@@ -213,7 +213,7 @@ class SlurmJobArray(SlurmJob):
     def __init__(self, args, sbatch_output, job_file, host):
         self.args = args
         self.sbatch_output = sbatch_output
-        self.job_fie = job_file
+        self.job_file = job_file
         self.host = host
 
         start, _, stop = args['array'].partition('-')
@@ -362,7 +362,7 @@ def sacct(host, job_id, cache_duration=10):
             if line == '':
                 continue
             tokens = re.split(r'\s+', line)
-            table[tokens[0]] = {'State': tokens[1]} # index rather than iterate because cancelled is formatted: '15420407_1   CANCELLED by 20416
+            table[tokens[0]] = {'State': tokens[1]} # index rather than iterate because cancelled is formatted: '15420407_1   CANCELLED by 20416'
         _last_sacct[job_id] = (now, table)
     else:
         table = last_state

@@ -1415,7 +1415,7 @@ class SegmentationPipeline:
     def rerun_failed_jobs(self, job_type: str, jobs: SlurmJobArray, run_spec: dict, mem: str|None=None, time: str|None=None, max_attemps: int=5):
         """
         This function takes jobs and the run_spec that submitted them and resubmits any failed jobs.
-        It continues to resubmit until all jobs are completed properly
+        It continues to resubmit until all jobs are completed properly or the maximum number of attempts is reached
         
         Parameters
         ----------
@@ -1450,7 +1450,7 @@ class SegmentationPipeline:
     
     def find_failed_jobs(self, jobs: SlurmJobArray):
         """
-        This function takes as SlurmJobArray identifies if any of them failed and if so, how they failed
+        This function takes a sis.hpc.SlurmJobArray and identifies which jobs—-if any--failed and how they failed
         
         Parameters
         ----------
@@ -1538,7 +1538,9 @@ class SegmentationPipeline:
         """
         This function takes a sis.hpc.SlurmJobArray, a list of indices to replace, and a secondary sis.hpc.SlurmJobArray
         It then replaces the jobs in the original array with the new ones, creating a franken-SlurmJobArray
-        This goes against the general expected behavior of sis.hpc.SlurmJobArray but doesn't break any functionality
+        This goes against the general expected behavior of sis.hpc.SlurmJobArray but doesn't break any functionality used in keeping track of job status.
+        It may cause inconsistencies in SlurmJobArray.args, SlurmJobArray.sbatch_output, SlurmJobArray.job_file, SlurmJobArray.host, or SlurmJobArray.job_id
+        These inconsistencies will be limited to the SlurmJobArray class, if the user looks at indivual SlurmJobs in SlurmJobArray.jobs, they will all have correct information
         
         Parameters
         ----------
