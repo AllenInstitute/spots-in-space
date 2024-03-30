@@ -955,12 +955,12 @@ class SegmentationPipeline:
         seg_run_spec = self.get_seg_run_spec(regions=regions, overwrite=overwrite, result_files=False if clean_up else True)
         self.seg_jobs = self.submit_jobs('segmentation', seg_run_spec, overwrite)
         if rerun:
-            self.seg_jobs = self.rerun_failed_jobs('segmentation', self.seg_jobs, seg_run_spec)
+            self.seg_jobs = self.rerun_failed_jobs('segmentation_rerun', self.seg_jobs, seg_run_spec)
         cell_ids, merge_results, seg_skipped = self.merge_segmented_tiles(run_spec=seg_run_spec, tiles=tiles, overwrite=overwrite)
         polygon_run_spec = self.get_polygon_run_spec(overwrite)
         self.polygon_jobs = self.submit_jobs('cell_polygons', polygon_run_spec, overwrite)
         if rerun:
-            self.polygon_jobs = self.rerun_failed_jobs('cell_polygons', self.polygon_jobs, polygon_run_spec)
+            self.polygon_jobs = self.rerun_failed_jobs('cell_polygons_rerun', self.polygon_jobs, polygon_run_spec)
         cell_polygons, cell_polygons_skipped = self.merge_cell_polygons(run_spec=polygon_run_spec, overwrite=overwrite)
         cell_by_gene = self.create_cell_by_gene(x_format=x_format, prefix=prefix, suffix=suffix, overwrite=overwrite)
 
@@ -1068,28 +1068,28 @@ class SegmentationPipeline:
 
         return run_spec
 
-    def _check_overwrite_dir(self, overwrite_dir, overwrite_file_empty_format, run_spec, overwrite):
+    def _check_overwrite_dir(self, overwrite_dir, run_spec, overwrite_file_keys, overwrite):
         """Helper function to check whether to overwrite files in a directory
         
         Parameters
         ----------
         overwrite_dir: Path
             The directory to check for files
-        overwrite_file_empty_format: str
-            String of file name to see if we can overwrite. Must have an empty {} in the string.
-            This is required because we want to format it with the tile index from run_spec
         run_spec: dict  
             The run specifications used to submit the jobs which will output files that we may want to overwrite
+        overwrite_file_keys: list[str]
+            List of key-names to access in run_spec's kwargs dict to check for overwriting.
         overwrite: bool
             Whether to overwrite result files
         """
         if overwrite: # If we are allowed to overwrite, just return
             return
         
-        for i in run_spec.keys():
-            overwrite_file = overwrite_file_empty_format.format(i)
-            if len(list(overwrite_dir.glob(overwrite_file))) > 0:
-                raise FileExistsError(f'Saved {overwrite_file} file detected in directory and overwriting is disabled.')
+        for _, _, kwargs in run_spec.values():
+            for overwrite_file_key in overwrite_file_keys:
+                overwrite_file = kwargs[overwrite_file_key]
+                if len(list(overwrite_dir.glob(overwrite_file))) > 0:
+                    raise FileExistsError(f'Saved {overwrite_file} file detected in directory and overwriting is disabled.')
     
 
     def submit_jobs(self, job_type: str, run_spec: dict|None=None, overwrite: bool=False):
@@ -1110,19 +1110,19 @@ class SegmentationPipeline:
             Object representing submitted HPC jobs.
         """
         # Check job type and set variables
-        if job_type == 'segmentation':
+        if 'segmentation' in job_type:
             run_spec_path = self.seg_run_spec_path 
             hpc_opts = self.seg_hpc_opts
-            self._check_overwrite_dir(self.tile_save_path, 'segmentation_result_{}*', run_spec, overwrite)
+            self._check_overwrite_dir(self.tile_save_path, run_spec, ['result_file', 'cell_id_file'], overwrite)
             # Set defaults
             hpc_opts.setdefault('mem', '20G')
             hpc_opts.setdefault('time', '00:30:00')
             hpc_opts.setdefault('gpus_per_node', 1)
             status_str = 'Segmenting tiles...'
-        elif job_type == 'cell_polygons':
+        elif 'cell_polygons' in job_type:
             run_spec_path = self.polygon_run_spec_path
             hpc_opts = self.polygon_hpc_opts
-            self._check_overwrite_dir(self.polygon_subsets_path, 'cell_polygons_subset_{}.' + self.polygon_opts["save_file_extension"], run_spec, overwrite)
+            self._check_overwrite_dir(self.polygon_subsets_path, run_spec, ['result_file'], overwrite)
             # Set defaults
             hpc_opts.setdefault('mem', '10G')
             hpc_opts.setdefault('time', '00:30:00')
@@ -1155,6 +1155,8 @@ class SegmentationPipeline:
         hpc_config.update(**hpc_opts)
         jobs = run_slurm_func(**hpc_config)
         print(status_str)
+        with open('/allen/programs/celltypes/workgroups/rnaseqanalysis/mFISH/jacobquon/sawghack/resume_segmentation/seg_jobs.pkl', 'wb') as f:
+            pickle.dump(jobs, f)
         self.track_job_progress(jobs)
         return jobs
 
@@ -1412,7 +1414,7 @@ class SegmentationPipeline:
 
         return cls(**config)
 
-    def rerun_failed_jobs(self, job_type: str, jobs: SlurmJobArray, run_spec: dict, mem: str|None=None, time: str|None=None, max_attemps: int=5):
+    def rerun_failed_jobs(self, job_type: str, jobs: SlurmJobArray, run_spec: dict, mem: str|None=None, time: str|None=None, max_attempts: int=5):
         """
         This function takes jobs and the run_spec that submitted them and resubmits any failed jobs.
         It continues to resubmit until all jobs are completed properly or the maximum number of attempts is reached
@@ -1431,7 +1433,7 @@ class SegmentationPipeline:
         time: str, optional
             The length of time that should be allocated to the job reruns
             If the amount is less than the amount used to submit the failed job or left unspecified, it defaults to doubling the previous run's time
-        max_attemps: int, optional
+        max_attempts: int, optional
             The maximum number of times to attempt to rerun the failed jobs. Default 5
 
         Returns
@@ -1439,10 +1441,12 @@ class SegmentationPipeline:
         The inputted SlurmJobArray with the completed rerun jobs inserted
         """
         indices_to_rerun, failure_types = self.find_failed_jobs(jobs)
-        loops = 1
-        while indices_to_rerun != None and loops < max_attemps:
-            print('Resubmitting failed jobs...')
-            new_jobs = self.resubmit_failed_jobs(job_type, indices_to_rerun, failure_types, run_spec, mem=mem, time=time)
+        loops = 0
+        while indices_to_rerun != None and loops < max_attempts:
+            print(f'Resubmitting failed jobs...')
+            print(f'Failed jobs: {",".join(str(x) for x in indices_to_rerun)}')
+            print(f'Reasons: {",".join([k for k, v in failure_types.items() if v])}')
+            new_jobs = self.resubmit_failed_jobs(job_type + f"_{loops}", indices_to_rerun, failure_types, run_spec, mem=mem, time=time)
             self.update_jobs(jobs, indices_to_rerun, new_jobs)
             indices_to_rerun, failure_types = self.find_failed_jobs(jobs)
             loops += 1
@@ -1509,29 +1513,31 @@ class SegmentationPipeline:
         -------
         A sis.hpc.SlurmJobArray containing all the resubmitted jobs
         """
-        if job_type == 'segmentation':
+        if 'segmentation' in job_type:
             hpc_opts = self.seg_hpc_opts
-        elif job_type == 'cell_polygons':
+        elif 'cell_polygons' in job_type:
             hpc_opts = self.polygon_hpc_opts
         else:
             raise ValueError('Invalid job type.')
         
         new_run_spec = {}
-        for failed_tile_index in indices_to_rerun:
-            new_run_spec[failed_tile_index] = run_spec[failed_tile_index]
+        for job_array_index, failed_tile_index in enumerate(indices_to_rerun):
+            new_run_spec[job_array_index] = run_spec[failed_tile_index]
         
         if failure_types["OUT_OF_MEMORY"]:
             if mem is not None and memory_to_bytes(mem) > memory_to_bytes(hpc_opts["mem"]):
                 hpc_opts["mem"] = mem # If the user set memory is larger than the previously used memory set the memory to the user setting
             else: # Double the previously used memory if user did not set memory or user set memory is <= previously used time
-                hpc_opts["mem"] = double_mem(hpc_opts["mem"]) 
+                hpc_opts["mem"] = double_mem(hpc_opts["mem"])
+            print('New memory allocation:', hpc_opts["mem"])
         
         if failure_types["TIMEOUT"]:
             if time is not None and slurm_time_to_seconds(time) > slurm_time_to_seconds(hpc_opts["time"]):
                 hpc_opts["time"] = time # If the user set time is larger than the previously used time set the time to the user setting
             else: # Double the previously used time if user did not set time or user set time is <= previously used time
-                hpc_opts["time"] = seconds_to_time(slurm_time_to_seconds(hpc_opts["time"]) * 2) 
-        
+                hpc_opts["time"] = seconds_to_time(slurm_time_to_seconds(hpc_opts["time"]) * 2)
+            print('New time limit:', hpc_opts["time"])
+            
         return self.submit_jobs(job_type, new_run_spec, overwrite=True)
 
     def update_jobs(self, jobs, indices_to_replace, new_jobs):
