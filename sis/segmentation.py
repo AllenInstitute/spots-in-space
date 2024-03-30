@@ -1155,8 +1155,6 @@ class SegmentationPipeline:
         hpc_config.update(**hpc_opts)
         jobs = run_slurm_func(**hpc_config)
         print(status_str)
-        with open('/allen/programs/celltypes/workgroups/rnaseqanalysis/mFISH/jacobquon/sawghack/resume_segmentation/seg_jobs.pkl', 'wb') as f:
-            pickle.dump(jobs, f)
         self.track_job_progress(jobs)
         return jobs
 
