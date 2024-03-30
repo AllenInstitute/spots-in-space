@@ -181,7 +181,7 @@ class SlurmJob:
         return JobState(state=table.get(self.job_id, {'State': 'NO_INFO'})['State'])
 
     def is_done(self):
-        return self.state().is_done and os.path.exists(self.output_file)
+        return (self.state().is_done and os.path.exists(self.output_file)) or self.state().state == 'CANCELLED' # Need to consider job cancelled before output file made
 
     @property
     def output_file(self):
