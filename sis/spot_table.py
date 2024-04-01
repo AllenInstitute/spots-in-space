@@ -156,7 +156,7 @@ class SpotTable:
         By default, columns are x, y, z, gene_ids.
         Also available: gene_names
         """
-        if self.pos.shape[1] == 2:
+        if self.pos.shape[1] == 2 and 'z' in cols:
             cols.remove('z')
         return pandas.DataFrame({col:getattr(self, col) for col in cols})
 
@@ -1211,19 +1211,15 @@ class SegmentedSpotTable:
         return adata
 
     def cell_bounds(self, cell_id: int | str):
-        """Return xmin, xmax, ymin, ymax for *cell_id*
+        """Return ((xmin, xmax), (ymin, ymax)) for *cell_id*
         """
         if self._cell_bounds is None:
             self._cell_bounds = {}
             for cid in np.unique(self.cell_ids):
                 inds = self.cell_indices(cid)
                 rows = self.pos[inds]
-                self._cell_bounds[cid] = (
-                    rows[:,0].min(),
-                    rows[:,0].max(),
-                    rows[:,1].min(),
-                    rows[:,1].max(),
-                )
+                self._cell_bounds[cid] = ((rows[:,0].min(), rows[:,0].max()),
+                                          (rows[:,1].min(), rows[:,1].max()))
 
         return self._cell_bounds[self.convert_cell_id(cell_id) if isinstance(cell_id, str) else cell_id]
 
@@ -1544,7 +1540,7 @@ class SegmentedSpotTable:
         """
         cell_ids = []
         for cid in np.unique(self.cell_ids):
-            x0, x1, y0, y1 = self.cell_bounds(cid)
+            (x0, x1), (y0, y1) = self.cell_bounds(cid)
             if x0 > xlim[0] and x1 < xlim[1] and y0 > ylim[0] and y1 < ylim[1]:
                 cell_ids.append(cid)
         return cell_ids
