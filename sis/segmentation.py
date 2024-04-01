@@ -1109,12 +1109,10 @@ class SegmentationPipeline:
         sis.hpc.SlurmJobArray
             Object representing submitted HPC jobs.
         """
-        if run_spec is None:
-            run_spec = self.load_run_spec(run_spec_path)
-        
         # Check job type and set variables
         if 'segmentation' in job_type:
-            run_spec_path = self.seg_run_spec_path 
+            if run_spec is None:
+                run_spec = self.load_run_spec(self.seg_run_spec_path)
             hpc_opts = self.seg_hpc_opts
             self._check_overwrite_dir(self.tile_save_path, run_spec, ['result_file', 'cell_id_file'], overwrite)
             # Set defaults
@@ -1123,7 +1121,8 @@ class SegmentationPipeline:
             hpc_opts.setdefault('gpus_per_node', 1)
             status_str = 'Segmenting tiles...'
         elif 'cell_polygons' in job_type:
-            run_spec_path = self.polygon_run_spec_path
+            if run_spec is None:
+                run_spec = self.load_run_spec(self.polygon_run_spec_path)
             hpc_opts = self.polygon_hpc_opts
             self._check_overwrite_dir(self.polygon_subsets_path, run_spec, ['result_file'], overwrite)
             # Set defaults
