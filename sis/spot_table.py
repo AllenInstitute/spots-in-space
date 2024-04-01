@@ -1540,7 +1540,7 @@ class SegmentedSpotTable:
         """
         cell_ids = []
         for cid in np.unique(self.cell_ids):
-            x0, x1, y0, y1 = self.cell_bounds(cid)
+            (x0, x1), (y0, y1) = self.cell_bounds(cid)
             if x0 > xlim[0] and x1 < xlim[1] and y0 > ylim[0] and y1 < ylim[1]:
                 cell_ids.append(cid)
         return cell_ids
