@@ -1478,7 +1478,7 @@ class SegmentationPipeline:
                 failed_jobs.append(int(job_id.split("_")[-1]))
                 failure_types[job_state.state] = True
             else:
-                raise ValueError("Could not automatically rerun jobs. Job state not OUT_OF_MEMORY, TIMEOUT, or CANCELLED")
+                raise ValueError(f"Could not automatically rerun jobs. Job state must be one of OUT_OF_MEMORY, TIMEOUT, or CANCELLED. Job state was {job_state.state}")
         
         if len(failed_jobs) == 0:
             return None, None# No jobs to rerun
