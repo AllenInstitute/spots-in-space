@@ -1109,6 +1109,9 @@ class SegmentationPipeline:
         sis.hpc.SlurmJobArray
             Object representing submitted HPC jobs.
         """
+        if run_spec is None:
+            run_spec = self.load_run_spec(run_spec_path)
+        
         # Check job type and set variables
         if 'segmentation' in job_type:
             run_spec_path = self.seg_run_spec_path 
@@ -1130,9 +1133,6 @@ class SegmentationPipeline:
             status_str = 'Calculating cell polygons...'
         else:
             raise ValueError('Invalid job type.') 
-        
-        if run_spec is None:
-            run_spec = self.load_run_spec(run_spec_path)
         
         job_path = self.output_dir.joinpath('hpc-jobs')
         job_path.mkdir(exist_ok=True)
@@ -1524,16 +1524,28 @@ class SegmentationPipeline:
         
         if failure_types["OUT_OF_MEMORY"]:
             if mem is not None and memory_to_bytes(mem) > memory_to_bytes(hpc_opts["mem"]):
-                hpc_opts["mem"] = mem # If the user set memory is larger than the previously used memory set the memory to the user setting
+                new_mem = mem # If the user set memory is larger than the previously used memory set the memory to the user setting
             else: # Double the previously used memory if user did not set memory or user set memory is <= previously used time
-                hpc_opts["mem"] = double_mem(hpc_opts["mem"])
+                new_mem = double_mem(hpc_opts["mem"])
+            
+            if memory_to_bytes(new_mem) > memory_to_bytes('500GB'): # Cap the memory at 500GB
+                print('Requested memory exceeds limit. Setting memory to 500GB.')
+                new_mem = '500GB'
+                
+            hpc_opts["mem"] = new_mem
             print('New memory allocation:', hpc_opts["mem"])
         
         if failure_types["TIMEOUT"]:
             if time is not None and slurm_time_to_seconds(time) > slurm_time_to_seconds(hpc_opts["time"]):
-                hpc_opts["time"] = time # If the user set time is larger than the previously used time set the time to the user setting
+                new_time = time # If the user set time is larger than the previously used time set the time to the user setting
             else: # Double the previously used time if user did not set time or user set time is <= previously used time
-                hpc_opts["time"] = seconds_to_time(slurm_time_to_seconds(hpc_opts["time"]) * 2)
+                new_time = seconds_to_time(slurm_time_to_seconds(hpc_opts["time"]) * 2)
+            
+            if slurm_time_to_seconds(new_time) > slurm_time_to_seconds('60:00:00'): # Cap the time at 60 hours
+                print('Requested time exceeds limit. Setting time limit to 60 hours.')
+                new_time = '60:00:00'
+            
+            hpc_opts["time"] = new_time
             print('New time limit:', hpc_opts["time"])
             
         return self.submit_jobs(job_type, new_run_spec, overwrite=True)
