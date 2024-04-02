@@ -20,6 +20,9 @@ jobs:
         cache: pip
         cache-dependency-path: pyproject.toml
         lfs: true
+    - name: Git LFS Pull
+      run: |
+        git lfs pull
     - name: Install dependencies
       run: |
         pip install '.[test]'
