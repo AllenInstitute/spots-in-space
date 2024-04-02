@@ -288,10 +288,16 @@ class SpatialDataset:
 
 class MERSCOPESection(SpatialDataset):
 
-    pts_qc_filt = pts_schema.MetadataFilterInput(type=pts_schema.DataTypeFilterInput(name=pts_schema.StringOperationFilterInput(eq="QCMetadata")))
-    pts_request_filt = pts_schema.MetadataFilterInput(type=pts_schema.DataTypeFilterInput(name=pts_schema.StringOperationFilterInput(eq="MerscopeImagingRequestMetadata")))
 
     def __init__(self, barcode, configfile=None, overwrite=False):
+        
+        
+        self.pts_qc_filt = pts_schema.MetadataFilterInput(type=pts_schema.DataTypeFilterInput(name=pts_schema.StringOperationFilterInput(eq="QCMetadata")))
+        self.pts_request_filt = pts_schema.MetadataFilterInput(type=pts_schema.DataTypeFilterInput(name=pts_schema.StringOperationFilterInput(eq="MerscopeImagingRequestMetadata")))
+
+        
+        
+        
         config = load_config(configfile)
         save_path = Path(config['merscope_save_path']).joinpath(str(barcode))
         if os.path.exists(save_path.joinpath('spatial_dataset')) and not overwrite:
@@ -344,9 +350,9 @@ class MERSCOPESection(SpatialDataset):
         merscope_expt = spec_pts.nodes[0]
         
         self.qc_state = pts.get_process_metadata(process_id = merscope_expt.id, 
-                                                 metadata_filter_input = MERSCOPESection.pts_qc_filt)[0].data['QC_State']
+                                                 metadata_filter_input = self.pts_qc_filt)[0].data['QC_State']
         self.gene_panel = pts.get_process_metadata(process_id = merscope_expt.id, 
-                                                   metadata_filter_input = MERSCOPESection.pts_request_filt)[0].data['GenePanel']
+                                                   metadata_filter_input = self.pts_request_filt)[0].data['GenePanel']
         self.merscope_expt_pts_id = merscope_expt.id
         
 #         self.section_thickness # not sure where this comes from?
