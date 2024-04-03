@@ -1894,5 +1894,6 @@ class SegmentedSpotTable:
         """
         subtable = self.spot_table.get_subregion(xlim, ylim, incl_end)
         seg_subtable = self[subtable.parent_inds]
+        seg_subtable.spot_table.images = [img.get_subregion(subtable.parent_region, incl_end=incl_end) for img in subtable.images]
 
         return seg_subtable
