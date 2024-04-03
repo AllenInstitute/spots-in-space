@@ -1068,13 +1068,11 @@ class SegmentationPipeline:
 
         return run_spec
 
-    def _check_overwrite_dir(self, overwrite_dir, run_spec, overwrite_file_keys, overwrite):
+    def _check_overwrite_files(self, run_spec, overwrite_file_keys, overwrite):
         """Helper function to check whether to overwrite files in a directory
         
         Parameters
         ----------
-        overwrite_dir: Path
-            The directory to check for files
         run_spec: dict  
             The run specifications used to submit the jobs which will output files that we may want to overwrite
         overwrite_file_keys: list[str]
@@ -1113,7 +1111,7 @@ class SegmentationPipeline:
             if run_spec is None:
                 run_spec = self.load_run_spec(self.seg_run_spec_path)
             hpc_opts = self.seg_hpc_opts
-            self._check_overwrite_dir(self.tile_save_path, run_spec, ['result_file', 'cell_id_file'], overwrite)
+            self._check_overwrite_files(run_spec, ['result_file', 'cell_id_file'], overwrite)
             # Set defaults
             hpc_opts.setdefault('mem', '20G')
             hpc_opts.setdefault('time', '00:30:00')
@@ -1123,7 +1121,7 @@ class SegmentationPipeline:
             if run_spec is None:
                 run_spec = self.load_run_spec(self.polygon_run_spec_path)
             hpc_opts = self.polygon_hpc_opts
-            self._check_overwrite_dir(self.polygon_subsets_path, run_spec, ['result_file'], overwrite)
+            self._check_overwrite_files(run_spec, ['result_file'], overwrite)
             # Set defaults
             hpc_opts.setdefault('mem', '10G')
             hpc_opts.setdefault('time', '00:30:00')
