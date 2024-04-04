@@ -1173,7 +1173,14 @@ class MapMyCells(CellTypeMapping):
 
         csv_results = pd.read_csv(csv_results_file, skiprows=4)
         csv_results.set_index('cell_id', inplace=True)
+        
+        # under some conditions, the cell_id column (now the index) can be weirdly parsed into multiple dtypes
+        # check for this edge case and convert to string
+        if "mixed" in csv_results.index.inferred_type:
+            csv_results.index = csv_results.index.astype(str)
 
+        
+        
         if not hasattr(self, 'ad_map'):
             self.ad_map = ad.read_h5ad(self.ad_sp_file)
 
