@@ -1466,20 +1466,20 @@ class SegmentationPipeline:
         """
         job_state_dict = jobs.state()
         failure_types= {"OUT_OF_MEMORY": False, "TIMEOUT": False, "CANCELLED": False}
-        failed_jobs = []
-        for job_id, job_state in job_state_dict.items():
+        failed_jobs_indices = []
+        for job_index, job_state in enumerate(job_state_dict.values()):
             if job_state.state == "COMPLETED":
                 continue
             elif job_state.state in failure_types.keys():
-                failed_jobs.append(int(job_id.split("_")[-1]))
+                failed_jobs_indices.append(job_index)
                 failure_types[job_state.state] = True
             else:
                 raise ValueError(f"Could not automatically rerun jobs. Job state must be one of OUT_OF_MEMORY, TIMEOUT, or CANCELLED. Job state was {job_state.state}")
         
-        if len(failed_jobs) == 0:
+        if len(failed_jobs_indices) == 0:
             return None, None# No jobs to rerun
         else:
-            return failed_jobs, failure_types
+            return failed_jobs_indices, failure_types
         
     def resubmit_failed_jobs(self, job_type: str, indices_to_rerun: list[int], failure_types: dict, run_spec: dict, mem: str|None=None, time: str|None=None):
         """
