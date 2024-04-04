@@ -1464,7 +1464,7 @@ class SegmentationPipeline:
             failure_types: dict
                 A dictionary with keys as types of failues and bools representing if that failure occured in the inputted SlurmJobArray
         """
-        job_state_dict = self.seg_jobs.state()
+        job_state_dict = jobs.state()
         failure_types= {"OUT_OF_MEMORY": False, "TIMEOUT": False, "CANCELLED": False}
         failed_jobs_indices = []
         for job_index, job_state in enumerate(job_state_dict.values()):
