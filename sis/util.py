@@ -15,6 +15,7 @@ import shapely
 from matplotlib import pyplot as plt
 import seaborn as sns
 
+import zipfile
 
 def reduce_expression(data, umap_args):
     import umap
@@ -520,6 +521,42 @@ def plot_cbg_centroids(cell_by_gene: ad.AnnData, ax, x='center_x', y='center_y',
 
 def example_function():
     return 2
+
+
+
+
+
+
+def unpack_test_data():
+
+    SIS_DIR = pathlib.Path().absolute()
+    print(SIS_DIR)
+
+    XENIUM_STEM = "xenium_test"
+    MERSCOPE_STEM = "merscope_test"
+
+    TEST_DIR = SIS_DIR.joinpath("tests").joinpath("spatial_test_data")
+    XENIUM_DIR = TEST_DIR.joinpath(XENIUM_STEM)
+    MERSCOPE_DIR = TEST_DIR.joinpath(MERSCOPE_STEM)
+
+    XENIUM_DIR.mkdir(exist_ok = True)
+    MERSCOPE_DIR.mkdir(exist_ok = True)
+
+
+    
+    with zipfile.ZipFile(TEST_DIR.joinpath(XENIUM_STEM+".zip")) as z:
+        z.extractall(XENIUM_DIR)
+
+    with zipfile.ZipFile(TEST_DIR.joinpath(MERSCOPE_STEM+".zip")) as z:
+        z.extractall(MERSCOPE_DIR)
+
+
+    xenium_confirmation = list(XENIUM_DIR.glob("*"))[0].stem
+    merscope_confirmation = list(list(MERSCOPE_DIR.glob("*"))[0].glob("*.vzg"))[0].stem
+
+    return (xenium_confirmation, merscope_confirmation)
+
+
 
 def make_cirro_compatible(cell_by_gene: ad.AnnData):
     '''Make an AnnData object compatible with Cirrocumulus visualization tool.
