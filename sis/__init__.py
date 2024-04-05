@@ -1,4 +1,4 @@
-from .spot_table import SpotTable
+from .spot_table import SpotTable,SegmentedSpotTable
 from .expression_dataset import ExpressionDataset
 from .image import Image, ImageStack
 from .celltype_mapping import *

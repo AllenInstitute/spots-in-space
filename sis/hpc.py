@@ -181,7 +181,7 @@ class SlurmJob:
         return JobState(state=table.get(self.job_id, {'State': 'NO_INFO'})['State'])
 
     def is_done(self):
-        return self.state().is_done and os.path.exists(self.output_file)
+        return (self.state().is_done and os.path.exists(self.output_file)) or self.state().state == 'CANCELLED' # Need to consider job cancelled before output file made
 
     @property
     def output_file(self):
@@ -213,7 +213,7 @@ class SlurmJobArray(SlurmJob):
     def __init__(self, args, sbatch_output, job_file, host):
         self.args = args
         self.sbatch_output = sbatch_output
-        self.job_fie = job_file
+        self.job_file = job_file
         self.host = host
 
         start, _, stop = args['array'].partition('-')
@@ -356,19 +356,142 @@ def sacct(host, job_id, cache_duration=10):
     if last_time is None or now - last_time > cache_duration:
         stat = run(host, ['sacct', f'--job={job_id}', '--format=JobID%20,State%20', '-X'])
         lines = stat.split('\n')
-        cols = re.split(r'\s+', lines[0].strip())
         table = {}
         for line in lines[2:]:
             line = line.strip()
             if line == '':
                 continue
             tokens = re.split(r'\s+', line)
-            fields = {cols[i]:field for i,field in enumerate(tokens)}
-            table[fields.pop('JobID')] = fields
+            table[tokens[0]] = {'State': tokens[1]} # index rather than iterate because cancelled is formatted: '15420407_1   CANCELLED by 20416'
         _last_sacct[job_id] = (now, table)
     else:
         table = last_state
     return table
+
+
+def double_mem(mem: str):
+	"""
+    This function takes a memory amount stored as a string, doubles it, and then returns the new amount in the same format
+
+	Parameters
+    ----------
+    mem: str
+        Memory amount in a string representation e.g. ('700M' or '10gb')
+	
+	Returns
+	-------
+	input memory doubled in same format e.g. ('1400M' or '20gb')
+	"""
+	i = len(mem)
+	while i > 0:
+		try:
+			return str(int(mem[:i]) * 2) + mem[i:]
+		except ValueError:
+			i -= 1
+			continue
+	raise ValueError("Memory string was not in expected format")
+
+
+def memory_to_bytes(mem: str):
+    """
+	This function takes a memory amount stored as a string (in slurm supported formats) and converts it to integer bytes
+
+	Parameters
+    ----------
+    mem: str
+        Memory amount in a slurm-supported string representation e.g. ('700M' or '10gb')
+	
+	Returns
+	-------
+	input memory as bytes of type integer e.g. (734003200 or 10737418240)
+	"""
+    # Regular expression pattern
+    pattern = r'^(\d+)([gGmMkKtT]?[bB]?)$'
+    match = re.match(pattern, str(mem))
+    if match:
+        amount, unit = match.groups()
+        amount = int(amount)
+        # Convert to bytes based on the unit
+        if unit.lower() in ['g', 'gb']:
+            return amount * 1024**3
+        elif unit.lower() in ['m', 'mb', '']:
+            return amount * 1024**2
+        elif unit.lower() in ['k', 'kb']:
+            return amount * 1024
+        elif unit.lower() in ['t', 'tb']:
+            return amount * 1024**4
+            
+    raise ValueError(f'Invalid memory format: {mem}')
+
+
+def slurm_time_to_seconds(time: str):
+    """
+    This function takes a time amount stored as a string (in slurm supported formats) and converts it to integer seconds
+    
+    Parameters
+    ----------
+    time: str
+        time amount in a slurm-supported string representation e.g. ('2-13:01:45' or '10' or '10:00')
+    
+    Returns
+    -------
+    input time as seconds of type integer e.g. (219705 or 600 or 600)
+    """
+    # Regular expression pattern
+    patterns = [
+        (r'^(\d+)$', 'minutes'),
+        (r'^(\d+):(\d+)$', 'minutes:seconds'),
+        (r'^(\d+):(\d+):(\d+)$', 'hours:minutes:seconds'),
+        (r'^(\d+)-(\d+)$', 'days-hours'),
+        (r'^(\d+)-(\d+):(\d+)$', 'days-hours:minutes'),
+        (r'^(\d+)-(\d+):(\d+):(\d+)$', 'days-hours:minutes:seconds'),
+    ]
+    # Try each pattern until one matches
+    for pattern, format in patterns:
+        match = re.match(pattern, time)
+        if match:
+            groups = match.groups()
+            # Convert to integers
+            groups = [int(g) for g in groups]
+            # Convert to seconds based on the format
+            if format == 'minutes':
+                return groups[0] * 60
+            elif format == 'minutes:seconds':
+                return groups[0] * 60 + groups[1]
+            elif format == 'hours:minutes:seconds':
+                return groups[0] * 60 * 60 + groups[1] * 60 + groups[2]
+            elif format == 'days-hours':
+                return groups[0] * 24 * 60 * 60 + groups[1] * 60 * 60
+            elif format == 'days-hours:minutes':
+                return groups[0] * 24 * 60 * 60 + groups[1] * 60 * 60 + groups[2] * 60
+            elif format == 'days-hours:minutes:seconds':
+                return groups[0] * 24 * 60 * 60 + groups[1] * 60 * 60 + groups[2] * 60 + groups[3]
+    # If no pattern matched, raise an error
+    raise ValueError(f'Invalid time format: {time}')
+
+
+def seconds_to_time(seconds: int):
+    """
+    This function takes seconds and converts them to a standard time format of 'days-hours:minutes:seconds' as a string
+    
+    Parameters
+    ----------
+    seconds: int
+        time amount in a seconds (1800 or 217803)
+    
+    Returns
+    -------
+    input time as standardized time string e.g. ("0-00:30:00" or "2-12:30:03")
+    """
+    # Calculate time components
+    days = seconds // (24 * 60 * 60)
+    seconds %= (24 * 60 * 60)
+    hours = seconds // (60 * 60)
+    seconds %= (60 * 60)
+    minutes = seconds // 60
+    seconds %= 60
+    # Format and return the result
+    return f"{days}-{hours:02}:{minutes:02}:{seconds:02}"
 
 
 ssh_connections = {}

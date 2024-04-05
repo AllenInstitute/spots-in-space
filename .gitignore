@@ -15,3 +15,5 @@ venv
 .DS_Store
 dist
 build
+merscope_test/
+xenium_test/

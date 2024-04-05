@@ -162,7 +162,7 @@ class CellTypeMapping():
     def load_json(cls, class_dict: dict):
         ctm = cls.__new__(cls)
         for attr, value in class_dict.items():
-            if attr.endswith('_file') or attr == 'run_directory':
+            if attr.endswith('_file'):
                 value = Path(value)
             setattr(ctm, attr, value)
         return ctm
@@ -758,6 +758,8 @@ class ScrattchMapping(CellTypeMapping):
             additional metadata to add to the anndata object
 
         """
+        self.meta.update(meta)
+
         if training_genes is not None:
             genes = [tg for tg in training_genes if tg in self.ad_sp.var_names]
             if len(genes) == 0:
@@ -806,8 +808,10 @@ class ScrattchMapping(CellTypeMapping):
             ad_map.uns['taxonomy_name'] = self.meta['taxonomy_name']
         if 'taxonomy_cols' in self.meta.keys():
             ad_map.uns['taxonomy_cols'] = [prefix + 'label' for prefix in self.meta['taxonomy_cols']]
+        if 'taxonomy_file' in self.meta.keys():
+            ad_map.uns['taxonomy_file'] = self.meta['taxonomy_file']
         
-        self.meta.update(meta)
+        
         self.save_mapping(save_path=self.run_directory, replace=True)
         ad_map.write_h5ad(self.run_directory.joinpath('scrattch_map_temp.h5ad'))
         self.ad_map = ad_map
@@ -863,7 +867,7 @@ class ScrattchMapping(CellTypeMapping):
             for i, (group_name, group) in enumerate(groups.items()):
                 subdata = data[data[level].isin(group)]
 
-                sns.violinplot(data=subdata, x=level, y='score.Corr', ax=ax[i], **violin)
+                sns.violinplot(data=subdata, x=level, y='score.Corr', ax=ax[i], hue=level, order=group, **violin)
                 ax[i].set_ylabel('Avg Correlation')
                 ax[i].set_xticklabels(ax[i].get_xticklabels(), rotation = 45, ha='right')
                 ax[i].set_title(group_name)

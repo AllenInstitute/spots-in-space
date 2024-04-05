@@ -20,6 +20,7 @@ import os, sys, datetime, glob, pickle, time
 import json
 from abc import abstractmethod
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 import seaborn as sns
 import matplotlib.pyplot as plt
 import pickle as pkl
@@ -45,14 +46,14 @@ SPATIALDATASET_VERSION = 2
 
 class SpatialDataset:
     # wrapper class
-    def __init__(self, barcode):
+    def __init__(self, barcode, configfile=None):
         self.barcode = barcode
         self.version = SPATIALDATASET_VERSION
-        self.config = load_config()
+        self.config = load_config(configfile)
         
     @classmethod
-    def load_from_barcode(cls, barcode: str, dataset_type: 'SpatialDataset', file_name='spatial_dataset'):
-        config = load_config()
+    def load_from_barcode(cls, barcode: str, dataset_type: 'SpatialDataset', file_name='spatial_dataset', configfile=None):
+        config = load_config(configfile)
         if dataset_type == MERSCOPESection:
             data_path = Path(config['merscope_save_path']).joinpath(str(barcode), file_name)
         if dataset_type == StereoSeqSection:
@@ -288,20 +289,25 @@ class SpatialDataset:
 class MERSCOPESection(SpatialDataset):
 
 
-    def __init__(self, barcode):
-        pts_qc_filt = pts_schema.MetadataFilterInput(type=pts_schema.DataTypeFilterInput(name=pts_schema.StringOperationFilterInput(eq="QCMetadata")))
-        pts_request_filt = pts_schema.MetadataFilterInput(type=pts_schema.DataTypeFilterInput(name=pts_schema.StringOperationFilterInput(eq="MerscopeImagingRequestMetadata")))
+    def __init__(self, barcode, configfile=None, overwrite=False):
+        
+        
+        self.pts_qc_filt = pts_schema.MetadataFilterInput(type=pts_schema.DataTypeFilterInput(name=pts_schema.StringOperationFilterInput(eq="QCMetadata")))
+        self.pts_request_filt = pts_schema.MetadataFilterInput(type=pts_schema.DataTypeFilterInput(name=pts_schema.StringOperationFilterInput(eq="MerscopeImagingRequestMetadata")))
 
-        config = load_config()
+        
+        
+        
+        config = load_config(configfile)
         save_path = Path(config['merscope_save_path']).joinpath(str(barcode))
-        if os.path.exists(save_path.joinpath('spatial_dataset')):
-            print(f'SpatialDataset already exists and will be loaded. If you want to reprocess this dataset delete the file and start over')
-            cached = SpatialDataset.load_from_barcode(barcode, MERSCOPESection)
+        if os.path.exists(save_path.joinpath('spatial_dataset')) and not overwrite:
+            print(f'SpatialDataset already exists and will be loaded. If you want to reprocess this dataset, set overwrite to True')
+            cached = SpatialDataset.load_from_barcode(barcode, MERSCOPESection, configfile=configfile)
             self.__dict__ = cached.__dict__
             self.get_analysis_status()
         
         else:
-            SpatialDataset.__init__(self, barcode)
+            SpatialDataset.__init__(self, barcode, configfile=configfile)
             self.save_path = save_path
             self.save_path.mkdir(exist_ok=True)
             
@@ -314,6 +320,10 @@ class MERSCOPESection(SpatialDataset):
             self.qc_path = self.save_path.joinpath(self.config['qc_dir']) if self.config.get('qc_dir') is not None else None
             if self.qc_path is not None and not self.qc_path.exists():
                 self.qc_path.mkdir()
+            self.doublet_path = self.save_path.joinpath(self.config['doublet_dir']) if self.config.get('doublet_dir') is not None else None
+            if self.doublet_path is not None and not self.doublet_path.exists():
+                self.doublet_path.mkdir()
+
 
             self.broad_region = None
             self.get_section_metadata()
@@ -340,9 +350,9 @@ class MERSCOPESection(SpatialDataset):
         merscope_expt = spec_pts.nodes[0]
         
         self.qc_state = pts.get_process_metadata(process_id = merscope_expt.id, 
-                                                 metadata_filter_input = MERSCOPESection.pts_qc_filt)[0].data['QC_State']
+                                                 metadata_filter_input = self.pts_qc_filt)[0].data['QC_State']
         self.gene_panel = pts.get_process_metadata(process_id = merscope_expt.id, 
-                                                   metadata_filter_input = MERSCOPESection.pts_request_filt)[0].data['GenePanel']
+                                                   metadata_filter_input = self.pts_request_filt)[0].data['GenePanel']
         self.merscope_expt_pts_id = merscope_expt.id
         
 #         self.section_thickness # not sure where this comes from?
@@ -353,9 +363,15 @@ class MERSCOPESection(SpatialDataset):
         if len(instances) > 1:
             for instance in instances:
                 if instance.storage['storage_provider'] == 'Isilon::POSIX':
-                    return instance.download_url
+                    url = instance.download_url
         else:
-            return instances[0].download_url
+            url = instances[0].download_url
+        
+        # parse file URIs and reformat, for now
+        if url.startswith('file'):
+            return unquote(urlparse(url).path)
+        else:
+            return url
 
     def get_section_data_paths(self):      
         platform = sys.platform # don't like this but need to edit the file names to be read by Windows
@@ -476,7 +492,7 @@ class MERSCOPESection(SpatialDataset):
         return cbg_copy
 
     def check_doublet_detection_status(self):
-        doublet_dir = self.qc_path
+        doublet_dir = self.doublet_path
         dd_runs = [f.name for f in os.scandir(doublet_dir) if f.is_dir()]
         if len(dd_runs) == 0:
             status = None
@@ -502,7 +518,7 @@ class MERSCOPESection(SpatialDataset):
     def run_doublet_detection_on_section(self, cell_by_gene, method, method_kwargs, hpc_args, filter_col):
         """Submits a job to run doublet detection on a GPU node on the HPC."""
         timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-        doublet_dir = self.qc_path.joinpath(timestamp)
+        doublet_dir = self.doublet_path.joinpath(timestamp)
         doublet_dir.mkdir()
 
         run_spec = (run_doublet_detection, (), {
@@ -558,7 +574,7 @@ class MERSCOPESection(SpatialDataset):
         return cbg_copy, timestamp
 
     def load_doublet_anndata(self, timestamp):
-        doublet_ad_path = self.qc_path.joinpath(timestamp, 'cell_by_gene_doublets.h5ad')
+        doublet_ad_path = self.doublet_path.joinpath(timestamp, 'cell_by_gene_doublets.h5ad')
         return ad.read_h5ad(doublet_ad_path)
 
     def make_anndata(self, cell_by_gene, file_name='sp_anndata.h5ad'):
@@ -641,18 +657,18 @@ class MERSCOPESection(SpatialDataset):
 
 class StereoSeqSection(SpatialDataset):
     
-    def __init__(self, barcode):
-        config = load_config()
+    def __init__(self, barcode, configfile=None, overwrite=False):
+        config = load_config(configfile)
         save_path = Path(config['stereoseq_save_path']).joinpath(barcode)
-        if Path.is_file(save_path.joinpath('spatial_dataset')):
-            print(f'SpatialDataset already exists and will be loaded. If you want to reprocess this dataset delete the file and start over')
-            cached = SpatialDataset.load_from_barcode(barcode, StereoSeqSection)
+        if Path.is_file(save_path.joinpath('spatial_dataset')) and not overwrite:
+            print(f'SpatialDataset already exists and will be loaded. If you want to reprocess this dataset, set overwrite to True')
+            cached = SpatialDataset.load_from_barcode(barcode, StereoSeqSection, configfile=configfile)
             self.__dict__ = cached.__dict__
             print('QC status:')
             print(self.qc)
 
         else:
-            SpatialDataset.__init__(self, barcode)
+            SpatialDataset.__init__(self, barcode, configfile=configfile)
             self.save_path = save_path
 
             if not Path.exists(self.save_path):
@@ -845,20 +861,25 @@ class StereoSeqSection(SpatialDataset):
 
         if taxonomy is not None:
             taxonomy_path = self.config['taxonomy_info'][taxonomy]['path']
+            taxonomy_file = self.config['taxonomy_info'][taxonomy].get('file', 'AI_taxonomy.h5ad')
 
         if method == ScrattchMapping:
             mapping = ScrattchMapping(
                 sp_data = ad_file,
                 taxonomy_path = taxonomy_path,
                 save_path=self.mapping_path,
-                meta = {'taxonomy_name': taxonomy, 'taxonomy_cols': self.config['taxonomy_info'][taxonomy]['col_labels']}
+                meta = {
+                    'taxonomy_name': taxonomy, 
+                    'taxonomy_cols': self.config['taxonomy_info'][taxonomy]['col_labels'],
+                    'taxonomy_file': taxonomy_file
+                    }
             )
         else:
             print(f'Mapping method not instantiated for {method}')
             return
         
         if training_genes == 'hvgs' and taxonomy is not None:
-            taxonomy_ad = ad.read_h5ad(Path(taxonomy_path).joinpath('AI_taxonomy.h5ad'), backed='r')
+            taxonomy_ad = ad.read_h5ad(Path(taxonomy_path).joinpath(taxonomy_file), backed='r')
             training_genes = taxonomy_ad.var[taxonomy_ad.var['highly_variable_genes']==True].index.to_list()
             meta = {'training_genes': 'taxonomy highly variable genes'}
        
