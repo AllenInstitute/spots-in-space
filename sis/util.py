@@ -558,7 +558,7 @@ def unpack_test_data():
 
 
 
-def make_cirro_compatible(cell_by_gene: ad.AnnData):
+def make_cirro_compatible(cell_by_gene: ad.AnnData, include_z: bool = False, generate_umap: bool = True):
     '''Make an AnnData object compatible with Cirrocumulus visualization tool.
     
     Copy cell spatial coordinates to obsm, as expected by Cirrocumulus
@@ -568,7 +568,10 @@ def make_cirro_compatible(cell_by_gene: ad.AnnData):
     Parameters:
         cell_by_gene: AnnData object output by 
                       sis.spot_table.cell_by_gene_anndata()
-
+        include_z: bool, whether to include z-coordinate in obsm['spatial'].
+                     Default is False.  If True, expects 'center_z' in cell_by_gene.obs.
+        generate_umap: bool, whether to generate UMAP from .X. Default is True.
+        
     Returns:
         cell_by_gene_cirro: copy of cell_by_gene with cirrocumulus-compatible fields
     '''
@@ -579,22 +582,29 @@ def make_cirro_compatible(cell_by_gene: ad.AnnData):
     cell_by_gene_cirro = cell_by_gene.copy()
 
     # Copy cell coordinates to obsm
-    cell_by_gene_cirro.obsm['spatial'] = cell_by_gene_cirro.obs[
+    if include_z:
+        cell_by_gene_cirro.obsm['spatial'] = cell_by_gene_cirro.obs[
                                                                 ['center_x', 
                                                                 'center_y', 
                                                                 'center_z']
                                                                 ].to_numpy()
+    else:
+        cell_by_gene_cirro.obsm['spatial'] = cell_by_gene_cirro.obs[
+                                                                ['center_x', 
+                                                                'center_y']
+                                                                ].to_numpy()
     
-    # Generate UMAP of X as alternative visualization
-    # already cirro-compatible as it's stored in obsm['X_umap']
-    sc.pp.pca(cell_by_gene_cirro)
-    sc.pp.neighbors(cell_by_gene_cirro)
-    sc.tl.umap(cell_by_gene_cirro)
-    # Optional future update: UMAP of all layers (will run much slower)
-    # for layer in cell_by_gene.layers.keys():
-    #     sc.pp.pca(cell_by_gene, layer=layer)
-    #     sc.pp.neighbors(cell_by_gene, layer=layer)
-    #     sc.tl.umap(cell_by_gene, layer=layer)
+    if generate_umap:
+        # Generate UMAP of X as alternative visualization
+        # already cirro-compatible as it's stored in obsm['X_umap']
+        sc.pp.pca(cell_by_gene_cirro)
+        sc.pp.neighbors(cell_by_gene_cirro)
+        sc.tl.umap(cell_by_gene_cirro)
+        # Optional future update: UMAP of all layers (will run much slower)
+        # for layer in cell_by_gene.layers.keys():
+        #     sc.pp.pca(cell_by_gene, layer=layer)
+        #     sc.pp.neighbors(cell_by_gene, layer=layer)
+        #     sc.tl.umap(cell_by_gene, layer=layer)
 
     return cell_by_gene_cirro
 
