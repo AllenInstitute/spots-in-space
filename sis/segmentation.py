@@ -172,8 +172,12 @@ class CellposeSegmentationMethod(SegmentationMethod):
         if 'detect_z_planes' in self.options and self.options['detect_z_planes']:
             z_planes = spot_table.detect_z_planes(float_cut=self.options['detect_z_planes'])
             if 'nuclei' in self.options['images']:
+                if 'frame' in self.options['images']['nuclei']:
+                    raise ValueError('Only one of "detect_z_planes" or "frame" may be specified')
                 self.options['images']['nuclei']['frames'] = z_planes
             if 'cyto' in self.options['images']:
+                if 'frame' in self.options['images']['cyto']:
+                    raise ValueError('Only one of "detect_z_planes" or "frame" may be specified')
                 self.options['images']['cyto']['frames'] = z_planes
 
         # collect images
@@ -188,18 +192,31 @@ class CellposeSegmentationMethod(SegmentationMethod):
         self.images = images
 
         # prepare image data for segmentation
-        first_image = list(images.values())[0]
-        cp_opts['do_3D'] = first_image.shape[0] > 1
+        cp_opts['do_3D'] = list(images.values())[0].shape[0] > 1
         if len(images) == 2:
             assert images['cyto'].shape == images['nuclei'].shape
             cyto_data = images['cyto'].get_data()
-            image_data = np.empty((images['cyto'].shape[:3]) + (3,), dtype=cyto_data.dtype)
+
+            # If the number of z-planes is too small we want to double the z-planes while still maintaining order
+            if 'detect_z_planes' in self.options and (z_planes[1] - z_planes[0]) <= 5:
+                cyto_data = CellposeSegmentationMethod.duplistack_image(images['cyto'])
+                nuclei_data = CellposeSegmentationMethod.duplistack_image(images['nuclei'])
+            else:
+                cyto_data = images['cyto'].get_data()
+                nuclei_data = images['nuclei'].get_data()
+                
+            #image_data = np.empty((images['cyto'].shape[:3]) + (3,), dtype=cyto_data.dtype)
+            image_data = np.empty((cyto_data.shape[:3]) + (3,), dtype=cyto_data.dtype)
             image_data[..., 0] = cyto_data
-            image_data[..., 1] = images['nuclei'].get_data()
+            image_data[..., 1] = nuclei_data#images['nuclei'].get_data()
             image_data[..., 2] = 0
             channels = [1, 2]  # cyto=1 (red), nuclei=2 (green)
         else:
-            image_data = first_image.get_data()
+            # If the number of z-planes is too small we want to double the z-planes while still maintaining order
+            if 'detect_z_planes' in self.options and (z_planes[1] - z_planes[0]) <= 5:
+                image_data = duplistack_image(list(images.values())[0]) # Since there is only one image, we just take the first value
+            else:
+                image_data = list(images.values())[0].get_data()
             channels = [0, 0]
             
         # decide whether to use GPU
@@ -245,6 +262,14 @@ class CellposeSegmentationMethod(SegmentationMethod):
                 'styles': styles, 
             }
 
+        # If we made a duplistacked image lets return it back to the original size
+        if 'detect_z_planes' in self.options and (z_planes[1] - z_planes[0]) <= 5:
+            cellpose_output['masks'] = cellpose_output['masks'][::2]
+            cellpose_output['flows'][0] = cellpose_output['flows'][0][::2]
+            cellpose_output['flows'][1] = cellpose_output['flows'][1][:, ::2]
+            cellpose_output['flows'][2] = cellpose_output['flows'][2][::2]
+            cellpose_output['flows'][3] = cellpose_output['flows'][3][:, ::2]
+
         dilate = self.options.get('dilate', 0)
         if dilate != 0:
             masks = dilate_labels(masks, radius=dilate/self.options['px_size'])
@@ -255,7 +280,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
             method=self, 
             input_spot_table=spot_table,
             cellpose_output=cellpose_output,
-            image_transform=first_image.transform,
+            image_transform=list(images.values())[0].transform,
             detect_z_planes=self.options['detect_z_planes'] if 'detect_z_planes' in self.options and self.options['detect_z_planes'] else None,
         )
             
@@ -342,7 +367,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
 
         spot_px = self.map_spots_to_img_px(spot_table, image_transform=image_transform, image_shape=image_shape_full)
         for i in range(n_planes):
-            z_mask = spot_px[..., 0] == i
+            z_mask = spot_px[..., 0] == i#(spot_px[..., 0] == i) | (spot_px[..., 0] == i-1) | (spot_px[..., 0] == i+1)
             x = spot_px[z_mask, 1]
             y = spot_px[z_mask, 2]
             bins = [
@@ -398,6 +423,24 @@ class CellposeSegmentationMethod(SegmentationMethod):
         
         return np.hstack([spot_px_z[:, np.newaxis], spot_px_rc])
 
+    @staticmethod
+    def duplistack_image(image):
+        """This method takes an image and creates a numpy array of its data duplicated in place
+            e.g. an image with frames 1,2,3 would become an array with frames 1,1,2,2,3,3
+
+            Parameters
+            ----------
+            image: Image
+        """
+        img_data = image.get_data()
+        frames, rows, cols = img_data.shape[:3]
+        duplistacked_img_data = np.zeros((frames * 2, rows, cols), dtype=img_data.dtype)
+        for i in range(frames):
+            duplistacked_img_data[2*i] = img_data[i]
+            duplistacked_img_data[2*(i+1)-1] = img_data[i]
+            
+        return duplistacked_img_data
+        
 
 class CellposeSegmentationResult(SegmentationResult):
     def __init__(self, method:SegmentationMethod, input_spot_table:SpotTable, cellpose_output:dict, image_transform:ImageTransform, detect_z_planes: float|None=None):
@@ -932,6 +975,16 @@ class SegmentationPipeline:
             for k, v in cell_by_gene.uns.items():
                 if isinstance(v, geojson.feature.FeatureCollection):
                     cell_by_gene.uns[k] = geojson.dumps(v)
+
+            # tuples must be converted to strings before saving
+            def _iter_dict_rec(d, func):
+                for k, v in d.items():
+                    if isinstance(v, dict):
+                        _iter_dict_rec(v, func)
+                    else:
+                        d[k] = func(v)
+            _iter_dict_rec(cell_by_gene.uns, lambda x: str(x) if isinstance(x, tuple) else x)
+            
             cell_by_gene.write(self.cbg_path)
 
     def load_cbg(self):
@@ -1717,11 +1770,12 @@ class XeniumSegmentationPipeline(SegmentationPipeline):
             seg_hpc_opts: dict|None=None,
             polygon_hpc_opts: dict|None=None,
             hpc_opts: dict|None=None,
-            z_depth: int=3.0,
             ):
         super().__init__(dt_file, image_path, output_dir, dt_cache, subrgn, seg_method, seg_opts, polygon_opts, seg_hpc_opts=seg_hpc_opts, polygon_hpc_opts=polygon_hpc_opts, hpc_opts=hpc_opts)
 
-        self.z_depth = z_depth # This is used for binning z-locations to image planes
+        if 'z_plane_thickness' not in seg_opts['options']:
+            raise ValueError('z_plane_thickness required in seg_opts for matching z coordinates to image planes')
+        self.z_depth = seg_opts['options']['z_plane_thickness'] # This is used for binning z-locations to image planes
 
     def get_load_func(self):
         """Get the function to load a spot table."""
