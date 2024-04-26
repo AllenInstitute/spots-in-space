@@ -57,6 +57,7 @@ def test_make_cirro_compatible():
 
     a = SegmentedSpotTable.load_merscope(DETECTED_TRANSCRIPTS_CSV, DETECTED_TRANSCRIPTS_CSV.parent.joinpath("detected_transcripts.npz"))
     a.generate_production_cell_ids()
+    
     a.calculate_cell_polygons(disable_tqdm=True)
 
     ad_obj = a.cell_by_gene_anndata(x_format = "dense")
@@ -65,3 +66,4 @@ def test_make_cirro_compatible():
     # fake test for now...
     # real tests should involve confirming the obs columns, uns and obsm keys, etc.
     assert cirro_compatible_ad.shape[0] == MERSCOPE_N_CELLS
+    
