@@ -63,4 +63,5 @@ def test_make_cirro_compatible():
     cirro_compatible_ad = make_cirro_compatible(ad_obj, generate_umap=False)
     print(cirro_compatible_ad)
     # fake test for now...
+    # real tests should involve confirming the obs columns, uns and obsm keys, etc.
     assert cirro_compatible_ad.shape[0] == MERSCOPE_N_CELLS
