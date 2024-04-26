@@ -1,6 +1,7 @@
 from sis import example_function
 from sis import unpack_test_data
 from sis import SegmentedSpotTable
+from sis.util import make_cirro_compatible
 import zipfile
 import pathlib
 
@@ -50,3 +51,15 @@ def test_load_merscope():
     a = SegmentedSpotTable.load_merscope(DETECTED_TRANSCRIPTS_CSV, DETECTED_TRANSCRIPTS_CSV.parent.joinpath("detected_transcripts.npz"))
     print(MERSCOPE_N_CELL_IDS)
     assert a.cell_ids.shape[0] == MERSCOPE_N_CELL_IDS
+
+
+def test_make_cirro_compatible():
+
+    a = SegmentedSpotTable.load_merscope(DETECTED_TRANSCRIPTS_CSV, DETECTED_TRANSCRIPTS_CSV.parent.joinpath("detected_transcripts.npz"))
+    print(MERSCOPE_N_CELL_IDS)
+    a.generate_production_cell_ids()
+    ad_obj = a.cell_by_gene_anndata(x_format = "dense")
+    cirro_compatible_ad = make_cirro_compatible(ad_obj, generate_umap=False)
+    print(cirro_compatible_ad)
+    # fake test for now...
+    assert cirro_compatible_ad.shape[0] == MERSCOPE_N_CELL_IDS
