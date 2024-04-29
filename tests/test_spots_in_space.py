@@ -1,9 +1,10 @@
 from sis import example_function
 from sis import unpack_test_data
 from sis import SegmentedSpotTable
+from sis.util import make_cirro_compatible
 import zipfile
 import pathlib
-
+import numpy as np
 
 
 XENIUM_INTERNAL_NAME = 'output-XETG00044__0025057__Test__20240307__194734'
@@ -28,9 +29,9 @@ XENIUM_DIR.mkdir(exist_ok = True)
 MERSCOPE_DIR.mkdir(exist_ok = True)
 DETECTED_TRANSCRIPTS_CSV = MERSCOPE_DIR.joinpath("region_0").joinpath("detected_transcripts.csv")
 
-MERSCOPE_N_CELL_IDS = 1041363
-
-
+MERSCOPE_N_TRANSCRIPTS = 1041363
+MERSCOPE_N_CELLS = 9136
+MERSCOPE_N_CELL_IDS = 9137
 
 
 def test_example_function():
@@ -48,5 +49,21 @@ def test_unpack_test_data():
 def test_load_merscope():
 
     a = SegmentedSpotTable.load_merscope(DETECTED_TRANSCRIPTS_CSV, DETECTED_TRANSCRIPTS_CSV.parent.joinpath("detected_transcripts.npz"))
-    print(MERSCOPE_N_CELL_IDS)
-    assert a.cell_ids.shape[0] == MERSCOPE_N_CELL_IDS
+    
+    assert a.cell_ids.shape[0] == MERSCOPE_N_TRANSCRIPTS and np.unique(a.cell_ids).shape[0] == MERSCOPE_N_CELL_IDS
+
+
+def test_make_cirro_compatible():
+
+    a = SegmentedSpotTable.load_merscope(DETECTED_TRANSCRIPTS_CSV, DETECTED_TRANSCRIPTS_CSV.parent.joinpath("detected_transcripts.npz"))
+    a.generate_production_cell_ids()
+    
+    a.calculate_cell_polygons(disable_tqdm=True)
+
+    ad_obj = a.cell_by_gene_anndata(x_format = "dense")
+    cirro_compatible_ad = make_cirro_compatible(ad_obj, generate_umap=False)
+    print(cirro_compatible_ad)
+    # fake test for now...
+    # real tests should involve confirming the obs columns, uns and obsm keys, etc.
+    assert cirro_compatible_ad.shape[0] == MERSCOPE_N_CELLS
+    
