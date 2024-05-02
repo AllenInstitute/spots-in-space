@@ -973,7 +973,7 @@ class SegmentationPipeline:
         else:
             # geojson objects must be converted to strings before saving
             for k, v in cell_by_gene.uns.items():
-                if isinstance(v, geojson.feature.FeatureCollection):
+                if isinstance(v, geojson.feature.FeatureCollection) or isinstance(v, geojson.geometry.GeometryCollection):
                     cell_by_gene.uns[k] = geojson.dumps(v)
 
             # tuples must be converted to strings before saving
