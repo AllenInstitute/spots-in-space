@@ -214,7 +214,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
         else:
             # If the number of z-planes is too small we want to double the z-planes while still maintaining order
             if 'detect_z_planes' in self.options and (z_planes[1] - z_planes[0]) <= 5:
-                image_data = duplistack_image(list(images.values())[0]) # Since there is only one image, we just take the first value
+                image_data = CellposeSegmentationMethod.duplistack_image(list(images.values())[0]) # Since there is only one image, we just take the first value
             else:
                 image_data = list(images.values())[0].get_data()
             channels = [0, 0]
