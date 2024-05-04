@@ -908,7 +908,7 @@ class SegmentationPipeline:
         subtable = table.get_subregion(xlim=subrgn[0], ylim=subrgn[1])
         self.raw_spot_table = subtable
 
-    def run(self, x_format: str, prefix: str='', suffix: str='', overwrite: bool=False, clean_up: str|bool|None='all_ints', tile_size: int=200, rerun: bool=True):
+    def run(self, x_format: str, prefix: str='', suffix: str='', overwrite: bool=False, clean_up: str|bool|None='all_ints', tile_size: int=200, min_transcripts: int=0, rerun: bool=True):
         """Run all steps to perform tiled segmentation.
 
         Parameters
@@ -930,6 +930,8 @@ class SegmentationPipeline:
             The maximum size of tiles to segment. Default 200. Increasing this
             parameter may also require increasing time and/or memory limits in
             seg_hpc_opts.
+        min_transcripts : int, optional
+            Minimum number of transcripts in a tile to be considered for segmentation. Default 0.
         rerun: bool, optional
             If enabled, SegmentationPipeline will attempt to automatically rerun jobs that failed
             If job failed due to memory constaints, memory limit in will be doubled
@@ -951,7 +953,7 @@ class SegmentationPipeline:
         self.load_raw_spot_table()
 
         # run all steps in sequence
-        tiles, regions = self.tile_seg_region(overwrite=overwrite, max_tile_size=tile_size)
+        tiles, regions = self.tile_seg_region(overwrite=overwrite, max_tile_size=tile_size, min_transcripts=min_transcripts)
         seg_run_spec = self.get_seg_run_spec(regions=regions, overwrite=overwrite, result_files=False if clean_up else True)
         self.seg_jobs = self.submit_jobs('segmentation', seg_run_spec, overwrite)
         if rerun:
@@ -992,7 +994,7 @@ class SegmentationPipeline:
         if not np.any([job.state().state == "COMPLETED" for job in jobs.jobs]):
             raise RuntimeError(f'All jobs failed. Please check error logs in {self.output_dir.joinpath("hpc-jobs")}')
 
-    def tile_seg_region(self, overwrite: bool=False, max_tile_size: int=200, overlap: int=30):
+    def tile_seg_region(self, overwrite: bool=False, max_tile_size: int=200, overlap: int=30, min_transcripts=0):
         """Split the attached SpotTable into rectangular subregions (tiles).
         Also saves the subregion coordinates into a json file.
 
@@ -1004,6 +1006,8 @@ class SegmentationPipeline:
             Maximum width and height of the tiles in microns. Default 200.
         overlap : int
             Amount of overlap between tiles in microns. Default 30.
+        min_transcripts : int
+            Minimum number of transcripts in a tile to be considered for segmentation. Default 0.
         
         Returns
         -------
@@ -1015,7 +1019,7 @@ class SegmentationPipeline:
         print('Tiling segmentation region...')
         subtable = self.raw_spot_table
 
-        tiles = subtable.grid_tiles(max_tile_size=max_tile_size, overlap=overlap)
+        tiles = subtable.grid_tiles(max_tile_size=max_tile_size, overlap=overlap, min_transcripts=min_transcripts)
         regions = [tile.parent_region for tile in tiles]
 
         # save regions
