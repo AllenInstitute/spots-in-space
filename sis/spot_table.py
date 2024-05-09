@@ -576,7 +576,7 @@ class SpotTable:
             
         return SpotTable(**init_kwargs)
 
-    def split_tiles(self, max_spots_per_tile: int=None, target_tile_width: float=None, overlap: float=30, incl_end: bool=False):
+    def split_tiles(self, max_spots_per_tile: int=None, target_tile_width: float=None, overlap: float=30, incl_end: bool=False, min_transcripts=0):
         """Return a list of SpotTables that tile this one.
 
         This table will be split into rows of equal height, and each row will be split into
@@ -592,6 +592,10 @@ class SpotTable:
             Automatically select max_spots_per_tile to get an approximate tile width
         overlap : float
             Distance to overlap tiles
+        incl_end : bool
+            Include all pixels of the image that overlap with the region, rather than just those inside the region.
+        min_transcripts : int
+            Minimum number of transcripts in a tile to be returned
 
         """
         assert (max_spots_per_tile == None) != (target_tile_width == None), "Must specify either max_spots_per_tile or target_tile_width"
@@ -666,11 +670,23 @@ class SpotTable:
                 else:
                     break
             tiles.extend(cols)
-        return tiles
+            
+        filter_tiles = [tile for tile in tiles if len(tile) >= min_transcripts]
+            
+        return filter_tiles
 
-    def grid_tiles(self, max_tile_size:float, overlap: float=30, incl_end: bool=False):
+    def grid_tiles(self, max_tile_size:float, overlap: float=30, incl_end: bool=False, min_transcripts=0):
         """Return a grid of overlapping tiles with equal size, where the width and height
         must be less than max_tile_size.
+
+        max_tile_size : int | None
+            Maximum width and height of each tile.
+        overlap : float
+            Distance to overlap tiles
+        incl_end : bool
+            Include all pixels of the image that overlap with the region, rather than just those inside the region.
+        min_transcripts : int
+            Minimum number of transcripts in a tile to be returned
 
         See also: split_tiles
         """
@@ -707,7 +723,10 @@ class SpotTable:
                 # re-parent tile to self rather than row_table
                 tile.parent_table = self
                 tile.parent_inds = row_tile.map_indices_to_parent(tile.parent_inds)
-        return tiles
+                
+        filter_tiles = [tile for tile in tiles if len(tile) >= min_transcripts]
+            
+        return filter_tiles
 
 
     def plot_rect(self, ax, color):
