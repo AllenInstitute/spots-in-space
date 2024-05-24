@@ -1424,7 +1424,9 @@ class SegmentedSpotTable:
         """
         Create a geojson feature/geometry collection from the cell polygons
         """
-        if dict in set(type(k) for k in self.cell_polygons.values()): # if cell polygons are separated by z-plane use feature collection which stores z-plane info
+        if self.cell_polygons is None:
+            return None
+        elif dict in set(type(k) for k in self.cell_polygons.values()): # if cell polygons are separated by z-plane use feature collection which stores z-plane info
             all_polygons = []
             for cid in self.cell_polygons:
                 if self.cell_polygons[cid]:
