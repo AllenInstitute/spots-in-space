@@ -1110,8 +1110,7 @@ class SegmentedSpotTable:
         """
 
         # Since we are assigning -1 to non-assigned transcript, we need to support negatives values
-        if not np.issubdtype(np.uint32, np.integer):
-            self.cell_ids = self.cell_ids.astype(np.int64)
+        self._cell_ids = self.cell_ids.astype(np.int64)
     
         # If neither prefix nor suffix is set, a UUID is assigned as a prefix
         if prefix is None and suffix is None:
