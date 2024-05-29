@@ -940,6 +940,7 @@ class SegmentedSpotTable:
             raise ValueError(f"Number of cell_ids {len(cell_ids)} does not match number of spots {len(spot_table)}")
 
         self.spot_table = spot_table
+        self._old_cell_ids = None
         self._cell_ids = cell_ids
         self._production_cell_ids = production_cell_ids
         self._pcid_to_cid = pcid_to_cid
@@ -996,6 +997,7 @@ class SegmentedSpotTable:
     
     @cell_ids.setter
     def cell_ids(self, cid: np.ndarray):
+        self._old_cell_ids = self._cell_ids.copy()
         self._cell_ids = cid
         self.cell_ids_changed()
 
@@ -1006,8 +1008,20 @@ class SegmentedSpotTable:
         return self._production_cell_ids
     
     @production_cell_ids.setter
-    def production_cell_ids(self, cid: np.ndarray):
-        self._production_cell_ids = cid
+    def production_cell_ids(self, pcids: np.ndarray):
+        # Make sure we can map cell_ids to production_cell_ids without conflict and vice versa
+        test_df = pandas.DataFrame(self.cell_ids, index=np.arange(len(self.cell_ids)), columns=['cell_ids'])
+        test_df['production_cell_ids'] = pcids
+        test_df = test_df.drop_duplicates(['cell_ids', 'production_cell_ids'])
+        exists_cid_to_pcid_mapping = test_df.groupby('cell_ids')['production_cell_ids'].count().max() == 1
+        exists_pcid_to_cid_mapping = test_df.groupby('production_cell_ids')['cell_ids'].count().max() == 1
+        if exists_cid_to_pcid_mapping and exists_pcid_to_cid_mapping:
+            self._pcid_to_cid = dict(zip(test_df['production_cell_ids'], test_df['cell_ids']))
+            self._cid_to_pcid = dict(zip(test_df['cell_ids'], test_df['production_cell_ids']))
+            self._production_cell_ids = pcids
+        else:
+            raise ValueError("There must exist a valid function mapping cell_ids to production_cell_ids and vice versa.")
+
 
     def convert_cell_id(self, cell_id: int|str):
         """Convert a cell id to a production cell id and vice versa.
@@ -1034,10 +1048,41 @@ class SegmentedSpotTable:
     def cell_ids_changed(self):
         """Call when self.cell_ids has been modified to invalidate caches.
         """
+        import warnings
         self._cell_index = None
         self._cell_bounds = None
         self._unique_cell_ids = None
-
+        
+        # If production cell ids don't exist we don't need to do any of the following check code
+        if self._production_cell_ids is not None:
+            # Production cell ids can just be reassigned if cell_ids are changed so long as there are no new cell ids
+            self._production_cell_ids = pandas.Series(self._cell_ids).map(self._cid_to_pcid)
+            if np.count_nonzero(self.production_cell_ids.isnull()) > 0:
+                self._production_cell_ids = None
+                self._pcid_to_cid = None
+                self._cid_to_pcid = None
+                warnings.warn("Cell ids have been changed and there are new cell ids. production_cell_ids have been set to None. If you would like new production cell ids, please run generate_production_cell_ids() again.")
+            else:
+                self._production_cell_ids = self.production_cell_ids.to_numpy()
+        
+        # If cell polygons don't exist we don't need to do any of the following check code
+        if self.cell_polygons is not None:
+            if self._old_cell_ids is None: # If we don't have the old cell ids we can't check if cell polygons are still valid so we just delete
+                self.cell_polygons = None
+                warnings.warn("Previous cell ids could not be found. Cell polygons have been removed.")
+            else:
+                # Make a dataframe with the counts of all cell_ids in the old and new cell ids
+                test_df = pandas.Series(self._old_cell_ids).value_counts().to_frame().join(pandas.Series(self._cell_ids).value_counts(), how='outer', lsuffix='_old', rsuffix='_new')
+                # Remove any polygons which have been modified
+                # We specifically remove rather than set to None to distinguish cells which have not had polygons created and those for which it is not possible to create
+                differing_polygons = np.where(test_df['count_old'] != test_df['count_new'])[0]
+                for cid in test_df.index[differing_polygons]: # Loop over changed polygons
+                    self.cell_polygons.pop(cid, None)
+                if len(differing_polygons) > 0:
+                    warnings.warn("Some cells were modified, removed, or created. Cell polygons have been kept for unchanged cells but removed for modified, removed, or created cells.")
+        self._old_cell_ids = None
+        
+        
     def unique_cell_ids(self):
         """numpy array of unique cell ids (excluding background)
         """
@@ -1061,12 +1106,12 @@ class SegmentedSpotTable:
     
             Sets
             ----------
-            self.production_cell_ids
+            self._production_cell_ids
         """
-    
+
         # Since we are assigning -1 to non-assigned transcript, we need to support negatives values
-        self.cell_ids = self.cell_ids.astype(np.int64)
-        self.cell_ids_changed()
+        if not np.issubdtype(np.uint32, np.integer):
+            self.cell_ids = self.cell_ids.astype(np.int64)
     
         # If neither prefix nor suffix is set, a UUID is assigned as a prefix
         if prefix is None and suffix is None:
@@ -1086,11 +1131,15 @@ class SegmentedSpotTable:
         pcid_to_cid = dict(zip(np.char.mod(f'{prefix}%d{suffix}', np.arange(1, len(self.unique_cell_ids())+1)), self.unique_cell_ids())) 
         pcid_to_cid["-1"] = -1
     
+        # Reset the current production cell ids and before we call cell_ids_changed for speed
+        self._production_cell_ids = None
+    
         # We set the cell ids which are 0 to -1 b/c they both mean background and we want to be consistent when we use a dictionary which goes b/w production & normal cell ids
+        self._old_cell_ids = self.cell_ids.copy() # Set this so polygons stay
         self.cell_ids[self.cell_ids == 0] = -1 
         self.cell_ids_changed()
     
-        self.production_cell_ids = np.vectorize(cid_to_pcid.get)(self.cell_ids)
+        self._production_cell_ids = pandas.Series(self.cell_ids).map(cid_to_pcid)
         self._pcid_to_cid = pcid_to_cid
         self._cid_to_pcid = cid_to_pcid
     
