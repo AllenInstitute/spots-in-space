@@ -1069,7 +1069,7 @@ class SegmentedSpotTable:
         if self.cell_polygons is not None:
             if self._old_cell_ids is None: # If we don't have the old cell ids we can't check if cell polygons are still valid so we just delete
                 self.cell_polygons = None
-                warnings.warn("Previous cell ids could not be found. Cell polygons have been removed.")
+                warnings.warn("Previous cell ids could not be found. Cell polygons have been removed to ensure accuracy.")
             else:
                 # Make a dataframe with the counts of all cell_ids in the old and new cell ids
                 test_df = pandas.Series(self._old_cell_ids).value_counts().to_frame().join(pandas.Series(self._cell_ids).value_counts(), how='outer', lsuffix='_old', rsuffix='_new')
