@@ -17,6 +17,13 @@ import seaborn as sns
 
 import zipfile
 
+
+
+COUNTS_MATRIX_FILEPARTS = ["cell_feature_matrix" , "matrix.mtx.gz"]
+FEATURES_FILEPARTS = ["cell_feature_matrix" , "features.tsv.gz"]
+
+
+
 def reduce_expression(data, umap_args):
     import umap
     from sklearn.preprocessing import StandardScaler
@@ -616,3 +623,53 @@ def make_cirro_compatible(cell_by_gene: ad.AnnData,obs_spatial_columns =  ['cent
         return cell_by_gene_cirro
 
 
+
+
+def load_xenium_anndata(xenium_directory:pathlib.Path,dry_run =False ):
+    """
+    load Xenium data into an AnnData object, using the 10X-computed
+    segmentation results
+
+    
+    """
+    # verify things exist and unzip mtx file to disk
+    
+    counts_matrix_file = pathlib.Path(xenium_directory).joinpath(*COUNTS_MATRIX_FILEPARTS)
+    
+    feature_file = pathlib.Path(xenium_directory).joinpath(*FEATURES_FILEPARTS)
+
+    unzipped_target = counts_matrix_file.parent.joinpath(counts_matrix_file.stem)
+    if dry_run:
+        print(str(counts_matrix_file)+" exists? "+str(counts_matrix_file.exists()))
+        print(str(feature_file)+" exists? "+str(counts_matrix_file.exists()))
+        print(str(unzipped_target)+" exists? "+str(counts_matrix_file.exists()))
+        return
+    
+    if counts_matrix_file.exists() and not ( unzipped_target.exists()):
+        
+        with gzip.open(counts_matrix_file, 'r') as f_in, open(unzipped_target, 'wb') as f_out:
+            shutil.copyfileobj(f_in, f_out)
+            
+    
+    with gzip.open(feature_file) as z:
+        features = pd.read_csv(z, delimiter='\t', header=None)
+    
+    
+    
+    counts = ad.read_mtx(unzipped_target)
+
+    
+    cell_metadata = pd.read_parquet(xenium_directory.joinpath("cells.parquet"))
+
+    features["gene"] = features[1] 
+    
+    cad = counts.T.copy()
+
+    cad.var=features.loc[:,["gene"]]
+
+    cad.var_names = features.loc[:,"gene"].values
+
+    cad.obs =cell_metadata
+    cad.obsm["spatial"] = cad.obs.loc[:,["x_centroid","y_centroid"]].values
+    cad.obs["filename"] = xenium_directory.stem
+    return cad

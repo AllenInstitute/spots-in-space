@@ -13,3 +13,5 @@ rasterio
 geopandas
 versioneer
 geojson
+pyarrow
+fastparquet
