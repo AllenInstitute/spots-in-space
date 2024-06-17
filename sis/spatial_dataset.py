@@ -351,7 +351,7 @@ class MERSCOPESection(SpatialDataset):
         pts_request_filt = pts_schema.MetadataFilterInput(type=pts_schema.DataTypeFilterInput(name=pts_schema.StringOperationFilterInput(eq="MerscopeImagingRequestMetadata")))
         
         self.qc_state = pts.get_process_metadata(process_id = merscope_expt.id, 
-                                                 metadata_filter_input = pts_qc_filt)[0].data['QC_State']
+                                                 metadata_filter_input = pts_qc_filt)[0].data.get('QC_State', None)
         self.gene_panel = pts.get_process_metadata(process_id = merscope_expt.id, 
                                                    metadata_filter_input = pts_request_filt)[0].data['GenePanel']
         self.merscope_expt_pts_id = merscope_expt.id
