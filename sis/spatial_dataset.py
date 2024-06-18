@@ -360,14 +360,21 @@ class MERSCOPESection(SpatialDataset):
 #         self.z_coord # this will probably require some math and grabbing of parent z_coord - nothing currently in BERS 
 #         self.parent_z_coord
         
-    def _filter_dats_instances(self, instances):
+    def _filter_dats_instances(self, instances, storage_provider):
+        locations = [instance.storage['storage_provider'] for instance in instances]
+        assert storage_provider in locations, f'No instances with storage provider {storage_provider} found. Available locations are {locations}.' 
+
         if len(instances) > 1:
             for instance in instances:
-                if instance.storage['storage_provider'] == 'Isilon::POSIX':
+                if instance.storage['storage_provider'] == storage_provider:
                     url = instance.download_url
+                    break
+
         else:
             url = instances[0].download_url
-        
+
+        print(url)
+
         # parse file URIs and reformat, for now
         if url.startswith('file'):
             return unquote(urlparse(url).path)
@@ -380,6 +387,7 @@ class MERSCOPESection(SpatialDataset):
         dats = DatsClient()
         pts = PtsClient()
         macaque_dats_account = dats.get_account(name = self.config['merscope_lims_code'])
+        storage_provider = self.config['storage_provider']
         
         merscope_expt = pts.get_process_by_id(self.merscope_expt_pts_id)
         spec_data_collection = None
@@ -392,14 +400,14 @@ class MERSCOPESection(SpatialDataset):
             except:
                 pass
         
-        assert spec_data_collection is not None, f'No merfish_output collection found for {self.barcode} with Isilon instances. Data paths cannot be determined'
+        assert spec_data_collection is not None, f'No merfish_output collection found for {self.barcode}. Data paths cannot be determined'
         for asset in spec_data_collection.digital_assets:
             if asset.type == 'CSV' and 'detected_transcripts' in asset.name:
-                self.detected_transcripts_file = self._filter_dats_instances(asset.instances)
+                self.detected_transcripts_file = self._filter_dats_instances(asset.instances, storage_provider)
                 if platform.startswith('win'):
                     self.detected_transcripts_file = '/' + self.detected_transcripts_file
             if asset.type == 'Directory' and 'images' in asset.name:
-                self.images_path = self._filter_dats_instances(asset.instances)
+                self.images_path = self._filter_dats_instances(asset.instances, storage_provider)
                 if platform.startswith('win'):
                     self.images_path = '/' + self.images_path
 
