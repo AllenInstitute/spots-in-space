@@ -44,6 +44,7 @@ BersClient = optional_import( 'allen_services_api.bers.client.bers_client', name
 SPATIALDATASET_VERSION = 2
 
 
+
 class SpatialDataset:
     # wrapper class
     def __init__(self, barcode, configfile=None):
@@ -90,7 +91,7 @@ class SpatialDataset:
             path = getattr(self, attr)
             if isinstance(path, str):
                 continue
-            assert isinstance(path, Path)
+            assert isinstance(path, Path), f'{attr} has value {path} which is not a Path object.'
             if path.is_file():
                 setattr(self, attr, path.as_posix())
             elif path.is_dir():
@@ -364,16 +365,14 @@ class MERSCOPESection(SpatialDataset):
         locations = [instance.storage['storage_provider'] for instance in instances]
         assert storage_provider in locations, f'No instances with storage provider {storage_provider} found. Available locations are {locations}.' 
 
-        if len(instances) > 1:
-            for instance in instances:
-                if instance.storage['storage_provider'] == storage_provider:
-                    url = instance.download_url
-                    break
+        filtered_instances = [i for i in instances if i.storage['storage_provider'] == storage_provider]
+        
+        # if the length of the list is one, the first one is the only one and must be correct
+        # if not then let the user know there are multiple
+        if len(filtered_instances) > 1:
+            warnings.warn(f'Multiple instances found for storage provider {storage_provider}. Using the first one found.')
 
-        else:
-            url = instances[0].download_url
-
-        print(url)
+        url = filtered_instances[0].download_url
 
         # parse file URIs and reformat, for now
         if url.startswith('file'):
