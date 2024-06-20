@@ -18,6 +18,7 @@ from sis.util import load_config
 import anndata as ad
 import os, sys, datetime, glob, pickle, time
 import json
+import warnings
 from abc import abstractmethod
 from pathlib import Path
 from urllib.parse import unquote, urlparse
@@ -42,6 +43,7 @@ BersClient = optional_import( 'allen_services_api.bers.client.bers_client', name
 
 
 SPATIALDATASET_VERSION = 2
+
 
 
 class SpatialDataset:
@@ -90,7 +92,7 @@ class SpatialDataset:
             path = getattr(self, attr)
             if isinstance(path, str):
                 continue
-            assert isinstance(path, Path)
+            assert isinstance(path, Path), f'{attr} has value {path} which is not a Path object.'
             if path.is_file():
                 setattr(self, attr, path.as_posix())
             elif path.is_dir():
@@ -351,7 +353,7 @@ class MERSCOPESection(SpatialDataset):
         pts_request_filt = pts_schema.MetadataFilterInput(type=pts_schema.DataTypeFilterInput(name=pts_schema.StringOperationFilterInput(eq="MerscopeImagingRequestMetadata")))
         
         self.qc_state = pts.get_process_metadata(process_id = merscope_expt.id, 
-                                                 metadata_filter_input = pts_qc_filt)[0].data['QC_State']
+                                                 metadata_filter_input = pts_qc_filt)[0].data.get('QC_State', None)
         self.gene_panel = pts.get_process_metadata(process_id = merscope_expt.id, 
                                                    metadata_filter_input = pts_request_filt)[0].data['GenePanel']
         self.merscope_expt_pts_id = merscope_expt.id
@@ -360,14 +362,19 @@ class MERSCOPESection(SpatialDataset):
 #         self.z_coord # this will probably require some math and grabbing of parent z_coord - nothing currently in BERS 
 #         self.parent_z_coord
         
-    def _filter_dats_instances(self, instances):
-        if len(instances) > 1:
-            for instance in instances:
-                if instance.storage['storage_provider'] == 'Isilon::POSIX':
-                    url = instance.download_url
-        else:
-            url = instances[0].download_url
+    def _filter_dats_instances(self, instances, storage_provider):
+        locations = [instance.storage['storage_provider'] for instance in instances]
+        assert storage_provider in locations, f'No instances with storage provider {storage_provider} found. Available locations are {locations}.' 
+
+        filtered_instances = [i for i in instances if i.storage['storage_provider'] == storage_provider]
         
+        # if the length of the list is one, the first one is the only one and must be correct
+        # if not then let the user know there are multiple
+        if len(filtered_instances) > 1:
+            warnings.warn(f'Multiple instances found for storage provider {storage_provider}. Using the first one found.')
+
+        url = filtered_instances[0].download_url
+
         # parse file URIs and reformat, for now
         if url.startswith('file'):
             return unquote(urlparse(url).path)
@@ -380,6 +387,7 @@ class MERSCOPESection(SpatialDataset):
         dats = DatsClient()
         pts = PtsClient()
         macaque_dats_account = dats.get_account(name = self.config['merscope_lims_code'])
+        storage_provider = self.config['storage_provider']
         
         merscope_expt = pts.get_process_by_id(self.merscope_expt_pts_id)
         spec_data_collection = None
@@ -392,14 +400,14 @@ class MERSCOPESection(SpatialDataset):
             except:
                 pass
         
-        assert spec_data_collection is not None, f'No merfish_output collection found for {self.barcode} with Isilon instances. Data paths cannot be determined'
+        assert spec_data_collection is not None, f'No merfish_output collection found for {self.barcode}. Data paths cannot be determined'
         for asset in spec_data_collection.digital_assets:
             if asset.type == 'CSV' and 'detected_transcripts' in asset.name:
-                self.detected_transcripts_file = self._filter_dats_instances(asset.instances)
+                self.detected_transcripts_file = self._filter_dats_instances(asset.instances, storage_provider)
                 if platform.startswith('win'):
                     self.detected_transcripts_file = '/' + self.detected_transcripts_file
             if asset.type == 'Directory' and 'images' in asset.name:
-                self.images_path = self._filter_dats_instances(asset.instances)
+                self.images_path = self._filter_dats_instances(asset.instances, storage_provider)
                 if platform.startswith('win'):
                     self.images_path = '/' + self.images_path
 

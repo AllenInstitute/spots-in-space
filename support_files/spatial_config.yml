@@ -3,9 +3,11 @@
 
 merscope_save_path: "//allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/MERSCOPE/macaque"
 stereoseq_save_path: "//allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/BGI/Production"
+storage_provider: "Isilon::POSIX"  # for S3 change to AWS::S3
 mapping_dir: "mapping"
 segmentation_dir: "segmentation"
-qc_dir: "qc_doublets"
+qc_dir: "qc"
+doublet_dir: 'doublet_detection'
 merscope_lims_code: "mfishMERSCOPEmacaqueAtlas"
 lims_code: "macaqueAtlas"
 bulkseq_file: "//allen/programs/celltypes/workgroups/rnaseqanalysis/NHP_spatial/bulkseq/macaque/master_bulk_data.csv"
