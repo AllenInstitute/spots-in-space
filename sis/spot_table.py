@@ -1072,13 +1072,22 @@ class SegmentedSpotTable:
                 warnings.warn("Previous cell ids could not be found. Cell polygons have been removed to ensure accuracy.")
             else:
                 # Make a dataframe with the counts of all cell_ids in the old and new cell ids
-                test_df = pandas.Series(self._old_cell_ids).value_counts().to_frame().join(pandas.Series(self._cell_ids).value_counts(), how='outer', lsuffix='_old', rsuffix='_new')
+                #test_df = pandas.Series(self._old_cell_ids).value_counts().to_frame().join(pandas.Series(self._cell_ids).value_counts(), how='outer', lsuffix='_old', rsuffix='_new')
+                test_df = pandas.DataFrame([pandas.Series(np.zeros(len(self._old_cell_ids)), index=self._old_cell_ids).groupby(level=0).indices]).T.join(pandas.DataFrame([pandas.Series(np.zeros(len(self._cell_ids)), index=self._cell_ids).groupby(level=0).indices]).T, how='outer', lsuffix='_old', rsuffix='_new')
+                test_df['count_old'] = pandas.Series(self._old_cell_ids).value_counts()
+                test_df['count_new'] = pandas.Series(self._cell_ids).value_counts()
+                
                 # Remove any polygons which have been modified
                 # We specifically remove rather than set to None to distinguish cells which have not had polygons created and those for which it is not possible to create
-                differing_polygons = np.where(test_df['count_old'] != test_df['count_new'])[0]
-                for cid in test_df.index[differing_polygons]: # Loop over changed polygons
-                    self.cell_polygons.pop(cid, None)
-                if len(differing_polygons) > 0:
+                # differing_polygons = np.where(test_df['count_old'] != test_df['count_new'])[0]
+                # for cid in test_df.index[differing_polygons]: # Loop over changed polygons
+                #     self.cell_polygons.pop(cid, None)
+                differing_polygons = False
+                for cid, idx_old, idx_new, count_old, count_new in zip(test_df.index, test_df['0_old'], test_df['0_new'], test_df['count_old'], test_df['count_new']):
+                    if count_old != count_new or np.any(idx_old != idx_new):
+                        self.cell_polygons.pop(cid, None)
+                        differing_polygons = True
+                if differing_polygons:
                     warnings.warn("Some cells were modified, removed, or created. Cell polygons have been kept for unchanged cells but removed for modified, removed, or created cells.")
         self._old_cell_ids = None
         
