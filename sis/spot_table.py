@@ -17,7 +17,7 @@ from .image import ImageBase, ImageFile, ImageStack, ImageTransform
 from . import util
 from . import _version
 
-def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file: str|None, subregion: str|tuple|None, cell_subset_file:str|None, result_file:str|None, alpha_inv_coeff: float=1):
+def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file: str|None, subregion: str|tuple|None, cell_subset_file:str|None, result_file:str|None, alpha_inv_coeff: float=1, separate_z_planes=True):
     """Load a segmented spot table, calculate the cell polygons (possibly on a subset of cells), and save the result.
     """
     if cell_id_file is not None:
@@ -49,7 +49,7 @@ def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file: str|No
         cells_to_run = np.delete(cells_to_run, np.where((cells_to_run == 0) | (cells_to_run == -1)))
 
     print('Calculating Cell Polygons...')
-    seg_spot_table.calculate_cell_polygons(cells_to_run=cells_to_run, alpha_inv_coeff=alpha_inv_coeff)
+    seg_spot_table.calculate_cell_polygons(cells_to_run=cells_to_run, alpha_inv_coeff=alpha_inv_coeff, separate_z_planes=separate_z_planes)
 
     print('Saving Cell Polygons...', end='')
     seg_spot_table.save_cell_polygons(result_file)
@@ -81,8 +81,8 @@ class SpotTable:
         Indices used to select the subset of spots in this table from the parent spots.
     parent_region : tuple | None
         X,Y boundaries ((xmin, xmax), (ymin, ymax)) used to select this table from the parent table.
-    images : list | None
-        Images associated with the data (e.g. nuclei stain).
+    images : list[ImageBase] | ImageBase | None
+        Image(s) associated with the data (e.g. nuclei stain).
     """
     def __init__(self, 
                  pos: np.ndarray,
@@ -92,7 +92,7 @@ class SpotTable:
                  parent_table: 'None|SpotTable'=None, 
                  parent_inds: None|np.ndarray=None, 
                  parent_region: None|tuple=None,
-                 images: None|list=None,
+                 images: None|list[ImageBase]|ImageBase=None,
                  ):
  
         self.pos = pos
@@ -117,9 +117,15 @@ class SpotTable:
         self._gene_names = None
 
         self.images = []
-        if images is not None:
+        if images is None:
+            pass
+        elif isinstance(images, ImageBase):
+            self.add_image(images)
+        elif isinstance(images, list) and all([isinstance(i, ImageBase) for i in images]):
             for img in images:
                 self.add_image(img)
+        else:
+            raise TypeError(f'Unsupported type for image(s). Images must be of type ImageBase or a list of ImageBase.')
 
     def __len__(self):
         return len(self.pos)
@@ -1330,6 +1336,9 @@ class SegmentedSpotTable:
                 return all([polygon.intersects(shapely.geometry.Point(point)) for point in points.geoms])
             else:
                 return False
+
+        # Drop duplicate coordinates (can happen in StereoSeq data)
+        xy_pos = np.unique(xy_pos, axis=0)
 
         if xy_pos.shape[0] > 3: # If there are <= 3 points cannot do delaunay
             putative_polygon = SegmentedSpotTable.cell_polygon(xy_pos, alpha_inv)
