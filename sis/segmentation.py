@@ -15,6 +15,7 @@ from abc import abstractmethod
 import pandas as pd
 import anndata as ad
 import sis
+from sis.util import convert_value_nested_dict
 
 from .optional_import import optional_import
 geojson = optional_import('geojson')
@@ -1157,7 +1158,7 @@ class SegmentationPipeline:
         print(status_str)
         self.track_job_progress(jobs)
         return jobs
-
+    
     def merge_segmented_tiles(self, run_spec: dict|None=None, tiles: list[SegmentedSpotTable]|None=None, overwrite: bool=False):
         """Merge segmented tiles to generate and save the array of cell_ids.
         A new SegmentedSpotTable is created from the raw SpotTable and 
@@ -1188,9 +1189,15 @@ class SegmentationPipeline:
 
         print('Merging tiles...')
         # Merging updates the spot table cell_ids in place
+
+        # tuples cannot be saved in anndata object, so convert to list
+        # this is an issue if gauss or median kernels are specified
+        seg_opts = self.seg_opts
+        seg_opts = convert_value_nested_dict(seg_opts, tuple, list)
+
         truncated_meta = {
                 'seg_method': str(self.seg_method),
-                'seg_opts': self.seg_opts,
+                'seg_opts': seg_opts,
                 'polygon_opts': self.polygon_opts
                 }
 
@@ -1289,6 +1296,7 @@ class SegmentationPipeline:
                     cell_subset_file=self.polygon_subsets_path.joinpath(f'cell_id_subset_{i}.npy').as_posix(),
                     result_file=self.polygon_subsets_path.joinpath(f'cell_polygons_subset_{i}.{self.polygon_opts["save_file_extension"]}').as_posix(),
                     alpha_inv_coeff=self.polygon_opts['alpha_inv_coeff'],
+                    separate_z_planes=self.polygon_opts['separate_z_planes'],
                 )
             )
 

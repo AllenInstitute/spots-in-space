@@ -616,3 +616,14 @@ def make_cirro_compatible(cell_by_gene: ad.AnnData,obs_spatial_columns =  ['cent
         return cell_by_gene_cirro
 
 
+def convert_value_nested_dict(d: dict, oldtype, newtype) -> dict:
+    "Helper function to convert a value in a nested dict from oldtype to newtype."
+    x = {}
+    for k, v in d.items():
+        if isinstance(v, dict):
+            v = convert_value_nested_dict(v, oldtype, newtype)
+        elif isinstance(v, oldtype):
+            v = newtype(v)
+        x[k] = v
+    return x
+
