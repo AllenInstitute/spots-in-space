@@ -689,6 +689,7 @@ class SegmentationPipeline:
         self.polygon_opts = {} if polygon_opts is None else polygon_opts
         self.polygon_opts.setdefault('save_file_extension', 'geojson')
         self.polygon_opts.setdefault('alpha_inv_coeff', 4/3)
+        self.polygon_opts.setdefault('separate_z_planes', True)
         self.polygon_hpc_opts = hpc_opts if polygon_hpc_opts is None else polygon_hpc_opts
         self.polygon_jobs = None
         
