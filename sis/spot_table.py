@@ -17,7 +17,7 @@ from .image import ImageBase, ImageFile, ImageStack, ImageTransform
 from . import util
 from . import _version
 
-def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file: str|None, subregion: str|tuple|None, cell_subset_file:str|None, result_file:str|None, alpha_inv_coeff: float=1):
+def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file: str|None, subregion: str|tuple|None, cell_subset_file:str|None, result_file:str|None, alpha_inv_coeff: float=1, separate_z_planes=True):
     """Load a segmented spot table, calculate the cell polygons (possibly on a subset of cells), and save the result.
     """
     if cell_id_file is not None:
@@ -49,7 +49,7 @@ def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file: str|No
         cells_to_run = np.delete(cells_to_run, np.where((cells_to_run == 0) | (cells_to_run == -1)))
 
     print('Calculating Cell Polygons...')
-    seg_spot_table.calculate_cell_polygons(cells_to_run=cells_to_run, alpha_inv_coeff=alpha_inv_coeff)
+    seg_spot_table.calculate_cell_polygons(cells_to_run=cells_to_run, alpha_inv_coeff=alpha_inv_coeff, separate_z_planes=separate_z_planes)
 
     print('Saving Cell Polygons...', end='')
     seg_spot_table.save_cell_polygons(result_file)
@@ -81,8 +81,8 @@ class SpotTable:
         Indices used to select the subset of spots in this table from the parent spots.
     parent_region : tuple | None
         X,Y boundaries ((xmin, xmax), (ymin, ymax)) used to select this table from the parent table.
-    images : list | None
-        Images associated with the data (e.g. nuclei stain).
+    images : list[ImageBase] | ImageBase | None
+        Image(s) associated with the data (e.g. nuclei stain).
     """
     def __init__(self, 
                  pos: np.ndarray,
@@ -92,7 +92,7 @@ class SpotTable:
                  parent_table: 'None|SpotTable'=None, 
                  parent_inds: None|np.ndarray=None, 
                  parent_region: None|tuple=None,
-                 images: None|list=None,
+                 images: None|list[ImageBase]|ImageBase=None,
                  ):
  
         self.pos = pos
@@ -117,9 +117,15 @@ class SpotTable:
         self._gene_names = None
 
         self.images = []
-        if images is not None:
+        if images is None:
+            pass
+        elif isinstance(images, ImageBase):
+            self.add_image(images)
+        elif isinstance(images, list) and all([isinstance(i, ImageBase) for i in images]):
             for img in images:
                 self.add_image(img)
+        else:
+            raise TypeError(f'Unsupported type for image(s). Images must be of type ImageBase or a list of ImageBase.')
 
     def __len__(self):
         return len(self.pos)
@@ -1036,6 +1042,7 @@ class SegmentedSpotTable:
             raise ValueError(f"Number of cell_ids {len(cell_ids)} does not match number of spots {len(spot_table)}")
 
         self.spot_table = spot_table
+        self._old_cell_ids = None
         self._cell_ids = cell_ids
         self._production_cell_ids = production_cell_ids
         self._pcid_to_cid = pcid_to_cid
@@ -1092,6 +1099,7 @@ class SegmentedSpotTable:
     
     @cell_ids.setter
     def cell_ids(self, cid: np.ndarray):
+        self._old_cell_ids = self._cell_ids.copy()
         self._cell_ids = cid
         self.cell_ids_changed()
 
@@ -1102,8 +1110,20 @@ class SegmentedSpotTable:
         return self._production_cell_ids
     
     @production_cell_ids.setter
-    def production_cell_ids(self, cid: np.ndarray):
-        self._production_cell_ids = cid
+    def production_cell_ids(self, pcids: np.ndarray):
+        # Make sure we can map cell_ids to production_cell_ids without conflict and vice versa
+        test_df = pandas.DataFrame(self.cell_ids, index=np.arange(len(self.cell_ids)), columns=['cell_ids'])
+        test_df['production_cell_ids'] = pcids
+        test_df = test_df.drop_duplicates(['cell_ids', 'production_cell_ids'])
+        exists_cid_to_pcid_mapping = test_df.groupby('cell_ids')['production_cell_ids'].count().max() == 1
+        exists_pcid_to_cid_mapping = test_df.groupby('production_cell_ids')['cell_ids'].count().max() == 1
+        if exists_cid_to_pcid_mapping and exists_pcid_to_cid_mapping:
+            self._pcid_to_cid = dict(zip(test_df['production_cell_ids'], test_df['cell_ids']))
+            self._cid_to_pcid = dict(zip(test_df['cell_ids'], test_df['production_cell_ids']))
+            self._production_cell_ids = pcids
+        else:
+            raise ValueError("There must exist a valid function mapping cell_ids to production_cell_ids and vice versa.")
+
 
     def convert_cell_id(self, cell_id: int|str):
         """Convert a cell id to a production cell id and vice versa.
@@ -1130,10 +1150,50 @@ class SegmentedSpotTable:
     def cell_ids_changed(self):
         """Call when self.cell_ids has been modified to invalidate caches.
         """
+        import warnings
         self._cell_index = None
         self._cell_bounds = None
         self._unique_cell_ids = None
-
+        
+        # If production cell ids don't exist we don't need to do any of the following check code
+        if self._production_cell_ids is not None:
+            # Production cell ids can just be reassigned if cell_ids are changed so long as there are no new cell ids
+            self._production_cell_ids = pandas.Series(self._cell_ids).map(self._cid_to_pcid)
+            if np.count_nonzero(self.production_cell_ids.isnull()) > 0:
+                self._production_cell_ids = None
+                self._pcid_to_cid = None
+                self._cid_to_pcid = None
+                warnings.warn("Cell ids have been changed and there are new cell ids. production_cell_ids have been set to None. If you would like new production cell ids, please run generate_production_cell_ids() again.")
+            else:
+                self._production_cell_ids = self.production_cell_ids.to_numpy()
+        
+        # If cell polygons don't exist we don't need to do any of the following check code
+        if self.cell_polygons is not None:
+            if self._old_cell_ids is None: # If we don't have the old cell ids we can't check if cell polygons are still valid so we just delete
+                self.cell_polygons = None
+                warnings.warn("Previous cell ids could not be found. Cell polygons have been removed to ensure accuracy.")
+            else:
+                # Make a dataframe with the counts of all cell_ids in the old and new cell ids
+                #test_df = pandas.Series(self._old_cell_ids).value_counts().to_frame().join(pandas.Series(self._cell_ids).value_counts(), how='outer', lsuffix='_old', rsuffix='_new')
+                test_df = pandas.DataFrame([pandas.Series(np.zeros(len(self._old_cell_ids)), index=self._old_cell_ids).groupby(level=0).indices]).T.join(pandas.DataFrame([pandas.Series(np.zeros(len(self._cell_ids)), index=self._cell_ids).groupby(level=0).indices]).T, how='outer', lsuffix='_old', rsuffix='_new')
+                test_df['count_old'] = pandas.Series(self._old_cell_ids).value_counts()
+                test_df['count_new'] = pandas.Series(self._cell_ids).value_counts()
+                
+                # Remove any polygons which have been modified
+                # We specifically remove rather than set to None to distinguish cells which have not had polygons created and those for which it is not possible to create
+                # differing_polygons = np.where(test_df['count_old'] != test_df['count_new'])[0]
+                # for cid in test_df.index[differing_polygons]: # Loop over changed polygons
+                #     self.cell_polygons.pop(cid, None)
+                differing_polygons = False
+                for cid, idx_old, idx_new, count_old, count_new in zip(test_df.index, test_df['0_old'], test_df['0_new'], test_df['count_old'], test_df['count_new']):
+                    if count_old != count_new or np.any(idx_old != idx_new):
+                        self.cell_polygons.pop(cid, None)
+                        differing_polygons = True
+                if differing_polygons:
+                    warnings.warn("Some cells were modified, removed, or created. Cell polygons have been kept for unchanged cells but removed for modified, removed, or created cells.")
+        self._old_cell_ids = None
+        
+        
     def unique_cell_ids(self):
         """numpy array of unique cell ids (excluding background)
         """
@@ -1157,12 +1217,11 @@ class SegmentedSpotTable:
     
             Sets
             ----------
-            self.production_cell_ids
+            self._production_cell_ids
         """
-    
+
         # Since we are assigning -1 to non-assigned transcript, we need to support negatives values
-        self.cell_ids = self.cell_ids.astype(np.int64)
-        self.cell_ids_changed()
+        self._cell_ids = self.cell_ids.astype(np.int64)
     
         # If neither prefix nor suffix is set, a UUID is assigned as a prefix
         if prefix is None and suffix is None:
@@ -1182,11 +1241,15 @@ class SegmentedSpotTable:
         pcid_to_cid = dict(zip(np.char.mod(f'{prefix}%d{suffix}', np.arange(1, len(self.unique_cell_ids())+1)), self.unique_cell_ids())) 
         pcid_to_cid["-1"] = -1
     
+        # Reset the current production cell ids and before we call cell_ids_changed for speed
+        self._production_cell_ids = None
+    
         # We set the cell ids which are 0 to -1 b/c they both mean background and we want to be consistent when we use a dictionary which goes b/w production & normal cell ids
+        self._old_cell_ids = self.cell_ids.copy() # Set this so polygons stay
         self.cell_ids[self.cell_ids == 0] = -1 
         self.cell_ids_changed()
     
-        self.production_cell_ids = np.vectorize(cid_to_pcid.get)(self.cell_ids)
+        self._production_cell_ids = pandas.Series(self.cell_ids).map(cid_to_pcid)
         self._pcid_to_cid = pcid_to_cid
         self._cid_to_pcid = cid_to_pcid
     
@@ -1426,6 +1489,9 @@ class SegmentedSpotTable:
                 return all([polygon.intersects(shapely.geometry.Point(point)) for point in points.geoms])
             else:
                 return False
+
+        # Drop duplicate coordinates (can happen in StereoSeq data)
+        xy_pos = np.unique(xy_pos, axis=0)
 
         if xy_pos.shape[0] > 3: # If there are <= 3 points cannot do delaunay
             putative_polygon = SegmentedSpotTable.cell_polygon(xy_pos, alpha_inv)
