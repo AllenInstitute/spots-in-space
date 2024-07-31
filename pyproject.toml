@@ -25,7 +25,8 @@ dependencies = ["numpy",
 "tqdm",
 "shapely",
 "rasterio",
-"geopandas"
+"geopandas",
+"geojson"
 ]
 
 [build-system]

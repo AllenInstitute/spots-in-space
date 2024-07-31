@@ -1010,7 +1010,7 @@ class SegmentationPipeline:
         subtable = table.get_subregion(xlim=subrgn[0], ylim=subrgn[1])
         self.raw_spot_table = subtable
 
-    def run(self, x_format: str, prefix: str='', suffix: str='', overwrite: bool=False, clean_up: str|bool|None='all_ints', tile_size: int=200, rerun: bool=True):
+    def run(self, x_format: str, prefix: str='', suffix: str='', overwrite: bool=False, clean_up: str|bool|None='all_ints', tile_size: int=200, min_transcripts: int=0, rerun: bool=True):
         """Run all steps to perform tiled segmentation.
 
         Parameters
@@ -1032,6 +1032,8 @@ class SegmentationPipeline:
             The maximum size of tiles to segment. Default 200. Increasing this
             parameter may also require increasing time and/or memory limits in
             seg_hpc_opts.
+        min_transcripts : int, optional
+            Minimum number of transcripts in a tile to be considered for segmentation. Default 0.
         rerun: bool, optional
             If enabled, SegmentationPipeline will attempt to automatically rerun jobs that failed
             If job failed due to memory constaints, memory limit in will be doubled
@@ -1053,7 +1055,7 @@ class SegmentationPipeline:
         self.load_raw_spot_table()
 
         # run all steps in sequence
-        tiles, regions = self.tile_seg_region(overwrite=overwrite, max_tile_size=tile_size)
+        tiles, regions = self.tile_seg_region(overwrite=overwrite, max_tile_size=tile_size, min_transcripts=min_transcripts)
         seg_run_spec = self.get_seg_run_spec(regions=regions, overwrite=overwrite, result_files=False if clean_up else True)
         self.seg_jobs = self.submit_jobs('segmentation', seg_run_spec, overwrite)
         if rerun:
@@ -1094,7 +1096,7 @@ class SegmentationPipeline:
         if not np.any([job.state().state == "COMPLETED" for job in jobs.jobs]):
             raise RuntimeError(f'All jobs failed. Please check error logs in {self.output_dir.joinpath("hpc-jobs")}')
 
-    def tile_seg_region(self, overwrite: bool=False, max_tile_size: int=200, overlap: int=30):
+    def tile_seg_region(self, overwrite: bool=False, max_tile_size: int=200, overlap: int=30, min_transcripts=0):
         """Split the attached SpotTable into rectangular subregions (tiles).
         Also saves the subregion coordinates into a json file.
 
@@ -1106,6 +1108,8 @@ class SegmentationPipeline:
             Maximum width and height of the tiles in microns. Default 200.
         overlap : int
             Amount of overlap between tiles in microns. Default 30.
+        min_transcripts : int
+            Minimum number of transcripts in a tile to be considered for segmentation. Default 0.
         
         Returns
         -------
@@ -1117,7 +1121,7 @@ class SegmentationPipeline:
         print('Tiling segmentation region...')
         subtable = self.raw_spot_table
 
-        tiles = subtable.grid_tiles(max_tile_size=max_tile_size, overlap=overlap)
+        tiles = subtable.grid_tiles(max_tile_size=max_tile_size, overlap=overlap, min_transcripts=min_transcripts)
         regions = [tile.parent_region for tile in tiles]
 
         # save regions
@@ -1170,13 +1174,11 @@ class SegmentationPipeline:
 
         return run_spec
 
-    def _check_overwrite_dir(self, overwrite_dir, run_spec, overwrite_file_keys, overwrite):
+    def _check_overwrite_files(self, run_spec, overwrite_file_keys, overwrite):
         """Helper function to check whether to overwrite files in a directory
         
         Parameters
         ----------
-        overwrite_dir: Path
-            The directory to check for files
         run_spec: dict  
             The run specifications used to submit the jobs which will output files that we may want to overwrite
         overwrite_file_keys: list[str]
@@ -1187,11 +1189,10 @@ class SegmentationPipeline:
         if overwrite: # If we are allowed to overwrite, just return
             return
         
-        for _, _, kwargs in run_spec.values():
-            for overwrite_file_key in overwrite_file_keys:
-                overwrite_file = kwargs[overwrite_file_key]
-                if len(list(overwrite_dir.glob(overwrite_file))) > 0:
-                    raise FileExistsError(f'Saved {overwrite_file} file detected in directory and overwriting is disabled.')
+        files_to_check = [v[2][k] for v in run_spec.values() for k in overwrite_file_keys]
+        for file in files_to_check:
+            if file is not None and os.path.exists(file):
+                raise FileExistsError(f'Saved {file} file detected in directory and overwriting is disabled.')
     
 
     def submit_jobs(self, job_type: str, run_spec: dict|None=None, overwrite: bool=False):
@@ -1216,7 +1217,7 @@ class SegmentationPipeline:
             if run_spec is None:
                 run_spec = self.load_run_spec(self.seg_run_spec_path)
             hpc_opts = self.seg_hpc_opts
-            self._check_overwrite_dir(self.tile_save_path, run_spec, ['result_file', 'cell_id_file'], overwrite)
+            self._check_overwrite_files(run_spec, ['result_file', 'cell_id_file'], overwrite)
             # Set defaults
             hpc_opts.setdefault('mem', '20G')
             hpc_opts.setdefault('time', '00:30:00')
@@ -1226,7 +1227,7 @@ class SegmentationPipeline:
             if run_spec is None:
                 run_spec = self.load_run_spec(self.polygon_run_spec_path)
             hpc_opts = self.polygon_hpc_opts
-            self._check_overwrite_dir(self.polygon_subsets_path, run_spec, ['result_file'], overwrite)
+            self._check_overwrite_files(run_spec, ['result_file'], overwrite)
             # Set defaults
             hpc_opts.setdefault('mem', '10G')
             hpc_opts.setdefault('time', '00:30:00')
@@ -1576,20 +1577,20 @@ class SegmentationPipeline:
         """
         job_state_dict = jobs.state()
         failure_types= {"OUT_OF_MEMORY": False, "TIMEOUT": False, "CANCELLED": False}
-        failed_jobs = []
-        for job_id, job_state in job_state_dict.items():
+        failed_jobs_indices = []
+        for job_index, job_state in enumerate(job_state_dict.values()):
             if job_state.state == "COMPLETED":
                 continue
             elif job_state.state in failure_types.keys():
-                failed_jobs.append(int(job_id.split("_")[-1]))
+                failed_jobs_indices.append(job_index)
                 failure_types[job_state.state] = True
             else:
                 raise ValueError(f"Could not automatically rerun jobs. Job state must be one of OUT_OF_MEMORY, TIMEOUT, or CANCELLED. Job state was {job_state.state}")
         
-        if len(failed_jobs) == 0:
+        if len(failed_jobs_indices) == 0:
             return None, None# No jobs to rerun
         else:
-            return failed_jobs, failure_types
+            return failed_jobs_indices, failure_types
         
     def resubmit_failed_jobs(self, job_type: str, indices_to_rerun: list[int], failure_types: dict, run_spec: dict, mem: str|None=None, time: str|None=None):
         """
