@@ -205,10 +205,9 @@ class CellposeSegmentationMethod(SegmentationMethod):
                 cyto_data = images['cyto'].get_data()
                 nuclei_data = images['nuclei'].get_data()
                 
-            #image_data = np.empty((images['cyto'].shape[:3]) + (3,), dtype=cyto_data.dtype)
             image_data = np.empty((cyto_data.shape[:3]) + (3,), dtype=cyto_data.dtype)
             image_data[..., 0] = cyto_data
-            image_data[..., 1] = nuclei_data#images['nuclei'].get_data()
+            image_data[..., 1] = nuclei_data
             image_data[..., 2] = 0
             channels = [1, 2]  # cyto=1 (red), nuclei=2 (green)
         else:
@@ -367,7 +366,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
 
         spot_px = self.map_spots_to_img_px(spot_table, image_transform=image_transform, image_shape=image_shape_full)
         for i in range(n_planes):
-            z_mask = spot_px[..., 0] == i#(spot_px[..., 0] == i) | (spot_px[..., 0] == i-1) | (spot_px[..., 0] == i+1)
+            z_mask = spot_px[..., 0] == i
             x = spot_px[z_mask, 1]
             y = spot_px[z_mask, 2]
             bins = [
