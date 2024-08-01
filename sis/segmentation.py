@@ -1436,12 +1436,13 @@ class SegmentationPipeline:
         skipped = []
         for i, area_spec in enumerate(tqdm(run_spec.values())):
             result_file = area_spec[2]['result_file']
+            cell_subset_file = area_spec[2]['cell_subset_file']
             if not os.path.exists(result_file):
                 print(f"Skipping tile {i} : no result file generated")
                 skipped.append(i)
                 continue
 
-            self.seg_spot_table.load_cell_polygons(result_file, reset_cache=False, disable_tqdm=True) # The reset_cache=False is important to allow reading in the various cell subsets without overwriting
+            self.seg_spot_table.load_cell_polygons(result_file, cell_ids=cell_subset_file, reset_cache=False, disable_tqdm=True) # The reset_cache=False is important to allow reading in the various cell subsets without overwriting
 
         if len(run_spec) == len(skipped):
             raise RuntimeError('All tiles were skipped, check error logs.')

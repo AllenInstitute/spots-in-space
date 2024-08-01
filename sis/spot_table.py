@@ -1636,9 +1636,21 @@ class SegmentedSpotTable:
                 pickle.dump(self.cell_polygons, f)
 
     
-    def load_cell_polygons(self, load_path: Path|str, reset_cache=True, disable_tqdm=False):
+    def load_cell_polygons(self, load_path: Path|str, cell_ids: Path|str|list|np.ndarray|None=None, reset_cache=True, disable_tqdm=False):
         """
         load cell polygons from a geojson feature collection file
+
+        Parameters
+        ----------
+        load_path : Path|str
+            Path to the file containing the cell polygons. Can be either '.geojson' or '.pkl'
+        cell_ids [OPTIONAL]: Path|str|list|np.ndarray|None
+            Path/str to .npy file containing cell ids corresponding to cell polygons for GeometryCollection
+            list/np.ndarray containing cell ids corresponding to cell polygons for GeometryCollection
+            Used to assign polygons to cell ids for GeometryCollection b/c it does not store IDs. 
+            This is important if you want to load in a bunch of 2D polygons files w/o reseting the cache as we have no way to determine proper ID
+            If not provided and using GeometryCollection, it is assumed the cell polygons are in order of the sorted cell ids
+            GeometryCollections may contain None for uncalculated polygons or may exclude them entirely
         """
         # Handle input errors
         if isinstance(load_path, Path) or isinstance(load_path, str):
@@ -1647,22 +1659,22 @@ class SegmentedSpotTable:
                 raise ValueError('Invalid path extension. Can only load .pkl or .geojson')
         else:
             raise ValueError('Invalid path type. Please use pathlib.Path or str')
-    
+
         if reset_cache or self.cell_polygons is None:
             self.cell_polygons = {}
-    
+
         if extension == '.geojson': 
             import json
             from shapely.geometry.polygon import Polygon
-    
+
             with open(load_path, "r") as f:
                 polygon_json = json.load(f)
-    
+
             unique_cells = np.unique(self.cell_ids)
             unique_cells = np.delete(unique_cells, np.where((unique_cells == 0) | (unique_cells == -1)))
             cell_id_type = type(unique_cells[0])
             z_plane_type = None if self.pos.shape[1] < 3 else type(self.pos[0, 2])
-    
+
             if polygon_json['type'] == 'FeatureCollection':
                 for feature in tqdm(polygon_json['features'], disable=disable_tqdm):
                     cid = cell_id_type(feature['id'])
@@ -1675,19 +1687,33 @@ class SegmentedSpotTable:
                         elif not feature['geometry']:
                             self.cell_polygons[cid] = feature['geometry']
             elif polygon_json['type'] == 'GeometryCollection':
-                if len(unique_cells) < len(polygon_json['geometries']):
-                    raise ValueError("Number of cells in input file exceeds SpotTable")
+                from pathlib import PurePath
+                if cell_ids and (isinstance(cell_ids, PurePath) or isinstance(cell_ids, str)):
+                    cell_ids = list(np.load(cell_ids))
+                elif cell_ids and isinstance(cell_ids, np.ndarray):
+                    cell_ids = list(cell_ids)
 
-                # This method ensure compatibility with both JSONs which store None and those which dont
-                valid_cells = [cid for cid in unique_cells if len(self.cell_indices(cid)) > 3]
-                invalid_cells = [cid for cid in unique_cells if len(self.cell_indices(cid)) <= 3]
-                
-                for geometry in tqdm(polygon_json['geometries'], disable=disable_tqdm):
-                    if geometry and geometry['type'] == 'Polygon':
-                        polygon = Polygon(geometry['coordinates'][0])
-                        self.cell_polygons[valid_cells.pop(0)] = polygon
-                    elif not geometry:
-                        self.cell_polygons[invalid_cells.pop(0)] = geometry
+                if cell_ids:
+                    for geometry in tqdm(polygon_json['geometries'], disable=disable_tqdm):
+                        if geometry and geometry['type'] == 'Polygon':
+                            polygon = Polygon(geometry['coordinates'][0])
+                            self.cell_polygons[cell_ids.pop(0)] = polygon
+                        elif not geometry:
+                            self.cell_polygons[cell_ids.pop(0)] = geometry
+                else: # If we don't have the cell IDs we will have to infer
+                    if len(unique_cells) < len(polygon_json['geometries']):
+                        raise ValueError("Number of cells in input file exceeds SpotTable")
+                        
+                    # This method ensure compatibility with both JSONs which store None and those which dont
+                    valid_cells = [cid for cid in unique_cells if len(self.cell_indices(cid)) > 3]
+                    invalid_cells = [cid for cid in unique_cells if len(self.cell_indices(cid)) <= 3]
+                    
+                    for geometry in tqdm(polygon_json['geometries'], disable=disable_tqdm):
+                        if geometry and geometry['type'] == 'Polygon':
+                            polygon = Polygon(geometry['coordinates'][0])
+                            self.cell_polygons[valid_cells.pop(0)] = polygon
+                        elif not geometry:
+                            self.cell_polygons[invalid_cells.pop(0)] = geometry
             else:
                 raise ValueError('geojson type must be FeatureCollection or GeometryCollection')
         else:
