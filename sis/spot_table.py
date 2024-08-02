@@ -535,7 +535,7 @@ class SpotTable:
     def load_xenium(cls, csv_file: str, cache_file: str, image_path: str=None, max_rows: int=None, z_depth: float=3.0):
         """ Load Xenium data from a detected transcripts CSV file.
             This is the preferred method for resegmentation. If you want the original Xenium
-            segmentation, use SegmentedSpotTable.load_merscope.
+            segmentation, use SegmentedSpotTable.load_xenium.
             CSV reading is slow, so optionally cache the result to a .npz file.
 
             Parameters
@@ -1946,7 +1946,7 @@ class SegmentedSpotTable:
     def load_xenium(cls, csv_file: str, cache_file: str|None, image_path: str|None=None, max_rows: int|None=None, z_depth: float=3.0):
         """Load Xenium data from a detected transcripts CSV file, including
         the original segmentation. If you are resegmenting the data, prefer
-        SpotTable.load_merscope.
+        SpotTable.load_xenium.
 
         Note: If cache_file is set, only the raw spot table is cached, not the 
         cell_ids. This is for consistency with SpotTable.load_xenium.

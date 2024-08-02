@@ -281,7 +281,7 @@ class ImageTransform:
 
 class XeniumImageFile(ImageBase):
     def __init__(self, file: str, transform:ImageTransform, axes: list|None,
-                  channels: list,z_index:int, name: str|None,
+                  channels: list, z_index:int, name: str|None,
                   pyramid_level: int= 0):
         """Represents a single image stored on disk, carrying metadata about:
         - The file containing image data
@@ -300,8 +300,13 @@ class XeniumImageFile(ImageBase):
             List of axis names giving order of axes in *file*; options are 'frame', 'row', 'col', 'channel'
         channels : list
             List of names given to each channel (e.g.: 'dapi')
+        z_index : int
+            Xenium images come with all z-planes in one image. This is the index of the z-plane to load.
         name : str|None
             Optional unique identifier for this image
+        pyramid_level : int
+            Xenium images are stored as OMEs which support image pyramids. This is the level of the pyramid to load.
+            This is not currently utilized anywhere, but included for potential future use.
         """
         super().__init__()
         self.file = file
@@ -447,8 +452,6 @@ class ImageStack(ImageBase):
         #I'm basing everything here on the highest resolution level.
         image_file_shape = tiff_image_file.series[0].shape
 
-        # MAX_Z_TO_TAKE = 8
-        # z_inds = list(range(image_file_shape[0]))[:5]
         z_inds = list(range(image_file_shape[0]))
         if max_z_to_take:
             z_inds = z_inds[:min(max_z_to_take, image_file_shape[0])]
