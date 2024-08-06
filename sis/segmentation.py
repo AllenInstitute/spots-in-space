@@ -976,15 +976,8 @@ class SegmentationPipeline:
             for k, v in cell_by_gene.uns.items():
                 if isinstance(v, geojson.feature.FeatureCollection) or isinstance(v, geojson.geometry.GeometryCollection):
                     cell_by_gene.uns[k] = geojson.dumps(v)
-
-            # tuples must be converted to strings before saving
-            def _iter_dict_rec(d, func):
-                for k, v in d.items():
-                    if isinstance(v, dict):
-                        _iter_dict_rec(v, func)
-                    else:
-                        d[k] = func(v)
-            _iter_dict_rec(cell_by_gene.uns, lambda x: str(x) if isinstance(x, tuple) else x)
+                    
+            convert_value_nested_dict(cell_by_gene.uns, tuple, str)
             
             cell_by_gene.write(self.cbg_path)
 
@@ -1295,7 +1288,6 @@ class SegmentationPipeline:
         # tuples cannot be saved in anndata object, so convert to list
         # this is an issue if gauss or median kernels are specified
         seg_opts = self.seg_opts
-        seg_opts = convert_value_nested_dict(seg_opts, tuple, list)
 
         truncated_meta = {
                 'seg_method': str(self.seg_method),
