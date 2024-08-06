@@ -514,13 +514,16 @@ class SpotTable:
 
 
     @staticmethod
-    def read_xenium_csv(csv_file, max_rows=None, z_depth: float=3.0):
-        """Helper function to read a Xenium csv file.
+    def read_xenium_transcripts(transcript_file, max_rows=None, z_depth: float=3.0):
+        """Helper function to read a Xenium transcripts file. (currently supports only csv and parquet)
         Intended to reduce duplicated code between SpotTable.load_xenium()
         and SegmentedSpotTable.load_xenium().
         """
-
-        spot_dataframe = pandas.read_csv(csv_file, nrows=max_rows)
+        
+        if str(transcript_file).endswith('.csv'):
+            spot_dataframe = pandas.read_csv(transcript_file, nrows=max_rows)
+        elif str(transcript_file).endswith('.parquet'):
+            spot_dataframe = pandas.read_parquet(transcript_file, engine='pyarrow', nrows=max_rows)
 
         pos= spot_dataframe.loc[:,["x_location","y_location","z_location"]].values
         z_bins = np.arange(0, np.max(pos[:, 2]) + z_depth, z_depth) # bin float z locations to integers
@@ -532,7 +535,7 @@ class SpotTable:
     
     
     @classmethod
-    def load_xenium(cls, csv_file: str, cache_file: str, image_path: str=None, max_rows: int=None, z_depth: float=3.0):
+    def load_xenium(cls, transcript_file: str, cache_file: str, image_path: str=None, max_rows: int=None, z_depth: float=3.0):
         """ Load Xenium data from a detected transcripts CSV file.
             This is the preferred method for resegmentation. If you want the original Xenium
             segmentation, use SegmentedSpotTable.load_xenium.
@@ -540,7 +543,7 @@ class SpotTable:
 
             Parameters
             ----------
-            csv_file : str
+            transcript_file : str
                 Path to the detected transcripts file.
             cache_file : str, optional
                 Path to the detected transcripts cache file, which is an npz file 
@@ -565,7 +568,7 @@ class SpotTable:
 
         if (cache_file is None) or (not Path(cache_file).exists()):
             print("Loading csv..")
-            pos, gene_names = SpotTable.read_xenium_csv(csv_file=csv_file, max_rows=max_rows, z_depth=z_depth)
+            pos, gene_names = SpotTable.read_xenium_transcripts(transcript_file=transcript_file, max_rows=max_rows, z_depth=z_depth)
 
             if cache_file is not None:                
                 print("Recompressing to npz..")
