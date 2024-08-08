@@ -977,7 +977,7 @@ class SegmentationPipeline:
                 if isinstance(v, geojson.feature.FeatureCollection) or isinstance(v, geojson.geometry.GeometryCollection):
                     cell_by_gene.uns[k] = geojson.dumps(v)
                     
-            convert_value_nested_dict(cell_by_gene.uns, tuple, str)
+            cell_by_gene.uns = convert_value_nested_dict(cell_by_gene.uns, tuple, str)
             
             cell_by_gene.write(self.cbg_path)
 
@@ -1787,7 +1787,7 @@ class XeniumSegmentationPipeline(SegmentationPipeline):
         """Get args to pass to loading function (e.g. when submitting jobs to hpc)."""
         load_args = {
                 'image_path': self.image_path,
-                'csv_file': self.detected_transcripts_file,
+                'transcript_file': self.detected_transcripts_file,
                 'cache_file': self.detected_transcripts_cache,
         }
         for k, v in load_args.items():

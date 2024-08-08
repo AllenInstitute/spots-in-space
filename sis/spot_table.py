@@ -520,10 +520,14 @@ class SpotTable:
         and SegmentedSpotTable.load_xenium().
         """
         
-        if str(transcript_file).endswith('.csv'):
+        if str(transcript_file).endswith('.csv') or str(transcript_file).endswith('.csv.gz'):
             spot_dataframe = pandas.read_csv(transcript_file, nrows=max_rows)
         elif str(transcript_file).endswith('.parquet'):
-            spot_dataframe = pandas.read_parquet(transcript_file, engine='pyarrow', nrows=max_rows)
+            if max_rows:
+                raise ValueError('max_rows is not supported for parquet files as pandas does not allow partial reading')
+            spot_dataframe = pandas.read_parquet(transcript_file, engine='pyarrow')
+        else:
+            raise ValueError(f"Unsupported file type for transcript_file: {transcript_file}")
 
         pos= spot_dataframe.loc[:,["x_location","y_location","z_location"]].values
         z_bins = np.arange(0, np.max(pos[:, 2]) + z_depth, z_depth) # bin float z locations to integers
@@ -567,7 +571,7 @@ class SpotTable:
             images = ImageStack.load_xenium_stacks(image_path)
 
         if (cache_file is None) or (not Path(cache_file).exists()):
-            print("Loading csv..")
+            print("Loading transcripts...")
             pos, gene_names = SpotTable.read_xenium_transcripts(transcript_file=transcript_file, max_rows=max_rows, z_depth=z_depth)
 
             if cache_file is not None:                
