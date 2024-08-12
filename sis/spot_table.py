@@ -228,6 +228,35 @@ class SpotTable:
         inds = self.gene_indices(gene_names=gene_names, gene_ids=gene_ids)
         return self[inds]
 
+
+    def detect_z_planes(self, float_cut: float|None=None):
+        """Return a tuple containing (min z-plane, max z-plane + 1).
+        
+        Parameters
+        ----------
+        float_cut : float | None
+            If specified, only include z-planes that contain at least this fraction of spots.
+        """
+        if float_cut:
+            z_planes, z_counts = np.unique(self.z, return_counts=True)
+            z_counts = z_counts / np.sum(z_counts)
+            z_planes = z_planes[z_counts >= float_cut]
+        else:
+            z_planes = np.unique(self.z)
+
+        return int(np.min(z_planes)), int(np.max(z_planes)) + 1
+
+
+    def z_plane_mask(self, z_planes: tuple):
+        """Return a mask of the SpotTable containing only spots in the specified z_planes
+        Z-planes are specified as a tuple [min, max) to align with the output of detect_z_planes.
+        
+        Input:
+            z_planes: tuple containing the min (inclusive) and max (exclusive) z_planes to keep
+        """
+        return np.isin(self.z, [z for z in range(*z_planes)])
+
+
     def save_csv(self, file_name: str, columns: list=None):
         """Save a CSV file with columns x, y, z, gene_id, [gene_name, cell_id].
         
@@ -482,6 +511,78 @@ class SpotTable:
         else:
             print("Loading from npz..")
             return cls.load_npz(cache_file, img)
+
+
+    @staticmethod
+    def read_xenium_transcripts(transcript_file, max_rows=None, z_depth: float=3.0):
+        """Helper function to read a Xenium transcripts file. (currently supports only csv and parquet)
+        Intended to reduce duplicated code between SpotTable.load_xenium()
+        and SegmentedSpotTable.load_xenium().
+        """
+        
+        if str(transcript_file).endswith('.csv') or str(transcript_file).endswith('.csv.gz'):
+            spot_dataframe = pandas.read_csv(transcript_file, nrows=max_rows)
+        elif str(transcript_file).endswith('.parquet'):
+            if max_rows:
+                raise ValueError('max_rows is not supported for parquet files as pandas does not allow partial reading')
+            spot_dataframe = pandas.read_parquet(transcript_file, engine='pyarrow')
+        else:
+            raise ValueError(f"Unsupported file type for transcript_file: {transcript_file}")
+
+        pos= spot_dataframe.loc[:,["x_location","y_location","z_location"]].values
+        z_bins = np.arange(0, np.max(pos[:, 2]) + z_depth, z_depth) # bin float z locations to integers
+        pos[:, 2] = (np.digitize(pos[:,2], z_bins) - 1).astype(int)
+
+        gene_names = spot_dataframe.loc[:,"feature_name"].values
+
+        return pos, gene_names
+    
+    
+    @classmethod
+    def load_xenium(cls, transcript_file: str, cache_file: str, image_path: str=None, max_rows: int=None, z_depth: float=3.0):
+        """ Load Xenium data from a detected transcripts CSV file.
+            This is the preferred method for resegmentation. If you want the original Xenium
+            segmentation, use SegmentedSpotTable.load_xenium.
+            CSV reading is slow, so optionally cache the result to a .npz file.
+
+            Parameters
+            ----------
+            transcript_file : str
+                Path to the detected transcripts file.
+            cache_file : str, optional
+                Path to the detected transcripts cache file, which is an npz file 
+                representing the raw SpotTable (without cell_ids). If passed, will
+                create a cache file if one does not already exists.
+            image_path : str, optional
+                Path to directory containing a Xenium image stack.
+            max_rows : int, optional
+                Maximum number of rows to load from the CSV file.
+            z_depth : float, optional
+                Depth (in um) of a imaging layer i.e. z-plane
+                Used to bin z-positiions into discrete planes
+
+            Returns
+            -------
+            sis.spot_table.SpotTable
+        """
+        # if requested, look for images as well (these are not saved in cache file)
+        images = None
+        if image_path is not None:
+            images = ImageStack.load_xenium_stacks(image_path)
+
+        if (cache_file is None) or (not Path(cache_file).exists()):
+            print("Loading transcripts...")
+            pos, gene_names = SpotTable.read_xenium_transcripts(transcript_file=transcript_file, max_rows=max_rows, z_depth=z_depth)
+
+            if cache_file is not None:                
+                print("Recompressing to npz..")
+                cls(pos=pos, gene_names=gene_names, images=images).save_npz(cache_file)
+
+            return cls(pos=pos, gene_names=gene_names, images=images)
+
+        else:
+            print("Loading from npz..")
+            return cls.load_npz(cache_file, images=images)
 
 
     def save_npz(self, npz_file: str):
@@ -863,7 +964,7 @@ class SpotTable:
             raise Exception(f"An image named {image.name} is already attached")
         self.images.append(image)
 
-    def get_image(self, name=None, channel=None, frame=None):
+    def get_image(self, name=None, channel=None, frame:int|None=None, frames:tuple|None=None):
         """Return the image with the given name or channel name
         """
         if name is not None:
@@ -883,7 +984,9 @@ class SpotTable:
         if channel is not None:
             selected_img = selected_img.get_channel(channel)
 
-        if frame is not None:
+        if frames is not None:
+            selected_img = selected_img.get_frames(frames)
+        elif frame is not None:
             selected_img = selected_img.get_frame(frame)
 
         return selected_img            
@@ -1540,9 +1643,21 @@ class SegmentedSpotTable:
                 pickle.dump(self.cell_polygons, f)
 
     
-    def load_cell_polygons(self, load_path: Path|str, reset_cache=True, disable_tqdm=False):
+    def load_cell_polygons(self, load_path: Path|str, cell_ids: Path|str|list|np.ndarray|None=None, reset_cache=True, disable_tqdm=False):
         """
         load cell polygons from a geojson feature collection file
+
+        Parameters
+        ----------
+        load_path : Path|str
+            Path to the file containing the cell polygons. Can be either '.geojson' or '.pkl'
+        cell_ids [OPTIONAL]: Path|str|list|np.ndarray|None
+            Path/str to .npy file containing cell ids corresponding to cell polygons for GeometryCollection
+            list/np.ndarray containing cell ids corresponding to cell polygons for GeometryCollection
+            Used to assign polygons to cell ids for GeometryCollection b/c it does not store IDs. 
+            This is important if you want to load in a bunch of 2D polygons files w/o reseting the cache as we have no way to determine proper ID
+            If not provided and using GeometryCollection, it is assumed the cell polygons are in order of the sorted cell ids
+            GeometryCollections may contain None for uncalculated polygons or may exclude them entirely
         """
         # Handle input errors
         if isinstance(load_path, Path) or isinstance(load_path, str):
@@ -1551,22 +1666,22 @@ class SegmentedSpotTable:
                 raise ValueError('Invalid path extension. Can only load .pkl or .geojson')
         else:
             raise ValueError('Invalid path type. Please use pathlib.Path or str')
-    
+
         if reset_cache or self.cell_polygons is None:
             self.cell_polygons = {}
-    
+
         if extension == '.geojson': 
             import json
             from shapely.geometry.polygon import Polygon
-    
+
             with open(load_path, "r") as f:
                 polygon_json = json.load(f)
-    
+
             unique_cells = np.unique(self.cell_ids)
             unique_cells = np.delete(unique_cells, np.where((unique_cells == 0) | (unique_cells == -1)))
             cell_id_type = type(unique_cells[0])
             z_plane_type = None if self.pos.shape[1] < 3 else type(self.pos[0, 2])
-    
+
             if polygon_json['type'] == 'FeatureCollection':
                 for feature in tqdm(polygon_json['features'], disable=disable_tqdm):
                     cid = cell_id_type(feature['id'])
@@ -1579,19 +1694,33 @@ class SegmentedSpotTable:
                         elif not feature['geometry']:
                             self.cell_polygons[cid] = feature['geometry']
             elif polygon_json['type'] == 'GeometryCollection':
-                if len(unique_cells) < len(polygon_json['geometries']):
-                    raise ValueError("Number of cells in input file exceeds SpotTable")
+                from pathlib import PurePath
+                if cell_ids and (isinstance(cell_ids, PurePath) or isinstance(cell_ids, str)):
+                    cell_ids = list(np.load(cell_ids))
+                elif cell_ids and isinstance(cell_ids, np.ndarray):
+                    cell_ids = list(cell_ids)
 
-                # This method ensure compatibility with both JSONs which store None and those which dont
-                valid_cells = [cid for cid in unique_cells if len(self.cell_indices(cid)) > 3]
-                invalid_cells = [cid for cid in unique_cells if len(self.cell_indices(cid)) <= 3]
-                
-                for geometry in tqdm(polygon_json['geometries'], disable=disable_tqdm):
-                    if geometry and geometry['type'] == 'Polygon':
-                        polygon = Polygon(geometry['coordinates'][0])
-                        self.cell_polygons[valid_cells.pop(0)] = polygon
-                    elif not geometry:
-                        self.cell_polygons[invalid_cells.pop(0)] = geometry
+                if cell_ids:
+                    for geometry in tqdm(polygon_json['geometries'], disable=disable_tqdm):
+                        if geometry and geometry['type'] == 'Polygon':
+                            polygon = Polygon(geometry['coordinates'][0])
+                            self.cell_polygons[cell_ids.pop(0)] = polygon
+                        elif not geometry:
+                            self.cell_polygons[cell_ids.pop(0)] = geometry
+                else: # If we don't have the cell IDs we will have to infer
+                    if len(unique_cells) < len(polygon_json['geometries']):
+                        raise ValueError("Number of cells in input file exceeds SpotTable")
+                        
+                    # This method ensure compatibility with both JSONs which store None and those which dont
+                    valid_cells = [cid for cid in unique_cells if len(self.cell_indices(cid)) > 3]
+                    invalid_cells = [cid for cid in unique_cells if len(self.cell_indices(cid)) <= 3]
+                    
+                    for geometry in tqdm(polygon_json['geometries'], disable=disable_tqdm):
+                        if geometry and geometry['type'] == 'Polygon':
+                            polygon = Polygon(geometry['coordinates'][0])
+                            self.cell_polygons[valid_cells.pop(0)] = polygon
+                        elif not geometry:
+                            self.cell_polygons[invalid_cells.pop(0)] = geometry
             else:
                 raise ValueError('geojson type must be FeatureCollection or GeometryCollection')
         else:
@@ -1818,6 +1947,42 @@ class SegmentedSpotTable:
         cell_ids = SegmentedSpotTable.load_merscope_cell_ids(csv_file, max_rows=max_rows)
 
         return cls(spot_table=raw_spot_table, cell_ids=cell_ids, seg_metadata={'seg_method': 'MERSCOPE'})
+
+
+    @classmethod
+    def load_xenium(cls, csv_file: str, cache_file: str|None, image_path: str|None=None, max_rows: int|None=None, z_depth: float=3.0):
+        """Load Xenium data from a detected transcripts CSV file, including
+        the original segmentation. If you are resegmenting the data, prefer
+        SpotTable.load_xenium.
+
+        Note: If cache_file is set, only the raw spot table is cached, not the 
+        cell_ids. This is for consistency with SpotTable.load_xenium.
+
+        Parameters
+        ----------
+        csv_file : str
+            Path to the detected transcripts file.
+        cache_file : str, optional
+            Path to the detected transcripts cache file, which is an npz file 
+            representing the raw SpotTable (without cell_ids). If passed, will
+            create a cache file if one does not already exists.
+        image_path : str, optional
+            Path to directory containing a Xenium image stack.
+        max_rows : int, optional
+            Maximum number of rows to load from the CSV file.
+        z_depth : float, optional
+            Depth (in um) of a imaging layer i.e. z-plane
+            Used to bin z-positiions into discrete planes
+
+        Returns
+        -------
+        sis.spot_table.SegmentedSpotTable
+        """
+        raw_spot_table = SpotTable.load_xenium(csv_file=csv_file, cache_file=cache_file, image_path=image_path, max_rows=max_rows, z_depth=z_depth)
+        cell_ids = pandas.read_csv(csv_file, nrows=max_rows, usecols=['cell_id'], dtype='int64').values
+
+        return cls(spot_table=raw_spot_table, cell_ids=cell_ids, seg_metadata={'seg_method': 'Xenium'})
+
 
     @classmethod
     def load_stereoseq(cls, gem_file: str|None=None, cache_file: str|None=None, gem_cols: dict|tuple=(('gene', 0), ('x', 1), ('y', 2), ('MIDcounts', 3)), 
