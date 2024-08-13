@@ -196,7 +196,6 @@ class CellposeSegmentationMethod(SegmentationMethod):
         cp_opts['do_3D'] = list(images.values())[0].shape[0] > 1
         if len(images) == 2:
             assert images['cyto'].shape == images['nuclei'].shape
-            cyto_data = images['cyto'].get_data()
 
             # If the number of z-planes is too small we want to double the z-planes while still maintaining order
             if 'detect_z_planes' in self.options and (z_planes[1] - z_planes[0]) <= 5:
