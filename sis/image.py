@@ -282,7 +282,7 @@ class ImageTransform:
 class XeniumImageFile(ImageBase):
     def __init__(self, file: str, transform:ImageTransform, axes: list|None,
                   channels: list, z_index:int, name: str|None,
-                  pyramid_level: int= 0):
+                  pyramid_level: int= 0, keep_images_in_memory: bool = True):
         """Represents a single image stored on disk, carrying metadata about:
         - The file containing image data
         - The transform that maps from pixel coordinates to spot table coordinates
@@ -307,6 +307,8 @@ class XeniumImageFile(ImageBase):
         pyramid_level : int
             Xenium images are stored as OMEs which support image pyramids. This is the level of the pyramid to load.
             This is not currently utilized anywhere, but included for potential future use.
+        keep_images_in_memory : bool
+            Xenium images are large and not memory mapped and thus we may want to keep them in memory or not. The trade off is speed vs memory.
         """
         super().__init__()
         self.file = file
@@ -318,13 +320,14 @@ class XeniumImageFile(ImageBase):
         self.pyramid_level = pyramid_level
         self._shape = None
         self.whole_image_array = None
+        self.keep_images_in_memory = keep_images_in_memory
 
     @classmethod
-    def load_xenium(cls,image_file,  transform_matrix,z_index, channel = "DAPI", name = None, pyramid_level = 0):
+    def load_xenium(cls,image_file,  transform_matrix,z_index, channel = "DAPI", name = None, pyramid_level = 0, keep_images_in_memory = True):
         tr = ImageTransform(transform_matrix[::-1])
         return XeniumImageFile(file=image_file, transform=tr, axes=['frame', 'row', 'col', 'channel'],
                                 channels=[channel], z_index= z_index, name=name,
-                                pyramid_level = pyramid_level)
+                                pyramid_level = pyramid_level, keep_images_in_memory=keep_images_in_memory)
 
     @property
     def shape(self):
@@ -349,7 +352,10 @@ class XeniumImageFile(ImageBase):
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
                 with tifffile.TiffFile(self.file) as src:
-                    self.whole_image_array = self._standard_image_shape(src.series[0][self.z_index].asarray())   
+                    if self.keep_images_in_memory:
+                        self.whole_image_array = self._standard_image_shape(src.series[0][self.z_index].asarray())
+                    else:
+                        return self._standard_image_shape(src.series[0][self.z_index].asarray())
         return self.whole_image_array
 
     def get_sub_data(self, frames: tuple, rows: tuple, cols: tuple, channel: str|None=None):
@@ -367,9 +373,12 @@ class XeniumImageFile(ImageBase):
         """
         # index = self._get_channel_index(channel)
 
-        if isinstance(self.whole_image_array, type(None)):
-            self.get_data(channel = channel)
-        return self._standard_image_shape(self.whole_image_array[0][rows[0]:rows[1],cols[0]:cols[1]])
+        if self.keep_images_in_memory:
+            if isinstance(self.whole_image_array, type(None)):
+                self.get_data(channel = channel)
+            return self._standard_image_shape(self.whole_image_array[0][rows[0]:rows[1],cols[0]:cols[1]])
+        else:
+            return self._standard_image_shape(self.get_data(channel = channel)[0][rows[0]:rows[1],cols[0]:cols[1]])
 
     def _get_channel_index(self, channel):
         if channel is None and len(self.channels) == 1:
@@ -424,7 +433,7 @@ class ImageStack(ImageBase):
         return stacks
 
     @classmethod
-    def load_xenium_stacks(cls, xenium_image_file, pyramid_to_keep=None, max_z_to_take=None):
+    def load_xenium_stacks(cls, xenium_image_file, pyramid_to_keep=None, max_z_to_take=None, keep_images_in_memory=True):
         """Read standard Xenium image mosaic tiff file, returning list of XeniumImageFiles
         """
         import xml.etree.ElementTree as ET
@@ -460,7 +469,7 @@ class ImageStack(ImageBase):
         for stain in ["DAPI"]:
             images = []
             for z_ind in z_inds:
-                img = XeniumImageFile.load_xenium(xenium_image_file, um_to_pixel_matrix, z_index=z_ind, channel=stain, pyramid_level=pyramid_to_keep)
+                img = XeniumImageFile.load_xenium(xenium_image_file, um_to_pixel_matrix, z_index=z_ind, channel=stain, pyramid_level=pyramid_to_keep, keep_images_in_memory=keep_images_in_memory)
                 images.append(img)
             stacks.append(ImageStack(images))
 

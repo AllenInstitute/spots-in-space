@@ -1772,12 +1772,14 @@ class XeniumSegmentationPipeline(SegmentationPipeline):
             seg_hpc_opts: dict|None=None,
             polygon_hpc_opts: dict|None=None,
             hpc_opts: dict|None=None,
+            keep_images_in_memory: bool=True,
             ):
         super().__init__(dt_file, image_path, output_dir, dt_cache, subrgn, seg_method, seg_opts, polygon_opts, seg_hpc_opts=seg_hpc_opts, polygon_hpc_opts=polygon_hpc_opts, hpc_opts=hpc_opts)
 
         if 'z_plane_thickness' not in seg_opts['options']:
             raise ValueError('z_plane_thickness required in seg_opts for matching z coordinates to image planes')
         self.z_depth = seg_opts['options']['z_plane_thickness'] # This is used for binning z-locations to image planes
+        self.keep_images_in_memory = keep_images_in_memory
 
     def get_load_func(self):
         """Get the function to load a spot table."""
@@ -1796,5 +1798,6 @@ class XeniumSegmentationPipeline(SegmentationPipeline):
 
         load_args['max_rows'] = None
         load_args['z_depth'] = self.z_depth
+        load_args['keep_images_in_memory'] = self.keep_images_in_memory
 
         return load_args
