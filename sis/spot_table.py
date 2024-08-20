@@ -539,22 +539,21 @@ class SpotTable:
     
     
     @classmethod
-    def load_xenium(cls, transcript_file: str, cache_file: str, image_path: str=None, max_rows: int=None, z_depth: float=3.0, keep_images_in_memory: bool=True):
-        """ Load Xenium data from a detected transcripts CSV file.
+    def load_xenium(cls, xenium_output_dir: str | Path, cache_file: str | Path, load_images:bool = True, segmentation_kit:bool = False, max_rows: int=None, z_depth: float=None, keep_images_in_memory: bool=True):
+        """ Load Xenium data from xenium output directory. 
             This is the preferred method for resegmentation. If you want the original Xenium
             segmentation, use SegmentedSpotTable.load_xenium.
-            CSV reading is slow, so optionally cache the result to a .npz file.
+            Will read in either a csv or parquet file based on version of xenium output.
+            CSV files are slow to read, so optionally cache the result to a .npz file.
 
             Parameters
             ----------
-            transcript_file : str
-                Path to the detected transcripts file.
-            cache_file : str, optional
+            xenium_ouput_dir : str | pathlib.Path
+                Path to the xenium output directory.
+            cache_file : str | pathlib.Path, optional
                 Path to the detected transcripts cache file, which is an npz file 
                 representing the raw SpotTable (without cell_ids). If passed, will
                 create a cache file if one does not already exists.
-            image_path : str, optional
-                Path to directory containing a Xenium image stack.
             max_rows : int, optional
                 Maximum number of rows to load from the CSV file.
             z_depth : float, optional
@@ -569,9 +568,14 @@ class SpotTable:
             sis.spot_table.SpotTable
         """
         # if requested, look for images as well (these are not saved in cache file)
-        images = None
-        if image_path is not None:
-            images = ImageStack.load_xenium_stacks(image_path, keep_images_in_memory=keep_images_in_memory)
+        if isinstance(xenium_output_dir, str):
+            xenium_output_dir = Path(xenium_output_dir)
+        
+        if isinstance(cache_file, str):
+            cache_file = Path(cache_file)
+            
+        if load_images:
+            images = ImageStack.load_xenium_stacks(xenium_output_dir, segmentation_kit = segmentation_kit, keep_images_in_memory=keep_images_in_memory)
 
         if (cache_file is None) or (not Path(cache_file).exists()):
             print("Loading transcripts...")

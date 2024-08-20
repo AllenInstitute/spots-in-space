@@ -16,6 +16,7 @@ import pandas as pd
 import anndata as ad
 import sis
 from sis.util import convert_value_nested_dict
+from dask import array as da
 
 from .optional_import import optional_import
 geojson = optional_import('geojson')
@@ -375,12 +376,25 @@ class CellposeSegmentationMethod(SegmentationMethod):
                 np.arange(image_shape[2]+1),
             ]
             density_img[i] = np.histogram2d(x, y, bins=bins)[0]
+        
+        # Remove empty z-planes
+        bool_idx = [density_img[i].astype(bool).sum() > 0 for i in range(density_img.shape[0])]
 
+        density_img = density_img[bool_idx, ...]
+
+        density_da = da.from_array(density_img, chunks=(density_img.shape[0], 512, 512) if density_img.ndim == 3 else (512, 512))
         import scipy.ndimage
         # very sensitive to these parameters :/
-        density_img = scipy.ndimage.gaussian_filter(density_img, gauss_kernel)
-        density_img = scipy.ndimage.median_filter(density_img, median_kernel)
+        if gauss_kernel is not None:
+            gauss = lambda x: scipy.ndimage.gaussian_filter(x, gauss_kernel)
+            density_da = density_da.map_overlap(gauss, depth = (2, 25 , 25) if density_img.ndim == 3 else (25, 25))
+            # density_img = scipy.ndimage.gaussian_filter(density_img, gauss_kernel)
+        if median_kernel is not None:
+            median = lambda x: scipy.ndimage.median_filter(x, median_kernel)
+            density_da = density_da.map_overlap(median, depth = (2, 25 , 25) if density_img.ndim == 3 else (25, 25))
+            # density_img = scipy.ndimage.median_filter(density_img, median_kernel)
 
+        density_img = density_da.compute()
         if frames is not None:
             return Image(density_img[..., np.newaxis], transform=image_transform, channels=['Total mRNA'], name=None).get_frames(frames)
         elif frame is not None:

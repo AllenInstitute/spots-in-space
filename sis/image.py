@@ -6,7 +6,6 @@ from .optional_import import optional_import
 rasterio = optional_import('rasterio')
 tifffile = optional_import('tifffile')
 
-
 class ImageBase:
     @property
     def shape(self):
@@ -433,15 +432,36 @@ class ImageStack(ImageBase):
         return stacks
 
     @classmethod
-    def load_xenium_stacks(cls, xenium_image_file, pyramid_to_keep=None, max_z_to_take=None, keep_images_in_memory=True):
+    def load_xenium_stacks(cls, xenium_output_dir, segmentation_kit:bool = False, pyramid_to_keep=None, max_z_to_take=None, keep_images_in_memory=True):
         """Read standard Xenium image mosaic tiff file, returning list of XeniumImageFiles
         """
         import xml.etree.ElementTree as ET
+        import json
 
-        tiff_image_file = tifffile.TiffFile(xenium_image_file)
+        with open(xenium_output_dir / 'experiment.xenium'):
+            metadata = json.load(f)
+        
+        metadata['major_version'] = int(metadata['major_version'])
+        if metadata['major_version'] != 3:
+            print('This code was written for Xemnium analyzer 3.0. This may break some things.')
+            print('Please check output format for the version of Xenium analyzer you are using.')
+            
+        image_path_dict = {}
+        image_path_dict['DAPI'] = xenium_output_dir / 'morphology.ome.tif'
 
+        if segmentation_kit:
+            if metadata['segmentation_stain'] == "Nuclei (DAPI)":
+                print("It seems no segmentation kit was used in this section, reverting to non-segmentation kit loading.")
+            else:
+                xenium_image_dir = xenium_output_dir / 'morphology_focus'
+                image_path_dict['DAPI 2D'] = xenium_image_dir / 'morphology_focus_0000.ome.tif'
+                image_path_dict['boundary'] = xenium_image_dir / 'morphology_focus_0001.ome.tif'
+                image_path_dict['interior_rna'] = xenium_image_dir / 'morphology_focus_0002.ome.tif'
+                image_path_dict['interior_protein'] = xenium_image_dir / 'morphology_focus_0003.ome.tif'
+
+        
         # this file should have OME metadata:
-        metadata_root = ET.fromstring(tiff_image_file.ome_metadata)
+        metadata_root = ET.fromstring(image_dict['DAPI'].ome_metadata)
         # extract the pixel size 
         for child in metadata_root:
             if "Image" in child.tag:
@@ -459,19 +479,25 @@ class ImageStack(ImageBase):
 
         # the Xenium OME-TIFF file is an image pyramid. 
         #I'm basing everything here on the highest resolution level.
-        image_file_shape = tiff_image_file.series[0].shape
+        image_file_shape = image_dict['DAPI'].series[0].shape
 
         z_inds = list(range(image_file_shape[0]))
         if max_z_to_take:
             z_inds = z_inds[:min(max_z_to_take, image_file_shape[0])]
         # leave this list of `stacks` to account for future versions with multiple stains
-        stacks = []
-        for stain in ["DAPI"]:
-            images = []
-            for z_ind in z_inds:
-                img = XeniumImageFile.load_xenium(xenium_image_file, um_to_pixel_matrix, z_index=z_ind, channel=stain, pyramid_level=pyramid_to_keep, keep_images_in_memory=keep_images_in_memory)
-                images.append(img)
-            stacks.append(ImageStack(images))
+        stacks = [] 
+        stains = list(image_path_dict.keys()) 
+        for stain in stains:
+            # Currently only DAPI is a 3D image, the rest of the stains are 2D
+            if stain == 'DAPI':
+                images = []
+                for z_ind in z_inds:
+                    img = XeniumImageFile.load_xenium(image_path_dict[stain], um_to_pixel_matrix, z_index=z_ind, channel=stain, pyramid_level=pyramid_to_keep, keep_images_in_memory=keep_images_in_memory)
+                    images.append(img)
+                stacks.append(ImageStack(images))
+            else:
+                img = XeniumImageFile.load_xenium(image_path_dict[stain], um_to_pixel_matrix, z_index=0, channel=stain, pyramid_level=pyramid_to_keep, keep_images_in_memory=keep_images_in_memory)
+                stacks.appennd(img)
 
         return stacks
 
