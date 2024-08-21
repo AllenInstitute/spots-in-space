@@ -525,7 +525,7 @@ class SpotTable:
         elif str(transcript_file).endswith('.parquet'):
             if max_rows:
                 raise ValueError('max_rows is not supported for parquet files as pandas does not allow partial reading')
-            spot_dataframe = pandas.read_parquet(transcript_file, engine='pyarrow')
+            spot_dataframe = pandas.read_parquet(transcript_file, engine = 'pyarrow')
         else:
             raise ValueError(f"Unsupported file type for transcript_file: {transcript_file}")
 
@@ -539,7 +539,7 @@ class SpotTable:
     
     
     @classmethod
-    def load_xenium(cls, xenium_output_dir: str | Path, cache_file: str | Path, load_images:bool = True, segmentation_kit:bool = False, max_rows: int=None, z_depth: float=None, keep_images_in_memory: bool=True):
+    def load_xenium(cls, xenium_output_dir: str | Path, cache_file: str | Path, load_images:bool=True, segmentation_kit:bool=False, max_rows:int=None, z_depth:float=3.0, keep_images_in_memory:bool=True):
         """ Load Xenium data from xenium output directory. 
             This is the preferred method for resegmentation. If you want the original Xenium
             segmentation, use SegmentedSpotTable.load_xenium.
@@ -578,19 +578,20 @@ class SpotTable:
         with open(xenium_output_dir / 'experiment.xenium', 'r') as f:
             metadata = json.load(f)
 
+        print(f"Output from Xenium Analyzer version {metadata['major_version']}.{metadata['minor_version']}")
+
         if load_images:
             images = ImageStack.load_xenium_stacks(xenium_output_dir, metadata= metadata, segmentation_kit = segmentation_kit, keep_images_in_memory=keep_images_in_memory)
 
-        
-        version = int(metadata['major_version'])
 
+        version = int(metadata['major_version'])
         if (cache_file is None) or (not Path(cache_file).exists()):
             print("Loading transcripts...")
-            if version < 3:
+            if version < 5:
                 transcript_file = xenium_output_dir / 'transcripts.csv'
             else:
-                transcripts_file = xenium_output_dir / 'transcripts.parquet'
-                assert trainscripts_file.exists(), f"Cannot find transcripts.parquet in {xenium_output_dir}" # Maybe sometime in the future xenium will use another format
+                transcript_file = xenium_output_dir / 'transcripts.parquet'
+                assert transcript_file.exists(), f"Cannot find transcripts.parquet in {xenium_output_dir}" # Maybe sometime in the future xenium will use another format
             
             pos, gene_names = SpotTable.read_xenium_transcripts(transcript_file=transcript_file, max_rows=max_rows, z_depth=z_depth)
 
@@ -605,6 +606,16 @@ class SpotTable:
             return cls.load_npz(cache_file, images=images)
 
 
+    def remove_genes(cls, gene_names: list[str]):
+        """Return a new SpotTable with the specified genes removed.
+        """
+        pos_df = cls.dataframe()
+        pos_df['gene_names'] = cls.gene_names
+        mask = ~pos_df['gene_names'].isin(gene_names)
+        pos_df = pos_df[mask]
+        images = cls.images
+        return SpotTable(pos = pos_df[['x', 'y', 'z']].values, gene_names=pos_df['gene_names'].values, images=images)
+    
     def save_npz(self, npz_file: str):
         """Save this SpotTable as an NPZ file."""
         fields = {

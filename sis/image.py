@@ -440,8 +440,8 @@ class ImageStack(ImageBase):
         
         metadata['major_version'] = int(metadata['major_version'])
         
-        if metadata['major_version'] != 3:
-            print('This code was written for Xemnium analyzer 3.0. This may break some things.')
+        if metadata['major_version'] != 5:
+            print('This code was written for Xemnium analyzer 5.0. This may break some things.')
             print('Please check output format for the version of Xenium analyzer you are using.')
 
         image_path_dict = {}
@@ -457,9 +457,10 @@ class ImageStack(ImageBase):
                 image_path_dict['interior_rna'] = xenium_image_dir / 'morphology_focus_0002.ome.tif'
                 image_path_dict['interior_protein'] = xenium_image_dir / 'morphology_focus_0003.ome.tif'
 
+        dapi_image = tifffile.TiffFile(image_path_dict['DAPI'])
         
         # this file should have OME metadata:
-        metadata_root = ET.fromstring(image_dict['DAPI'].ome_metadata)
+        metadata_root = ET.fromstring(dapi_image.ome_metadata)
         # extract the pixel size 
         for child in metadata_root:
             if "Image" in child.tag:
@@ -477,7 +478,7 @@ class ImageStack(ImageBase):
 
         # the Xenium OME-TIFF file is an image pyramid. 
         #I'm basing everything here on the highest resolution level.
-        image_file_shape = image_dict['DAPI'].series[0].shape
+        image_file_shape = dapi_image.series[0].shape
 
         z_inds = list(range(image_file_shape[0]))
         if max_z_to_take:
@@ -495,7 +496,7 @@ class ImageStack(ImageBase):
                 stacks.append(ImageStack(images))
             else:
                 img = XeniumImageFile.load_xenium(image_path_dict[stain], um_to_pixel_matrix, z_index=0, channel=stain, pyramid_level=pyramid_to_keep, keep_images_in_memory=keep_images_in_memory)
-                stacks.appennd(img)
+                stacks.append(img)
 
         return stacks
 
