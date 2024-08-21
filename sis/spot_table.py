@@ -583,6 +583,8 @@ class SpotTable:
         if load_images:
             images = ImageStack.load_xenium_stacks(xenium_output_dir, metadata= metadata, segmentation_kit = segmentation_kit, keep_images_in_memory=keep_images_in_memory)
 
+        for image in images:
+            print(f"Loaded image {type(image)}")
 
         version = int(metadata['major_version'])
         if (cache_file is None) or (not Path(cache_file).exists()):

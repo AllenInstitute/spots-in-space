@@ -456,11 +456,13 @@ class ImageStack(ImageBase):
                 image_path_dict['boundary'] = xenium_image_dir / 'morphology_focus_0001.ome.tif'
                 image_path_dict['interior_rna'] = xenium_image_dir / 'morphology_focus_0002.ome.tif'
                 image_path_dict['interior_protein'] = xenium_image_dir / 'morphology_focus_0003.ome.tif'
-
-        dapi_image = tifffile.TiffFile(image_path_dict['DAPI'])
+            
+        # Create TiffFile dictionary
+        image_tiff_dict = {key: tifffile.TiffFile(image_path) for key, image_path in image_path_dict.items()}
+        image_z_inds = {key: list(range(image_tiff_dict[key].series[0].shape[0])) for key in image_tiff_dict.keys()}
         
         # this file should have OME metadata:
-        metadata_root = ET.fromstring(dapi_image.ome_metadata)
+        metadata_root = ET.fromstring(image_tiff_dict['DAPI'].ome_metadata)
         # extract the pixel size 
         for child in metadata_root:
             if "Image" in child.tag:
@@ -468,6 +470,7 @@ class ImageStack(ImageBase):
                     if "Pixels" in cc.tag:
                         um_per_pixel_x = float(cc.attrib["PhysicalSizeX"])
                         um_per_pixel_y = float(cc.attrib["PhysicalSizeY"])
+        
         # and turn this into a transformation matrix
         affine_matrix = np.eye(3)[:2,:]
         affine_matrix[0,0] = um_per_pixel_x
@@ -478,25 +481,26 @@ class ImageStack(ImageBase):
 
         # the Xenium OME-TIFF file is an image pyramid. 
         #I'm basing everything here on the highest resolution level.
-        image_file_shape = dapi_image.series[0].shape
-
-        z_inds = list(range(image_file_shape[0]))
+        # image_file_shape = dapi_image.series[0].shape
+        # z_inds = list(range(image_file_shape[0]))
         if max_z_to_take:
-            z_inds = z_inds[:min(max_z_to_take, image_file_shape[0])]
+            # z_inds = z_inds[:min(max_z_to_take, image_file_shape[0])]
+            image_z_inds = {key: z_inds[:min(max_z_to_take, len(z_inds))] for key, z_inds in image_z_inds.items()}
+
         # leave this list of `stacks` to account for future versions with multiple stains
         stacks = [] 
-        stains = list(image_path_dict.keys()) 
-        for stain in stains:
+        # stains = list(image_path_dict.keys()) 
+        for stain, z_inds in image_z_inds.items():
             # Currently only DAPI is a 3D image, the rest of the stains are 2D
-            if stain == 'DAPI':
-                images = []
-                for z_ind in z_inds:
-                    img = XeniumImageFile.load_xenium(image_path_dict[stain], um_to_pixel_matrix, z_index=z_ind, channel=stain, pyramid_level=pyramid_to_keep, keep_images_in_memory=keep_images_in_memory)
-                    images.append(img)
-                stacks.append(ImageStack(images))
-            else:
-                img = XeniumImageFile.load_xenium(image_path_dict[stain], um_to_pixel_matrix, z_index=0, channel=stain, pyramid_level=pyramid_to_keep, keep_images_in_memory=keep_images_in_memory)
-                stacks.append(img)
+            # if stain == 'DAPI':
+            images = []
+            for z_ind in z_inds:
+                img = XeniumImageFile.load_xenium(image_path_dict[stain], um_to_pixel_matrix, z_index=z_ind, channel=stain, pyramid_level=pyramid_to_keep, keep_images_in_memory=keep_images_in_memory)
+                images.append(img)
+            stacks.append(ImageStack(images))
+            # else:
+            #     img = XeniumImageFile.load_xenium(image_path_dict[stain], um_to_pixel_matrix, z_index=0, channel=stain, pyramid_level=pyramid_to_keep, keep_images_in_memory=keep_images_in_memory)
+            #     stacks.append(img)
 
         return stacks
 
