@@ -573,12 +573,25 @@ class SpotTable:
         
         if isinstance(cache_file, str):
             cache_file = Path(cache_file)
-            
+
+        # Load metadata for accounting for outputs
+        with open(xenium_output_dir / 'experiment.xenium', 'r') as f:
+            metadata = json.load(f)
+
         if load_images:
-            images = ImageStack.load_xenium_stacks(xenium_output_dir, segmentation_kit = segmentation_kit, keep_images_in_memory=keep_images_in_memory)
+            images = ImageStack.load_xenium_stacks(xenium_output_dir, metadata= metadata, segmentation_kit = segmentation_kit, keep_images_in_memory=keep_images_in_memory)
+
+        
+        version = int(metadata['major_version'])
 
         if (cache_file is None) or (not Path(cache_file).exists()):
             print("Loading transcripts...")
+            if version < 3:
+                transcript_file = xenium_output_dir / 'transcripts.csv'
+            else:
+                transcripts_file = xenium_output_dir / 'transcripts.parquet'
+                assert trainscripts_file.exists(), f"Cannot find transcripts.parquet in {xenium_output_dir}" # Maybe sometime in the future xenium will use another format
+            
             pos, gene_names = SpotTable.read_xenium_transcripts(transcript_file=transcript_file, max_rows=max_rows, z_depth=z_depth)
 
             if cache_file is not None:                

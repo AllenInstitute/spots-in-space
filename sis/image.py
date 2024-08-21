@@ -2,6 +2,7 @@ from __future__ import annotations
 import warnings
 import os, glob, re
 import numpy as np
+from pathlib import Path
 from .optional_import import optional_import
 rasterio = optional_import('rasterio')
 tifffile = optional_import('tifffile')
@@ -432,20 +433,17 @@ class ImageStack(ImageBase):
         return stacks
 
     @classmethod
-    def load_xenium_stacks(cls, xenium_output_dir, segmentation_kit:bool = False, pyramid_to_keep=None, max_z_to_take=None, keep_images_in_memory=True):
+    def load_xenium_stacks(cls, xenium_output_dir:Path, metadata:dict, segmentation_kit:bool = False, pyramid_to_keep=None, max_z_to_take=None, keep_images_in_memory=True):
         """Read standard Xenium image mosaic tiff file, returning list of XeniumImageFiles
         """
         import xml.etree.ElementTree as ET
-        import json
-
-        with open(xenium_output_dir / 'experiment.xenium'):
-            metadata = json.load(f)
         
         metadata['major_version'] = int(metadata['major_version'])
+        
         if metadata['major_version'] != 3:
             print('This code was written for Xemnium analyzer 3.0. This may break some things.')
             print('Please check output format for the version of Xenium analyzer you are using.')
-            
+
         image_path_dict = {}
         image_path_dict['DAPI'] = xenium_output_dir / 'morphology.ome.tif'
 
