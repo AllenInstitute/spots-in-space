@@ -6,6 +6,7 @@ from pathlib import Path
 from .optional_import import optional_import
 rasterio = optional_import('rasterio')
 tifffile = optional_import('tifffile')
+opencv = optional_import('cv2')
 
 class ImageBase:
     @property
@@ -451,15 +452,11 @@ class ImageStack(ImageBase):
             if metadata['segmentation_stain'] == "Nuclei (DAPI)":
                 print("It seems no segmentation kit was used in this section, reverting to non-segmentation kit loading.")
             else:
-                xenium_image_dir = xenium_output_dir / 'morphology_focus'
-                image_path_dict['DAPI 2D'] = xenium_image_dir / 'morphology_focus_0000.ome.tif'
-                image_path_dict['boundary'] = xenium_image_dir / 'morphology_focus_0001.ome.tif'
-                image_path_dict['interior_rna'] = xenium_image_dir / 'morphology_focus_0002.ome.tif'
-                image_path_dict['interior_protein'] = xenium_image_dir / 'morphology_focus_0003.ome.tif'
+                image_path_dict['seg_kit'] = xenium_output_dir / 'morphology_focus' / 'morphology_focus_0000.ome.tif'
             
         # Create TiffFile dictionary
         image_tiff_dict = {key: tifffile.TiffFile(image_path) for key, image_path in image_path_dict.items()}
-        image_z_inds = {key: list(range(image_tiff_dict[key].series[0].shape[0])) for key in image_tiff_dict.keys()}
+        image_z_inds = {key: list(range(tiff.series[0].shape[0])) for key, tiff in image_tiff_dict.items()}
         
         # this file should have OME metadata:
         metadata_root = ET.fromstring(image_tiff_dict['DAPI'].ome_metadata)
@@ -491,17 +488,41 @@ class ImageStack(ImageBase):
         stacks = [] 
         # stains = list(image_path_dict.keys()) 
         for stain, z_inds in image_z_inds.items():
-            # Currently only DAPI is a 3D image, the rest of the stains are 2D
-            # if stain == 'DAPI':
-            images = []
-            for z_ind in z_inds:
-                img = XeniumImageFile.load_xenium(image_path_dict[stain], um_to_pixel_matrix, z_index=z_ind, channel=stain, pyramid_level=pyramid_to_keep, keep_images_in_memory=keep_images_in_memory)
-                images.append(img)
-            stacks.append(ImageStack(images))
-            # else:
-            #     img = XeniumImageFile.load_xenium(image_path_dict[stain], um_to_pixel_matrix, z_index=0, channel=stain, pyramid_level=pyramid_to_keep, keep_images_in_memory=keep_images_in_memory)
-            #     stacks.append(img)
-
+            # Getting the segmentation kit images
+            if stain == 'seg_kit':
+                images = []
+                for z_ind, stain in enumerate(['dapi 2d', 'boundary', 'interior_rna', 'interior_protein']):
+                    print(f"Loading {stain} images")
+                    img = XeniumImageFile.load_xenium(image_path_dict['seg_kit'], 
+                                                        um_to_pixel_matrix, 
+                                                        z_index=z_ind,
+                                                        channel=stain, 
+                                                        pyramid_level=pyramid_to_keep, 
+                                                        keep_images_in_memory=keep_images_in_memory)
+                    stacks.append(img)
+            else:
+                # Load the other stains
+                print(f"Loading {stain} images")
+                # Load either a 2D or 3D image
+                if len(z_inds) == 1:
+                    img = XeniumImageFile.load_xenium(image_path_dict[stain], 
+                                                      um_to_pixel_matrix, 
+                                                      z_index=z_inds[0], 
+                                                      channel=stain, 
+                                                      pyramid_level=pyramid_to_keep, 
+                                                      keep_images_in_memory=keep_images_in_memory)
+                    stacks.append(img)
+                else:
+                    images = []
+                    for z_ind in z_inds:
+                        img = XeniumImageFile.load_xenium(image_path_dict[stain], 
+                                                          um_to_pixel_matrix, 
+                                                          z_index=z_ind, 
+                                                          channel=stain, 
+                                                          pyramid_level=pyramid_to_keep, 
+                                                          keep_images_in_memory=keep_images_in_memory)
+                        images.append(img)
+                    stacks.append(ImageStack(images))
         return stacks
 
 

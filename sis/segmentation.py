@@ -366,7 +366,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
         density_img = np.zeros(image_shape_full, dtype='float32')
 
         spot_px = self.map_spots_to_img_px(spot_table, image_transform=image_transform, image_shape=image_shape_full)
-        for i in range(n_planes):
+        for i in tqdm(range(n_planes)):
             z_mask = spot_px[..., 0] == i
             x = spot_px[z_mask, 1]
             y = spot_px[z_mask, 2]
@@ -382,19 +382,24 @@ class CellposeSegmentationMethod(SegmentationMethod):
 
         density_img = density_img[bool_idx, ...]
 
+        print('Computing dask array')
         density_da = da.from_array(density_img, chunks=(density_img.shape[0], 512, 512) if density_img.ndim == 3 else (512, 512))
-        import scipy.ndimage
+
         # very sensitive to these parameters :/
         if gauss_kernel is not None:
+            print(f'Adding Gaussian kernel: {gauss_kernel}')
             gauss = lambda x: scipy.ndimage.gaussian_filter(x, gauss_kernel)
             density_da = density_da.map_overlap(gauss, depth = (2, 25 , 25) if density_img.ndim == 3 else (25, 25))
             # density_img = scipy.ndimage.gaussian_filter(density_img, gauss_kernel)
         if median_kernel is not None:
+            print(f'Adding Median kernel: {median_kernel}')
             median = lambda x: scipy.ndimage.median_filter(x, median_kernel)
             density_da = density_da.map_overlap(median, depth = (2, 25 , 25) if density_img.ndim == 3 else (25, 25))
             # density_img = scipy.ndimage.median_filter(density_img, median_kernel)
 
+        print('Computing image')
         density_img = density_da.compute()
+
         if frames is not None:
             return Image(density_img[..., np.newaxis], transform=image_transform, channels=['Total mRNA'], name=None).get_frames(frames)
         elif frame is not None:
