@@ -2030,7 +2030,7 @@ class SegmentedSpotTable:
         sst_fields = {
             'cell_ids': fields['cell_ids'],
             'seg_metadata': fields['seg_metadata'].item(),
-            'production_cell_ids': fields['production_cell_ids'],
+            'production_cell_ids': fields['production_cell_ids'].item() if np.any(fields['production_cell_ids']) is None else fields['production_cell_ids'],
             'pcid_to_cid': fields['_pcid_to_cid'].item(),
             'cid_to_pcid': fields['_cid_to_pcid'].item(),
             'cell_polygons': fields['cell_polygons'].item()
