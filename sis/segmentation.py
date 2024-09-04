@@ -6,7 +6,6 @@ from tqdm.autonotebook import tqdm
 from .hpc import SlurmJob, SlurmJobArray, run_slurm_func, double_mem, memory_to_bytes, slurm_time_to_seconds, seconds_to_time
 from .spot_table import SpotTable, SegmentedSpotTable
 from .image import Image, ImageBase, ImageTransform
-
 import inspect
 import json
 from pathlib import Path, PurePath
@@ -16,6 +15,7 @@ import pandas as pd
 import anndata as ad
 import sis
 from sis.util import convert_value_nested_dict
+from dask import array as da
 
 from .optional_import import optional_import
 geojson = optional_import('geojson')
@@ -336,7 +336,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
         
         return {'image_shape': (1, shape[0], shape[1]), 'image_transform': image_tr}
 
-    def get_total_mrna_image(self, spot_table, image_shape:tuple, image_transform:ImageTransform, n_planes:int, frame: int|None=None, frames:tuple|None=None, gauss_kernel=(1, 3, 3), median_kernel=(2, 10, 10)):
+    def get_total_mrna_image(self, spot_table, image_shape:tuple, image_transform:ImageTransform, n_planes:int, use_dask:bool = True, frame: int|None=None, frames:tuple|None=None, gauss_kernel=(1, 3, 3), median_kernel=(2, 10, 10)):
         """Create a total mRNA image (histogram of spot density) from the spot table.
         Can be used to approximate cytosol staining for segmentation.
         Smoothing can optionally be applied.
@@ -376,10 +376,28 @@ class CellposeSegmentationMethod(SegmentationMethod):
             ]
             density_img[i] = np.histogram2d(x, y, bins=bins)[0]
 
-        import scipy.ndimage
         # very sensitive to these parameters :/
-        density_img = scipy.ndimage.gaussian_filter(density_img, gauss_kernel)
-        density_img = scipy.ndimage.median_filter(density_img, median_kernel)
+        if use_dask:
+            print('Computing dask array')
+            density_da = da.from_array(density_img, chunks=(density_img.shape[0], 512, 512) if density_img.ndim == 3 else (512, 512))
+            if gauss_kernel is not None:
+                print(f'Adding Gaussian kernel: {gauss_kernel}')
+                gauss = lambda x: scipy.ndimage.gaussian_filter(x, gauss_kernel)
+                density_da = density_da.map_overlap(gauss, depth = (2, 25 , 25) if density_img.ndim == 3 else (25, 25))
+            if median_kernel is not None:
+                print(f'Adding Median kernel: {median_kernel}')
+                median = lambda x: scipy.ndimage.median_filter(x, median_kernel)
+                density_da = density_da.map_overlap(median, depth = (2, 25 , 25) if density_img.ndim == 3 else (25, 25))
+            
+            print('Computing image')
+            density_img = density_da.compute()
+        else:
+            if gauss_kernel is not None:
+                print(f'Adding Gaussian kernel: {gauss_kernel}')
+                density_img = scipy.ndimage.gaussian_filter(density_img, gauss_kernel)
+            if median_kernel is not None:
+                print(f'Adding Median kernel: {median_kernel}')
+                density_img = scipy.ndimage.median_filter(density_img, median_kernel)
 
         if frames is not None:
             return Image(density_img[..., np.newaxis], transform=image_transform, channels=['Total mRNA'], name=None).get_frames(frames)
