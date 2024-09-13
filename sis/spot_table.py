@@ -587,6 +587,70 @@ class SpotTable:
             print("Loading from npz..")
             return cls.load_npz(cache_file, images=images)
 
+    @staticmethod
+    def read_resolve_transcripts(transcript_file: str, um_per_pixel: float=None, max_rows=None):
+        """Helper function to read a Xenium transcripts file. (currently supports only csv and parquet)
+        Intended to reduce duplicated code between SpotTable.load_resolve()
+        and SegmentedSpotTable.load_resolve().
+        """
+        # Load transcript data
+        if str(transcript_file).endswith('.csv') or str(transcript_file).endswith('.csv.gz'):
+            spot_dataframe = pandas.read_csv(transcript_file, nrows=max_rows)
+        elif str(transcript_file).endswith('.txt'):
+            spot_dataframe = pandas.read_table(transcript_file, header=None, sep='\t', index_col=False, names=['x', 'y', 'z', 'gene'], nrows=max_rows)
+        else:
+            raise ValueError(f"Unsupported file type for transcript_file: {transcript_file}")
+
+        pos = spot_dataframe.loc[:,["x","y"]].values # We remove the z coordinates to zero b/c we only have one image plane
+        pos = (pos * um_per_pixel)
+        gene_names = spot_dataframe.loc[:,"gene"].values
+
+        return pos, gene_names
+
+    @classmethod
+    def load_resolve(cls, transcript_file: str, cache_file: str|None=None, image_path: str|None=None,  um_per_pixel: float|None=None, max_rows: int|None=None):
+        """ Load resolve data from a results.txt file.
+            CSV reading can be slow, so optionally cache the result to a .npz file.
+
+            Parameters
+            ----------
+            transcript_file : str
+                Path to the detected transcripts file.
+            cache_file : str, optional
+                Path to the detected transcripts cache file, which is an npz file 
+                representing the raw SpotTable (without cell_ids). If passed, will
+                create a cache file if one does not already exists.
+            image_path : str, optional
+                Path to the corresponding image file
+            um_per_pixel : float, optional
+                um per pixel in the image. Transcripts in resolve have per/pixel coordinates which need to be converted to um for downstream compatibility
+            max_rows : int, optional
+                Maximum number of rows to load from the CSV file.
+
+            Returns
+            -------
+            sis.spot_table.SpotTable
+        """
+    
+        # if requested, look for images as well (these are not saved in cache file)
+        images = None
+        if image_path is not None:
+            images = ImageFile.load_resolve(image_path, um_per_pixel, 'DAPI')
+
+        if (cache_file is None) or (not Path(cache_file).exists()):
+            print("Loading transcripts...")
+            pos, gene_names = SpotTable.read_resolve_transcripts(transcript_file=transcript_file, um_per_pixel=um_per_pixel, max_rows=max_rows)
+
+            if cache_file is not None:                
+                print("Recompressing to npz..")
+                cls(pos=pos, gene_names=gene_names, images=images).save_npz(cache_file)
+
+            return cls(pos=pos, gene_names=gene_names, images=images)
+
+        else:
+            print("Loading from npz..")
+            return cls.load_npz(cache_file, images=images)
+
 
     def save_npz(self, npz_file: str):
         """Save this SpotTable as an NPZ file."""

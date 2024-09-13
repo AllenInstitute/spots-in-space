@@ -178,6 +178,33 @@ class ImageFile(ImageBase):
         tr = ImageTransform(um_to_px)
         return ImageFile(file=image_file, transform=tr, axes=['frame', 'row', 'col', 'channel'], channels=[channel], name=name)
 
+    @classmethod
+    def load_resolve(cls, image_file, um_per_pixel, channel, name=None):
+        """ Load resolve data 
+
+            Parameters
+            ----------
+            image_file : str
+                Path to the corresponding image file
+            um_per_pixel : float, optional
+                um per pixel in the image. resolve doesn't have a transform file, so we need to specify this.
+            channel : str
+                Name to give the image channel
+            name : str, optional
+                idk what this is used for tbh
+
+            Returns
+            -------
+            sis.spot_table.SpotTable
+        """
+        
+        scale = 1 / um_per_pixel
+        tr_matrix = np.zeros((2, 3))
+        tr_matrix[0, 0] = tr_matrix[1, 1] = scale
+        tr = ImageTransform(tr_matrix[::-1])
+        
+        return ImageFile(file=image_file, transform=tr, axes=['frame', 'row', 'col', 'channel'], channels=[channel], name=name)
+
     @property
     def shape(self):
         if self._shape is None:

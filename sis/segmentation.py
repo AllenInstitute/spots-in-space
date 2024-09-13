@@ -1800,3 +1800,42 @@ class XeniumSegmentationPipeline(SegmentationPipeline):
         load_args['keep_images_in_memory'] = self.keep_images_in_memory
 
         return load_args
+
+class ResolveSegmentationPipeline(SegmentationPipeline):
+    def __init__(
+            self,
+            dt_file: Path|str,
+            image_path: Path|str,
+            output_dir: Path|str,
+            dt_cache: Path|str|None,
+            subrgn: str|tuple,
+            seg_method: SegmentationMethod,
+            seg_opts: dict,
+            polygon_opts: dict|None=None,
+            seg_hpc_opts: dict|None=None,
+            polygon_hpc_opts: dict|None=None,
+            hpc_opts: dict|None=None,
+            ):
+        super().__init__(dt_file, image_path, output_dir, dt_cache, subrgn, seg_method, seg_opts, polygon_opts, seg_hpc_opts=seg_hpc_opts, polygon_hpc_opts=polygon_hpc_opts, hpc_opts=hpc_opts)
+
+        self.um_per_pixel = seg_opts['options']['px_size'] # This is used for binning z-locations to image planes
+
+    def get_load_func(self):
+        """Get the function to load a spot table."""
+        return SpotTable.load_resolve
+
+    def get_load_args(self):
+        """Get args to pass to loading function (e.g. when submitting jobs to hpc)."""
+        load_args = {
+                'image_path': self.image_path,
+                'transcript_file': self.detected_transcripts_file,
+                'cache_file': self.detected_transcripts_cache,
+        }
+        for k, v in load_args.items():
+            if isinstance(v, Path):
+                load_args[k] = v.as_posix()
+
+        load_args['max_rows'] = None
+        load_args['um_per_pixel'] = self.um_per_pixel
+
+        return load_args
