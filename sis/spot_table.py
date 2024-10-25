@@ -1953,7 +1953,7 @@ class SegmentedSpotTable:
 
 
     @classmethod
-    def load_xenium(cls, csv_file: str, cache_file: str|None, image_path: str|None=None, max_rows: int|None=None, z_depth: float=3.0):
+    def load_xenium(cls, transcript_file: str, cache_file: str|None, image_path: str|None=None, max_rows: int|None=None, z_depth: float=3.0):
         """Load Xenium data from a detected transcripts CSV file, including
         the original segmentation. If you are resegmenting the data, prefer
         SpotTable.load_xenium.
@@ -1963,7 +1963,7 @@ class SegmentedSpotTable:
 
         Parameters
         ----------
-        csv_file : str
+        transcript_file : str
             Path to the detected transcripts file.
         cache_file : str, optional
             Path to the detected transcripts cache file, which is an npz file 
@@ -1981,8 +1981,30 @@ class SegmentedSpotTable:
         -------
         sis.spot_table.SegmentedSpotTable
         """
-        raw_spot_table = SpotTable.load_xenium(csv_file=csv_file, cache_file=cache_file, image_path=image_path, max_rows=max_rows, z_depth=z_depth)
-        cell_ids = pandas.read_csv(csv_file, nrows=max_rows, usecols=['cell_id'], dtype='int64').values
+        raw_spot_table = SpotTable.load_xenium(transcript_file=transcript_file, cache_file=cache_file, image_path=image_path, max_rows=max_rows, z_depth=z_depth)
+
+        if str(transcript_file).endswith('.csv') or str(transcript_file).endswith('.csv.gz'):
+            cell_ids = pandas.read_csv(transcript_file, nrows=max_rows, usecols=['cell_id'], dtype='int64').values
+
+        elif str(transcript_file).endswith('.parquet'):
+            if max_rows:
+                raise ValueError('max_rows is not supported for parquet files as pandas does not allow partial reading')
+
+            # removed dtype as argument b/c parquet files have dtypes specified in metadata
+            cell_ids = pandas.read_parquet(transcript_file, columns=['cell_id']).values
+            cell_ids = cell_ids[:, 0]
+            # Xenium cell_id column is string, but SegmentedSpotTable needs ints, so convert
+            unique_ids = np.unique(cell_ids)
+            bg_id = 'UNASSIGNED'
+            assert bg_id in unique_ids  # if this changes with Xenium version, may need more options
+            if unique_ids[0] != bg_id:
+                # put background cell id first so it will be paired with 0
+                temp = set(unique_ids).difference([bg_id])
+                cell_ids = [bg_id] + list(temp)
+
+            cid_to_ints_mapping = dict(zip(unique_ids, np.arange(0, len(unique_ids))))
+            cell_ids = [cid_to_ints_mapping[cid] for cid in cell_ids]
+            cell_ids = np.array(cell_ids)
 
         return cls(spot_table=raw_spot_table, cell_ids=cell_ids, seg_metadata={'seg_method': 'Xenium'})
 
