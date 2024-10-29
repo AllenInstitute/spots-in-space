@@ -1698,9 +1698,9 @@ class SegmentedSpotTable:
                             self.cell_polygons[cid] = feature['geometry']
             elif polygon_json['type'] == 'GeometryCollection':
                 from pathlib import PurePath
-                if cell_ids and (isinstance(cell_ids, PurePath) or isinstance(cell_ids, str)):
+                if cell_ids is not None and (isinstance(cell_ids, PurePath) or isinstance(cell_ids, str)):
                     cell_ids = list(np.load(cell_ids))
-                elif cell_ids and isinstance(cell_ids, np.ndarray):
+                elif cell_ids is not None and isinstance(cell_ids, np.ndarray):
                     cell_ids = list(cell_ids)
 
                 if cell_ids:
@@ -1715,8 +1715,8 @@ class SegmentedSpotTable:
                         raise ValueError("Number of cells in input file exceeds SpotTable")
                         
                     # This method ensure compatibility with both JSONs which store None and those which dont
-                    valid_cells = [cid for cid in unique_cells if len(self.cell_indices(cid)) > 3]
-                    invalid_cells = [cid for cid in unique_cells if len(self.cell_indices(cid)) <= 3]
+                    valid_cells = [cid for cid in unique_cells if len(np.unique(self.pos[self.cell_indices(cid)][:, :2], axis=0)) > 3]
+                    invalid_cells = [cid for cid in unique_cells if len(np.unique(self.pos[self.cell_indices(cid)][:, :2], axis=0)) <= 3]
                     
                     for geometry in tqdm(polygon_json['geometries'], disable=disable_tqdm):
                         if geometry and geometry['type'] == 'Polygon':
