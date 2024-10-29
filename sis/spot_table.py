@@ -1594,31 +1594,27 @@ class SegmentedSpotTable:
 
     def get_geojson_collection(self, use_production_ids=False):
         """
-        Create a geojson feature/geometry collection from the cell polygons
+        Create a geojson feature collection from the cell polygons
         """
         if self.cell_polygons is None:
             return None
-        elif dict in set(type(k) for k in self.cell_polygons.values()): # if cell polygons are separated by z-plane use feature collection which stores z-plane info
-            all_polygons = []
-            for cid in self.cell_polygons:
-                if self.cell_polygons[cid]:
-                    for z_plane, polygon in self.cell_polygons[cid].items():
-                        # Each z-plane is a separate feature
-                        all_polygons.append(geojson.Feature(geometry=polygon, id=self.convert_cell_id(cid) if use_production_ids else str(cid), z_plane=str(z_plane)))
-                else:
-                    all_polygons.append(geojson.Feature(geometry=None, id=self.convert_cell_id(cid) if use_production_ids else str(cid), z_plane=None))
 
-            return geojson.FeatureCollection(all_polygons)
-        else: # If cell polygons are not separated by z-plane, use previous implementation
-            geojsonROIs = []
-            for poly_key in self.cell_polygons.keys():
-                if self.cell_polygons[poly_key]:
-                    if len(self.cell_polygons[poly_key].exterior.coords) > 2:
-                        geojsonROIs.append(util.poly_to_geojson(self.cell_polygons[poly_key]))
-                else:
-                    geojsonROIs.append(None)
-            
-            return geojson.GeometryCollection(geojsonROIs)
+        bool_3d_poly = dict in set(type(k) for k in self.cell_polygons.values())
+
+        all_polygons = []
+        for cid in self.cell_polygons:
+            if self.cell_polygons[cid] and bool_3d_poly: # Polygon for cell and 3D polygons for spot table
+                for z_plane, polygon in self.cell_polygons[cid].items():
+                    # Each z-plane is a separate feature
+                    all_polygons.append(geojson.Feature(geometry=polygon, id=self.convert_cell_id(cid) if use_production_ids else str(cid), z_plane=str(z_plane)))
+            elif self.cell_polygons[cid] and not bool_3d_poly: # Polygon for cell and 2D polygons for spot table
+                all_polygons.append(geojson.Feature(geometry=self.cell_polygons[cid], id=self.convert_cell_id(cid) if use_production_ids else str(cid)))
+            elif self.cell_polygons[cid] is None and bool_3d_poly: # No polygon for cell and 3D polygons for spot table
+                all_polygons.append(geojson.Feature(geometry=None, id=self.convert_cell_id(cid) if use_production_ids else str(cid), z_plane=None))
+            else: # No polygon for cell and 2D polygons for spot table
+                all_polygons.append(geojson.Feature(geometry=None, id=self.convert_cell_id(cid) if use_production_ids else str(cid)))
+
+        return geojson.FeatureCollection(all_polygons)
     
 
     def save_cell_polygons(self, save_path: Path|str, use_production_ids=False):
@@ -1691,11 +1687,16 @@ class SegmentedSpotTable:
                     if cid in unique_cells:
                         # Make sure it is a polygon or None otherwise we don't read it
                         if feature['geometry'] and feature['geometry']['type'] == 'Polygon': 
-                            z_plane = z_plane_type(feature['z_plane'])
                             polygon = Polygon(feature['geometry']['coordinates'][0])
-                            self.cell_polygons.setdefault(cid, {})[z_plane] = polygon
+                            # Feature collection doesn't have to be 3D anymore
+                            if 'z_plane' in feature:
+                                z_plane = z_plane_type(feature['z_plane'])
+                                self.cell_polygons.setdefault(cid, {})[z_plane] = polygon
+                            else:
+                                self.cell_polygons[cid] = polygon
                         elif not feature['geometry']:
                             self.cell_polygons[cid] = feature['geometry']
+            # GeometryCollection code retained for backwards compatibility
             elif polygon_json['type'] == 'GeometryCollection':
                 from pathlib import PurePath
                 if cell_ids is not None and (isinstance(cell_ids, PurePath) or isinstance(cell_ids, str)):
@@ -1713,11 +1714,11 @@ class SegmentedSpotTable:
                 else: # If we don't have the cell IDs we will have to infer
                     if len(unique_cells) < len(polygon_json['geometries']):
                         raise ValueError("Number of cells in input file exceeds SpotTable")
-                        
+
                     # This method ensure compatibility with both JSONs which store None and those which dont
                     valid_cells = [cid for cid in unique_cells if len(np.unique(self.pos[self.cell_indices(cid)][:, :2], axis=0)) > 3]
                     invalid_cells = [cid for cid in unique_cells if len(np.unique(self.pos[self.cell_indices(cid)][:, :2], axis=0)) <= 3]
-                    
+
                     for geometry in tqdm(polygon_json['geometries'], disable=disable_tqdm):
                         if geometry and geometry['type'] == 'Polygon':
                             polygon = Polygon(geometry['coordinates'][0])
