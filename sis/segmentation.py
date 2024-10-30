@@ -198,7 +198,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
             assert images['cyto'].shape == images['nuclei'].shape
 
             # If the number of z-planes is too small we want to double the z-planes while still maintaining order
-            if 'detect_z_planes' in self.options and (z_planes[1] - z_planes[0]) <= 5:
+            if self.options.get('duplistack', False):
                 cyto_data = CellposeSegmentationMethod.duplistack_image(images['cyto'])
                 nuclei_data = CellposeSegmentationMethod.duplistack_image(images['nuclei'])
             else:
@@ -212,7 +212,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
             channels = [1, 2]  # cyto=1 (red), nuclei=2 (green)
         else:
             # If the number of z-planes is too small we want to double the z-planes while still maintaining order
-            if 'detect_z_planes' in self.options and (z_planes[1] - z_planes[0]) <= 5:
+            if self.options.get('duplistack', False):
                 image_data = CellposeSegmentationMethod.duplistack_image(list(images.values())[0]) # Since there is only one image, we just take the first value
             else:
                 image_data = list(images.values())[0].get_data()
@@ -262,7 +262,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
             }
 
         # If we made a duplistacked image lets return it back to the original size
-        if 'detect_z_planes' in self.options and (z_planes[1] - z_planes[0]) <= 5:
+        if self.options.get('duplistack', False):
             cellpose_output['masks'] = cellpose_output['masks'][::2]
             cellpose_output['flows'][0] = cellpose_output['flows'][0][::2]
             cellpose_output['flows'][1] = cellpose_output['flows'][1][:, ::2]
