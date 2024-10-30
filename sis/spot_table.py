@@ -1984,15 +1984,17 @@ class SegmentedSpotTable:
         raw_spot_table = SpotTable.load_xenium(transcript_file=transcript_file, cache_file=cache_file, image_path=image_path, max_rows=max_rows, z_depth=z_depth)
 
         if str(transcript_file).endswith('.csv') or str(transcript_file).endswith('.csv.gz'):
-            cell_ids = pandas.read_csv(transcript_file, nrows=max_rows, usecols=['cell_id'], dtype='int64').values
+            cell_ids = pandas.read_csv(transcript_file, nrows=max_rows, usecols=['cell_id']).values
 
         elif str(transcript_file).endswith('.parquet'):
             if max_rows:
                 raise ValueError('max_rows is not supported for parquet files as pandas does not allow partial reading')
 
-            # removed dtype as argument b/c parquet files have dtypes specified in metadata
             cell_ids = pandas.read_parquet(transcript_file, columns=['cell_id']).values
-            cell_ids = cell_ids[:, 0]
+
+        cell_ids = np.squeeze(cell_ids)
+
+        if not np.issubdtype(cell_ids.dtype, np.integer):
             # Xenium cell_id column is string, but SegmentedSpotTable needs ints, so convert
             unique_ids = np.unique(cell_ids)
             bg_id = 'UNASSIGNED'
