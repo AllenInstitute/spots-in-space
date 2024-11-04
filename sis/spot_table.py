@@ -447,7 +447,7 @@ class SpotTable:
           
                 raw_data = np.loadtxt(lines, usecols=usecols, delimiter='\t', dtype=dtype)
                 end = fh.tell()
-                counts = np.asarray(raw_data['MIDcounts'], dtype='uint64')
+                counts = np.asarray(raw_data['MIDcounts'], dtype='int64')
                 pos2 = np.empty((sum(counts), 2), dtype='float64')
                 pos2[:, 0] = np.repeat(raw_data['x'] * xyscale, counts)
                 pos2[:, 1] = np.repeat(raw_data['y'] * xyscale, counts)
