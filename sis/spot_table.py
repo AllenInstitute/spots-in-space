@@ -2003,7 +2003,7 @@ class SegmentedSpotTable:
             if unique_ids[0] != bg_id:
                 # put background cell id first so it will be paired with 0
                 temp = set(unique_ids).difference([bg_id])
-                cell_ids = [bg_id] + list(temp)
+                unique_ids = [bg_id] + list(temp)
 
             cid_to_ints_mapping = dict(zip(unique_ids, np.arange(0, len(unique_ids))))
             cell_ids = [cid_to_ints_mapping[cid] for cid in cell_ids]

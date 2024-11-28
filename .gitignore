@@ -18,12 +18,3 @@ build
 merscope_test/
 xenium_test/
 .vscode
-
-# CodeOcean
-code/
-data/
-environment/
-metadata/
-scratch/
-results/
-.codeocean/
