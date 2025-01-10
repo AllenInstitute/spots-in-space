@@ -12,6 +12,7 @@ geojson = optional_import('geojson')
 shapely = optional_import('shapely')
 MultiLineString = optional_import('shapely.geometry', names=['MultiLineString'])[0]
 unary_union, polygonize = optional_import('shapely.ops', ['unary_union', 'polygonize'])
+make_valid = optional_import('shapely.validation', ['make_valid'])
 
 from .image import ImageBase, ImageFile, ImageStack, ImageTransform
 from . import util
@@ -1484,7 +1485,7 @@ class SegmentedSpotTable:
                 add_edge(ic, ia)
 
         m = MultiLineString(edge_points)
-        triangles = list(polygonize(m))
+        triangles = [make_valid(p) for p in polygonize(m)]
         tp = unary_union(triangles)
         
         return tp
