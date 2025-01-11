@@ -12,7 +12,7 @@ geojson = optional_import('geojson')
 shapely = optional_import('shapely')
 MultiLineString = optional_import('shapely.geometry', names=['MultiLineString'])[0]
 unary_union, polygonize = optional_import('shapely.ops', ['unary_union', 'polygonize'])
-make_valid = optional_import('shapely.validation', ['make_valid'])
+make_valid = optional_import('shapely.validation', names=['make_valid'])[0]
 
 from .image import ImageBase, ImageFile, ImageStack, ImageTransform
 from . import util
