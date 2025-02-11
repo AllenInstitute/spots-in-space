@@ -1204,15 +1204,14 @@ class SegmentedSpotTable:
                     warnings.warn("Some cells were modified, removed, or created. Cell polygons have been kept for unchanged cells but removed for modified, removed, or created cells.")
         self._old_cell_ids = None
         
-        
+    @property
     def unique_cell_ids(self):
         """numpy array of unique cell ids (excluding background)
         """
         if self._unique_cell_ids is None:
             unique_cell_ids = np.unique(self.cell_ids) # Pull out unique cell ids
-            return np.delete(unique_cell_ids, np.where((unique_cell_ids == 0) | (unique_cell_ids == -1))) # Remove background ids
-        else:
-            return self._unique_cell_ids
+            self._unique_cell_ids = np.delete(unique_cell_ids, np.where((unique_cell_ids == 0) | (unique_cell_ids == -1))) # Remove background ids
+        return self._unique_cell_ids
   
     def generate_production_cell_ids(self, prefix: str|None=None, suffix: str|None=None):
         """ Generates cell ids which count up from 1 to the total cell count rather than jumping between integers.
@@ -1245,11 +1244,11 @@ class SegmentedSpotTable:
             prefix = ''
             
         # Create dictionary to map cell ids to production ids 
-        cid_to_pcid = dict(zip(self.unique_cell_ids(), np.char.mod(f'{prefix}%d{suffix}', np.arange(1, len(self.unique_cell_ids())+1))))
+        cid_to_pcid = dict(zip(self.unique_cell_ids, np.char.mod(f'{prefix}%d{suffix}', np.arange(1, len(self.unique_cell_ids)+1))))
         cid_to_pcid[-1] = "-1"
     
         # Create dictionary to map production cell ids to cell ids 
-        pcid_to_cid = dict(zip(np.char.mod(f'{prefix}%d{suffix}', np.arange(1, len(self.unique_cell_ids())+1)), self.unique_cell_ids())) 
+        pcid_to_cid = dict(zip(np.char.mod(f'{prefix}%d{suffix}', np.arange(1, len(self.unique_cell_ids)+1)), self.unique_cell_ids)) 
         pcid_to_cid["-1"] = -1
     
         # Reset the current production cell ids and before we call cell_ids_changed for speed
@@ -1415,7 +1414,7 @@ class SegmentedSpotTable:
     def cell_centroids(self, use_production_ids=False):
         """Return a Pandas DataFrame of cell centroids calculated mean of the x,y,z coordinates for each cell."""
         centroids = []
-        for cid in self.unique_cell_ids():
+        for cid in self.unique_cell_ids:
             inds = self.cell_indices(cid)
             cell_ts_xyz = self.pos[inds]
             centroids.append(np.mean(cell_ts_xyz, axis=0))
@@ -1426,7 +1425,7 @@ class SegmentedSpotTable:
             empty[:] = np.nan
             centroids = np.append(centroids, empty, axis=1)
             
-        indices = [self.convert_cell_id(cid) for cid in self.unique_cell_ids()] if use_production_ids else self.unique_cell_ids()
+        indices = [self.convert_cell_id(cid) for cid in self.unique_cell_ids] if use_production_ids else self.unique_cell_ids
         return pandas.DataFrame(data=centroids, index=indices, columns=['center_x', 'center_y', 'center_z'])
 
     @staticmethod
