@@ -1204,15 +1204,13 @@ class SegmentedSpotTable:
                     warnings.warn("Some cells were modified, removed, or created. Cell polygons have been kept for unchanged cells but removed for modified, removed, or created cells.")
         self._old_cell_ids = None
         
-        
     def unique_cell_ids(self):
         """numpy array of unique cell ids (excluding background)
         """
         if self._unique_cell_ids is None:
             unique_cell_ids = np.unique(self.cell_ids) # Pull out unique cell ids
-            return np.delete(unique_cell_ids, np.where((unique_cell_ids == 0) | (unique_cell_ids == -1))) # Remove background ids
-        else:
-            return self._unique_cell_ids
+            self._unique_cell_ids = np.delete(unique_cell_ids, np.where((unique_cell_ids == 0) | (unique_cell_ids == -1))) # Remove background ids
+        return self._unique_cell_ids
   
     def generate_production_cell_ids(self, prefix: str|None=None, suffix: str|None=None):
         """ Generates cell ids which count up from 1 to the total cell count rather than jumping between integers.
