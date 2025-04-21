@@ -18,6 +18,17 @@ import seaborn as sns
 import zipfile
 
 def reduce_expression(data, umap_args):
+    """Reduce the expression data using UMAP.
+
+    Parameters:
+        data : np.ndarray
+            The input expression data.
+        umap_args : dict
+            Additional UMAP arguments.
+    Returns:
+        ndarray
+            The reduced expression data.
+    """
     import umap
     from sklearn.preprocessing import StandardScaler
 
@@ -63,6 +74,16 @@ def map_to_ubyte(data):
 def rainbow_wheel(points, center=None, radius=None, center_color=None):
     """Given an Nx2 array of point locations, return an Nx3 array of RGB
     colors derived from a rainbow color wheel centered over the mean point location.
+    
+    Parameters:
+        points : np.ndarray
+            Nx2 array of point locations
+        center : np.ndarray, optional
+            1x2 array of center location (default: mean of points)
+        radius : np.ndarray, optional
+            1x2 array of radius in x and y directions (default: 4 * std of points)
+        center_color : tuple, optional
+            RGB color for the center point
     """
     import matplotlib.pyplot as plt
     import scipy.interpolate
@@ -87,6 +108,14 @@ def rainbow_wheel(points, center=None, radius=None, center_color=None):
 def show_float_rgb(data, extent, ax):
     """Show a color image given a WxHx3 array of floats.
     Each channel is normalized independently.
+    
+    Parameters:
+        data : np.ndarray
+            WxHx3 array of floats
+        extent : list
+            List of four floats defining the extent of the image (see matplotlib.pyplot.imshow)
+        ax : matplotlib.axes.Axes
+            Axes to plot the image on
     """
     rgb = np.empty(data.shape[:2] + (3,), dtype='ubyte')
     for i in (0, 1, 2):
@@ -95,32 +124,14 @@ def show_float_rgb(data, extent, ax):
     return ax.imshow(rgb, extent=extent, aspect='equal', origin='lower')
 
 
-def log_plus_1(x):
-    return np.log(x + 1)
-
-
-def poly_to_geojson(polygon):
-    """
-    turns a single shapely Polygon into a geojson polygon
-    Args:
-        polygon shapely.Polygon
-    Returns:
-        geojson polygon
-    """
-    import geojson
-    poly_array = np.array(polygon.exterior.coords)
-
-    return geojson.Polygon([[(poly_array[i,0], poly_array[i,1]) for i in range(poly_array.shape[0])]])
-
-
 def load_config(configfile: str|Path|None=None):
-    """
-    loads configuration yaml file for spatial analysis. If no file is found, returns empty dict
+    """loads configuration yaml file for spatial analysis. If no file is found, returns empty dict
 
-    Args:
-        configfile: path to yaml file. If None, will look for spatial_config.yml in the directory above this file 
+    Parameters:
+        configfile : str|Path|None, optional
+            Path to yaml file. If None, will look for spatial_config.yml in the directory above this file 
     Returns:
-        dict of configuration parameters
+        Dict of configuration parameters
     """
     import yaml
 
@@ -156,6 +167,20 @@ def package_for_10x(anndata_object,
 
 
     keyword arguments dry_run and exist_ok may help you avoid overwriting something important
+    
+    Parameters:
+        anndata_object : AnnData
+            The input AnnData object.
+        output_directory : Path
+            The directory to save the output files.
+        gene_id_var_list : list
+            List of gene IDs for the features.tsv file.
+        dry_run : bool, optional
+            If True, only return features_tsv without writing files. Default is False.
+        exist_ok : bool, optional
+            If True, do not raise an error if the output directory already exists. Default is False.
+        annotation_category : str, optional
+            Column in anndata_object.obs to use for annotations. Default is "Supertype".
     """
     # organize some paths:
     pathlib.Path(output_directory).mkdir(exist_ok=exist_ok)
@@ -231,8 +256,36 @@ def plot_genes(spottable,  gene_list,
                transpose_plot = True, fontsize=20, color_background =[.65,.65,.65],
                markersize_background = 1.5, markersize_highlight=5,
                color_start =0, incoming_ax = None ):
+    """Plot the locations of genes in a SpotTable.
     
-    
+    Parameters:
+        spottable : SpotTable
+            The SpotTable object containing gene expression data.
+        gene_list : list
+            List of genes to plot.
+        min_counts : int
+            Minimum number of counts for a gene to be plotted.
+        highlight_list : list, optional
+            List of genes to highlight. Default is empty list.
+        subsample : int, optional
+            Subsampling factor for plotting. Default is 1 (no subsampling).
+        figsize : list, optional
+            Figure size. Default is [15, 15].
+        transpose_plot : bool, optional
+            Whether to transpose the plot. Default is True.
+        fontsize : int, optional
+            Font size for the legend. Default is 20.
+        color_background : list, optional
+            Color for background points. Default is [.65, .65, .65].
+        markersize_background : float, optional
+            Marker size for background points. Default is 1.5.
+        markersize_highlight : float, optional
+            Marker size for highlighted points. Default is 5.
+        color_start : int, optional
+            Starting index for color cycle. Default is 0.
+        incoming_ax : matplotlib.axes.Axes, optional
+            Axes to plot on. If None, a new figure and axes will be created. Default is None.
+    """
     first_background = True
     no_gray = list(plt.cm.tab10.colors[:7])
     no_gray.extend(plt.cm.tab10.colors[8:])
@@ -319,13 +372,9 @@ def show_cells_and_transcripts(spottable, anndata_obj,
     """
     import geopandas as gpd
 
-
     no_gray2 = list(plt.cm.tab10.colors[1:7])
     no_gray2.extend(plt.cm.tab10.colors[8:])
     np.roll(np.array(no_gray2),[2,0], [0,1])
-
-
-
 
     # get image data and show it.
     plot_image = False
@@ -342,7 +391,6 @@ def show_cells_and_transcripts(spottable, anndata_obj,
         # check input types pls
         pass
 
-    
     fig = plt.figure(figsize=initial_figsize)
     if plot_image:
         plt.imshow(loaded_image_array, extent=loaded_image_extent, cmap=image_cmap, vmax = 0.8*np.max(loaded_image_array))   
@@ -369,19 +417,11 @@ def show_cells_and_transcripts(spottable, anndata_obj,
     # in the case where there is full 3D segmentation, it should show up plotted below and the centroids should still be reasonably accurate
 
 
-
-
-
-
     # add mapped cell identities:
     # suboptimal copy here
     if type(anndata_obj) == ad.AnnData:
         anno = anndata_obj.obs.copy()
         anno["cell_id"] = anno.index.values.astype(int)   
-
-
-
-
 
     if cell_annotation_colormapping is None:
         plotted_categories={pc:{"plotted":False,
@@ -395,10 +435,7 @@ def show_cells_and_transcripts(spottable, anndata_obj,
                                "edgecolor":cell_annotation_colormapping[pc][2]}
                             for ii,pc in enumerate(list(anno[cell_annotation_category].unique()))}
 
-
     if type(segmentation_geopandas) == gpd.geodataframe.GeoDataFrame :
-
-
         for cellid in segmentation_geopandas.loc[segmentation_geopandas.EntityID.isin(spottable.cell_ids),["EntityID","Geometry"]].EntityID.unique():
             cellinfo = segmentation_geopandas.loc[segmentation_geopandas.EntityID==cellid,"Geometry"].values[0]
             tg = coverage_union_all(cellinfo)
@@ -514,6 +551,21 @@ def show_cells_and_transcripts(spottable, anndata_obj,
 
     
 def plot_cbg_centroids(cell_by_gene: ad.AnnData, ax, x='center_x', y='center_y', **kwargs):
+    """
+    Plot the centroids of cells in a cell-by-gene AnnData object.
+    
+    Parameters:
+        cell_by_gene : AnnData
+            The input AnnData object.
+        ax : matplotlib.axes.Axes
+            Axes to plot on.
+        x : str, optional
+            Column name for x-coordinates. Default is 'center_x'.
+        y : str, optional
+            Column name for y-coordinates. Default is 'center_y'.
+        **kwargs : keyword arguments
+            Additional arguments passed to sns.scatterplot.
+    """
     g = sns.scatterplot(data=cell_by_gene.obs, x=x, y=y, ax=ax, **kwargs)
     ax.set_aspect('equal', adjustable='box', anchor='C')
     return g 
@@ -521,10 +573,6 @@ def plot_cbg_centroids(cell_by_gene: ad.AnnData, ax, x='center_x', y='center_y',
 
 def example_function():
     return 2
-
-
-
-
 
 
 def unpack_test_data():
@@ -617,7 +665,19 @@ def make_cirro_compatible(cell_by_gene: ad.AnnData,obs_spatial_columns =  ['cent
 
 
 def convert_value_nested_dict(d: dict, oldtype, newtype) -> dict:
-    "Helper function to convert a value in a nested dict from oldtype to newtype."
+    """Helper function to convert a value in a nested dict from oldtype to newtype.
+    
+    Parameters:
+        d : dict
+            The input dictionary.
+        oldtype : type
+            The type of the value to be converted.
+        newtype : type
+            The type to convert the value to.
+    Returns:
+        x : dict
+            The dictionary with converted values.
+    """
     x = {}
     for k, v in d.items():
         if isinstance(v, dict):

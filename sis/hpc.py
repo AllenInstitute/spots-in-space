@@ -7,14 +7,13 @@ def run_slurm_func(run_spec, conda_env=None, **kwds):
     """Run a function on SLURM.
 
     Parameters
-    ----------
-    run_spec : tuple | dict
-        Either a tuple containing (func, args, kwargs) to be called in SLURM jobs, or a dict
-        where the keys are array job IDs and the values are (func, args, kwargs) tuples.
-    conda_env : str
-        Conda envronment from which to run *func*
-    **kwds
-        All other keyword arguments are passed to run_slurm().
+        run_spec : tuple | dict
+            Either a tuple containing (func, args, kwargs) to be called in SLURM jobs, or a dict
+            where the keys are array job IDs and the values are (func, args, kwargs) tuples.
+        conda_env : str
+            Conda envronment from which to run *func*
+        **kwds
+            All other keyword arguments are passed to run_slurm().
     """
     pkl_file = os.path.join(kwds['job_path'], kwds['job_name'] + '_func.pkl')
     pickle.dump(run_spec, open(pkl_file, 'wb'))
@@ -69,50 +68,49 @@ def run_slurm(*,
     """Call sbatch (locally or over ssh) and return a SlurmJob instance.
 
     Parameters
-    ----------
-    hpc_host : str
-        Host to call sbatch from. If not 'localhost', then commands are executed
-        on *hpc_host* via ssh.
-    job_path : str
-        Location to write slurm script file and output/error logs.
-        Must be accessible from *hpc_host*.
-    partition : str
-        SLURM partition to allocate job
-    job_name : str
-        SLURM job name. This is also used to set default file names for the sbatch script,
-        output log, and error log.
-    nodes : int
-        Number of nodes to request
-    ntasks : int
-        Number of tasks to launch per job.
-        (Use multiple tasks when all must be scheduled to start simultaneously)
-    array : str | None
-        Use array="A-B" where A and B are the first and last index to start multiple,
-        independent jobs. The output/error file names may include "%a" to reference the
-        array index, and the command may use $SLURM_ARRAY_TASK_ID.
-    mincpus : int | None
-        Minimum CPUs per node
-    gpus_per_node : int | str | None
-        GPUs per node
-    mem : str
-        Maximum memory to allocate per job (e.g. '100G')
-    time : str
-        Maximum job time (e.g. "4:00:00")
-    command : str
-        Command to run per job (e.g. "srun mycommand $SLURM_ARRAY_TASK_ID")
-    mail_user : str | None
-        Optional email address to notify upon completion
-    mail_type : str
-        Events on which to send email (default='END,FAIL')
-    output : str | None
-        Optional location of file to store command output (default is in job_path
-        with automatically chosen name)
-    error : str | None
-        Optional location of file to store error output (default is in job_path
-        with automatically chosen name)
-    job_file : str | None
-        Optional location to store sbatch script (default is in job_path
-        with automatically chosen name)
+        hpc_host : str
+            Host to call sbatch from. If not 'localhost', then commands are executed
+            on *hpc_host* via ssh.
+        job_path : str
+            Location to write slurm script file and output/error logs.
+            Must be accessible from *hpc_host*.
+        partition : str
+            SLURM partition to allocate job
+        job_name : str
+            SLURM job name. This is also used to set default file names for the sbatch script,
+            output log, and error log.
+        nodes : int
+            Number of nodes to request
+        ntasks : int
+            Number of tasks to launch per job.
+            (Use multiple tasks when all must be scheduled to start simultaneously)
+        array : str | None
+            Use array="A-B" where A and B are the first and last index to start multiple,
+            independent jobs. The output/error file names may include "%a" to reference the
+            array index, and the command may use $SLURM_ARRAY_TASK_ID.
+        mincpus : int | None
+            Minimum CPUs per node
+        gpus_per_node : int | str | None
+            GPUs per node
+        mem : str
+            Maximum memory to allocate per job (e.g. '100G')
+        time : str
+            Maximum job time (e.g. "4:00:00")
+        command : str
+            Command to run per job (e.g. "srun mycommand $SLURM_ARRAY_TASK_ID")
+        mail_user : str | None
+            Optional email address to notify upon completion
+        mail_type : str
+            Events on which to send email (default='END,FAIL')
+        output : str | None
+            Optional location of file to store command output (default is in job_path
+            with automatically chosen name)
+        error : str | None
+            Optional location of file to store error output (default is in job_path
+            with automatically chosen name)
+        job_file : str | None
+            Optional location to store sbatch script (default is in job_path
+            with automatically chosen name)
     """
     if array is None:
         filename_prefix = os.path.join(job_path, job_name + "_%j")
@@ -157,6 +155,22 @@ def run_slurm(*,
 
 
 class SlurmJob:
+    """Class representing a single SLURM job
+    
+    Parameters:
+        args : dict
+            Arguments used to create this job
+        sbatch_output : str
+            Output from sbatch command
+        job_file : str
+            Location of the sbatch script file
+        host : str
+            Host on which the job was submitted
+        array_id : int | None
+            Array index for this job (None if not an array job)
+        job_array : SlurmJobArray | None
+            SlurmJobArray instance if this is part of an array job, otherwise None
+    """
     def __init__(self, args, sbatch_output, job_file, host, array_id=None, job_array=None):
         self.args = args
         self.sbatch_output = sbatch_output
@@ -175,41 +189,68 @@ class SlurmJob:
             self.job_id = self.base_job_id + '_' + str(self.array_id)
 
     def state(self):
-        """Return the state code for this job, or a dictionary of state codes for array jobs.
+        """Return the state code for this job in the form of the JobState class. 
+        Which contains the state, state code, description, and whether the job is done
         """
         table = sacct(host=self.host, job_id=self.base_job_id)
         return JobState(state=table.get(self.job_id, {'State': 'NO_INFO'})['State'])
 
     def is_done(self):
+        """Returns True if a job is done"""
         return (self.state().is_done and os.path.exists(self.output_file)) or self.state().state == 'CANCELLED' # Need to consider job cancelled before output file made
 
     @property
     def output_file(self):
+        """Returns the output file name for this job
+        """
         return self._filename_replacement(self.args['output'])
 
     @property
     def error_file(self):
+        """Returns the error file name for this job
+        """
         return self._filename_replacement(self.args['error'])
 
     @property
     def output(self):
+        """Returns the output file contents for this job
+        """
         return open(self.output_file, 'r').read()
 
     @property
     def error(self):
+        """Returns the error file contents for this job
+        """
         return open(self.error_file, 'r').read()
 
     def _filename_replacement(self, fn):
+        """Takes in a filename string and replaces any %j, %A, or %a with the job ID, base job ID, or array ID
+        (as SLURM itself does when it creates the output/error files)
+        """
         fn = fn.replace(r'%j', self.job_id)
         fn = fn.replace(r'%A', self.base_job_id)
         fn = fn.replace(r'%a', str(self.array_id))
         return fn
 
     def cancel(self):
+        """Cancels the job python subprocess to directly invoke SLURM's scancel
+        """
         run(self.host, ['scancel', str(self.job_id)])
 
 
 class SlurmJobArray(SlurmJob):
+    """Class representing a SLURM job array with a list of SlurmJob instances
+    
+    Parameters:
+        args : dict
+            Arguments used to create this job
+        sbatch_output : str
+            Output from sbatch command
+        job_file : str
+            Location of the sbatch script file
+        host : str
+            Host on which the job was submitted
+    """
     def __init__(self, args, sbatch_output, job_file, host):
         self.args = args
         self.sbatch_output = sbatch_output
@@ -237,22 +278,32 @@ class SlurmJobArray(SlurmJob):
         return self.jobs[item]
 
     def state(self):
+        """Return a dictionary mapping job IDs to JobStates for every job in the array
+        """
         return {job.job_id:job.state() for job in self.jobs}
 
     def is_done(self):
+        """Returns True if all jobs in the array are done
+        """
         return all([job.is_done() for job in self.jobs])
 
     def cancel(self):
+        """Cancels all jobs in the job array
+        """
         run(self.host, ['scancel', str(self.job_id)])
 
     def finished_jobs(self):
+        """Returns a list of all finished jobs in the array (type=list[SlurmJob])
+        """
         return [job for job in self.jobs if job.is_done()]
 
     def unfinished_jobs(self):
+        """Returns a list of all unfinished jobs in the array (type=list[SlurmJob])
+        """
         return [job for job in self.jobs if not job.is_done()]
 
     def wait_iter(self):
-        """Iterator that returns jobs as they finish
+        """Iterator that returns jobs as they finish and does not finish until all jobs are done
         """
         jobs = self.jobs[:]
         while len(jobs) > 0:
@@ -263,11 +314,21 @@ class SlurmJobArray(SlurmJob):
             time.sleep(3)
 
     def state_counts(self):
+        """Returns a dictionary mapping state codes to counts of jobs in that state
+        """
         return dict(zip(*np.unique([s.state_code for s in self.state().values()], return_counts=True)))
 
 
 class JobState:
-
+    """Class representing the state of a SLURM job. 
+    One of state_code or state must be provided and the other is derived.
+    
+    Parameters:
+        state_code : str|None
+            SLURM state code (e.g. 'R' for running)
+        state : str|None
+            SLURM state (e.g. 'RUNNING')
+    """
     state_codes = {
         'BF':  ('BOOT_FAIL',       'Job terminated due to launch failure, typically due to a hardware failure (e.g. unable to boot the node or block and the job can not be requeued).'),
         'CA':  ('CANCELLED',       'Job was explicitly cancelled by the user or system administrator.  The job may or may not have been initiated.'),
@@ -324,6 +385,20 @@ class JobState:
 
 _last_squeue = {}
 def squeue(host, job_id, cache_duration=10):
+    """Uses python subprocess and SLURM's squeue to return a information about a job
+    
+    Parameters:
+        host : str
+            Host to call squeue from. If not 'localhost', then commands are executed
+            on *host* via ssh.
+        job_id : str
+            Job ID to query
+        cache_duration : int
+            Duration in seconds to cache the results of the squeue call (default=10)
+    Returns:
+        table : dict
+            Dictionary containing information about a job
+    """
     global _last_squeue
     # 10-second cache to rate limit squeue calls
     last_time, last_state = _last_squeue.get(job_id, (None, None))
@@ -349,6 +424,21 @@ def squeue(host, job_id, cache_duration=10):
 
 _last_sacct = {}
 def sacct(host, job_id, cache_duration=10):
+    """Uses python subprocess and SLURM's sacct to specifically query the state of a job.
+    This is used to fill information for JobState
+    
+    Parameters:
+        host : str
+            Host to call sacct from. If not 'localhost', then commands are executed
+            on *host* via ssh.
+        job_id : str
+            Job ID to query
+        cache_duration : int
+            Duration in seconds to cache the results of the squeue call (default=10)
+    Returns:
+        table : dict
+            Dictionary containing information about the state of a job
+    """
     global _last_sacct
     # 10-second cache to rate limit sacct calls
     last_time, last_state = _last_sacct.get(job_id, (None, None))
@@ -370,17 +460,15 @@ def sacct(host, job_id, cache_duration=10):
 
 
 def double_mem(mem: str):
-	"""
-    This function takes a memory amount stored as a string, doubles it, and then returns the new amount in the same format
-
-	Parameters
-    ----------
-    mem: str
-        Memory amount in a string representation e.g. ('700M' or '10gb')
-	
-	Returns
-	-------
-	input memory doubled in same format e.g. ('1400M' or '20gb')
+	"""This function takes a memory amount stored as a string, doubles it, and then returns the new amount in the same format
+    SLURM recognizes 2000M and 2GB as the same amount of memory, so this function will return the doubled amount in the same format as the input
+    
+	Parameters:
+        mem : str
+            Memory amount in a string representation e.g. ('700M' or '10gb')
+	Returns:
+	    str
+            input memory doubled in same format e.g. ('1400M' or '20gb')
 	"""
 	i = len(mem)
 	while i > 0:
@@ -393,17 +481,15 @@ def double_mem(mem: str):
 
 
 def memory_to_bytes(mem: str):
-    """
-	This function takes a memory amount stored as a string (in slurm supported formats) and converts it to integer bytes
-
-	Parameters
-    ----------
-    mem: str
-        Memory amount in a slurm-supported string representation e.g. ('700M' or '10gb')
-	
+    """This function takes a memory amount stored as a string (in slurm supported formats) and converts it to integer bytes
+    Used to compare memory string amounts
+    
+	Parameters:
+        mem : str
+            Memory amount in a slurm-supported string representation e.g. ('700M' or '10gb')
 	Returns
-	-------
-	input memory as bytes of type integer e.g. (734003200 or 10737418240)
+	    int
+            input memory as bytes of type integer e.g. (734003200 or 10737418240)
 	"""
     # Regular expression pattern
     pattern = r'^(\d+)([gGmMkKtT]?[bB]?)$'
@@ -425,17 +511,15 @@ def memory_to_bytes(mem: str):
 
 
 def slurm_time_to_seconds(time: str):
-    """
-    This function takes a time amount stored as a string (in slurm supported formats) and converts it to integer seconds
+    """This function takes a time amount stored as a string (in slurm supported formats) and converts it to integer seconds
+    Used to compare time string amounts
     
-    Parameters
-    ----------
-    time: str
-        time amount in a slurm-supported string representation e.g. ('2-13:01:45' or '10' or '10:00')
-    
-    Returns
-    -------
-    input time as seconds of type integer e.g. (219705 or 600 or 600)
+    Parameters:
+        time : str
+            time amount in a slurm-supported string representation e.g. ('2-13:01:45' or '10' or '10:00')
+    Returns:
+        int
+            input time as seconds of type integer e.g. (219705 or 600 or 600)
     """
     # Regular expression pattern
     patterns = [
@@ -471,17 +555,15 @@ def slurm_time_to_seconds(time: str):
 
 
 def seconds_to_time(seconds: int):
-    """
-    This function takes seconds and converts them to a standard time format of 'days-hours:minutes:seconds' as a string
+    """This function takes seconds and converts them to a standard time format of 'days-hours:minutes:seconds' as a string
+    Used in conjunction with slurm_time_to_seconds to double time strings
     
-    Parameters
-    ----------
-    seconds: int
-        time amount in a seconds (1800 or 217803)
-    
-    Returns
-    -------
-    input time as standardized time string e.g. ("0-00:30:00" or "2-12:30:03")
+    Parameters:
+        second s: int
+            time amount in a seconds (1800 or 217803)
+    Returns:
+        str
+            input time as standardized time string e.g. ("0-00:30:00" or "2-12:30:03")
     """
     # Calculate time components
     days = seconds // (24 * 60 * 60)
@@ -496,9 +578,18 @@ def seconds_to_time(seconds: int):
 
 ssh_connections = {}
 
-def run(host:str, cmd:list):
-    """Run a command on any host. If the host is other than localhost,
-    then the command is run over ssh.
+def run(host: str, cmd: list):
+    """Run a command on any host. If the host is other than localhost, then the command is run over ssh.
+    
+    parameters:
+        host : str
+            Host to call sbatch from. If not 'localhost', then commands are executed
+            on *host* via ssh.
+        cmd : list
+            Command to run
+    Returns:
+        str
+            Output from the command
     """
     global ssh_connections
     assert isinstance(cmd, list)
@@ -514,6 +605,8 @@ def run(host:str, cmd:list):
         raise
 
 def close_ssh_connections():
+    """Closes all ssh connections which have been created using run()
+    """
     global ssh_connections
     for proc in ssh_connections.values():
         proc.kill()
