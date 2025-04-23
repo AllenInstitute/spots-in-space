@@ -85,6 +85,7 @@ class SegmentationResult:
         cell_ids = self.cell_ids
 
         if min_spots is not None:
+            # Get rid of cells with fewer than min_spots
             cell_ids = cell_ids.copy()
             cids, counts = np.unique(cell_ids, return_counts=True)
             for cid, count in zip(cids, counts):
@@ -185,9 +186,9 @@ class CellposeSegmentationMethod(SegmentationMethod):
             'tile': False,
             'diameter': None # if None, cellpose will estimate diameter or use from pretrained model file
         }
-        cp_opts.update(self.options['cellpose_options'])
+        cp_opts.update(self.options['cellpose_options']) # Update defaults with options provided by user
         cp_opts.setdefault('anisotropy', self.options['z_plane_thickness'] / self.options['px_size'])
-        if self.options['cell_dia'] is not None:
+        if self.options['cell_dia'] is not None: # cell diameter must be converted to pixels from um
             manual_diam = self.options['cell_dia'] / self.options['px_size']
             cp_opts.update({'diameter': manual_diam})
         
@@ -203,7 +204,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
                     raise ValueError('Only one of "detect_z_planes" or "frame" may be specified')
                 self.options['images']['cyto']['frames'] = z_planes
 
-        # collect images
+        # collect images from spot table / generate total mRNA image
         images = {}
         if 'nuclei' in self.options['images']:
             img_spec = self.options['images']['nuclei']
@@ -291,6 +292,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
             cellpose_output['flows'][2] = cellpose_output['flows'][2][::2]
             cellpose_output['flows'][3] = cellpose_output['flows'][3][:, ::2]
 
+        # Increase size of masks if spcified by user
         dilate = self.options.get('dilate', 0)
         if dilate != 0:
             masks = dilate_labels(masks, radius=dilate/self.options['px_size'])
@@ -368,14 +370,16 @@ class CellposeSegmentationMethod(SegmentationMethod):
             dict
                 A dictionary containing the shape and transformation matrix of the image
         """
-        if len(images) > 0:
+        if len(images) > 0: # If there are images already present, use the first one as a template
             img = list(images.values())[0]
             return {'image_shape': img.shape[:3], 'image_transform': img.transform}
 
+        # Find the pixel shape from the transcript information
         bounds = np.array(spot_table.bounds())
         scale = 1 / px_size
         shape = np.ceil((bounds[:, 1] - bounds[:, 0]) * scale).astype(int)
         
+        # create a transformation matrix that maps the spot coordinates to pixel coordinates
         tr_matrix = np.zeros((2, 3))
         tr_matrix[0, 0] = tr_matrix[1, 1] = scale
         tr_matrix[:, 2] = -scale * bounds[:, 0]
@@ -413,8 +417,11 @@ class CellposeSegmentationMethod(SegmentationMethod):
         image_shape_full = (n_planes, *image_shape[1:3])
         density_img = np.zeros(image_shape_full, dtype='float32')
 
+        # map spots to pixel coordinates
         spot_px = self.map_spots_to_img_px(spot_table, image_transform=image_transform, image_shape=image_shape_full)
-        for i in range(n_planes):
+        for i in range(n_planes): 
+            # Calculate a 2D histogram of spot positions for each z plane
+            # Have to do every z-plane even with frame or frames specified since kernels can take cross plane information
             z_mask = spot_px[..., 0] == i
             x = spot_px[z_mask, 1]
             y = spot_px[z_mask, 2]
@@ -430,6 +437,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
         density_img = scipy.ndimage.gaussian_filter(density_img, gauss_kernel)
         density_img = scipy.ndimage.median_filter(density_img, median_kernel)
 
+        # Create sis.Image class from the density image and get the frame or frames specified
         if frames is not None:
             return Image(density_img[..., np.newaxis], transform=image_transform, channels=['Total mRNA'], name=None).get_frames(frames)
         elif frame is not None:
@@ -458,13 +466,14 @@ class CellposeSegmentationMethod(SegmentationMethod):
             np.ndarray
                 An array of shape (n_spots, 3) containing the (frame, row, col) positions of each spot.
         """
+        # Only one of image and (image_transform, image_shape) should be provided
         if image is not None:
             assert image_transform is None and image_shape is None
             image_shape = image.shape
             image_transform = image.transform
 
         if detect_z_planes:
-            # Limit the z-planes to assigned to pixels (useful for xenium data)
+            # Limit the z-planes to assign to pixels (useful for xenium data where a lot of z-planes are empty)
             z_planes = spot_table.detect_z_planes(float_cut=detect_z_planes)
             z_mask = np.isin(spot_table.z, [z for z in range(*z_planes)])
             spot_table = spot_table[z_mask]
@@ -500,8 +509,9 @@ class CellposeSegmentationMethod(SegmentationMethod):
         frames, rows, cols = img_data.shape[:3]
         duplistacked_img_data = np.zeros((frames * 2, rows, cols), dtype=img_data.dtype)
         for i in range(frames):
+            # Duplicate each frame and place it next to itself
             duplistacked_img_data[2*i] = img_data[i]
-            duplistacked_img_data[2*(i+1)-1] = img_data[i]
+            duplistacked_img_data[2*i+1] = img_data[i]
             
         return duplistacked_img_data
         
@@ -574,6 +584,7 @@ class CellposeSegmentationResult(SegmentationResult):
         """
         cell_ids = self.cell_ids
 
+        # Remove cells with fewer than *min_spots* transcripts
         if min_spots is not None:
             cell_ids = cell_ids.copy()
             cids, counts = np.unique(cell_ids, return_counts=True)
@@ -583,7 +594,8 @@ class CellposeSegmentationResult(SegmentationResult):
                     cell_ids[mask] = 0
 
         if self.detect_z_planes:
-            # We have to set only some of the cell IDs since we are removing ignoring some z_planes in the segmentation
+            # The cell IDs will not contain all z-planes, since some were ignored during segmentation
+            # Thus we have to construct and use this same mask when setting cell IDs in the output spot table
             return_table = SegmentedSpotTable(self.input_spot_table, np.zeros(len(self.input_spot_table), dtype=int))
             z_plane_mask = self.input_spot_table.z_plane_mask(self.input_spot_table.detect_z_planes(float_cut=self.detect_z_planes))
             return_table.cell_ids[z_plane_mask] = cell_ids
@@ -885,11 +897,13 @@ class SegmentationPipeline:
         self.detected_transcripts_file = dt_file
         self.detected_transcripts_cache = dt_cache 
 
+        # Make sure the path exists and is a Path object
         if isinstance(output_dir, str) or isinstance(output_dir, PurePath):
             output_dir = Path(output_dir)
         self.output_dir = output_dir
         self.output_dir.mkdir(exist_ok=True)
 
+        # The hpc options can either be general or split by segmentation and polygon generation
         if (seg_hpc_opts is None and hpc_opts is None):
             raise ValueError("One of either seg_hpc_opts or hpc_opts must be provided.")
         if (polygon_hpc_opts is None and hpc_opts is None):
@@ -972,7 +986,6 @@ class SegmentationPipeline:
         """
         if not overwrite and self.meta_path.exists():
             raise FileExistsError('Metadata already saved and overwriting is not enabled.')
-
         else:
             # Make entries compatible with json
             metadata_cl = self.meta.copy()
@@ -1117,6 +1130,8 @@ class SegmentationPipeline:
                 if isinstance(v, geojson.feature.FeatureCollection) or isinstance(v, geojson.geometry.GeometryCollection):
                     cell_by_gene.uns[k] = geojson.dumps(v)
                     
+            # tuples cannot be saved in anndata object, so convert to str
+            # this is an issue if gauss or median kernels are specified
             cell_by_gene.uns = convert_value_nested_dict(cell_by_gene.uns, tuple, str)
             
             cell_by_gene.write(self.cbg_path)
@@ -1136,6 +1151,7 @@ class SegmentationPipeline:
         load_args = self.get_load_args()
         table = load_func(**load_args)
         
+        # Subregion can be a channel name or tuple. If it's a channel name, get the bounds of the channel
         if isinstance(self.subrgn, str):
             subrgn = table.get_image(channel=self.subrgn).bounds()
         else:
@@ -1185,18 +1201,22 @@ class SegmentationPipeline:
         # load the raw spot table corresponding to the segmentation region
         self.load_raw_spot_table()
 
-        # run all steps in sequence
+        # Segment the raw spot table
         tiles, regions = self.tile_seg_region(overwrite=overwrite, max_tile_size=tile_size, min_transcripts=min_transcripts)
         seg_run_spec = self.get_seg_run_spec(regions=regions, overwrite=overwrite, result_files=False if clean_up else True)
         self.seg_jobs = self.submit_jobs('segmentation', seg_run_spec, overwrite)
         if rerun:
             self.seg_jobs = self.rerun_failed_jobs('segmentation_rerun', self.seg_jobs, seg_run_spec)
         cell_ids, merge_results, seg_skipped = self.merge_segmented_tiles(run_spec=seg_run_spec, tiles=tiles, detect_z_planes=self.seg_opts['options'].get('detect_z_planes', None), overwrite=overwrite)
+        
+        # Generate polygons for identified cells
         polygon_run_spec = self.get_polygon_run_spec(overwrite)
         self.polygon_jobs = self.submit_jobs('cell_polygons', polygon_run_spec, overwrite)
         if rerun:
             self.polygon_jobs = self.rerun_failed_jobs('cell_polygons_rerun', self.polygon_jobs, polygon_run_spec)
         cell_polygons, cell_polygons_skipped = self.merge_cell_polygons(run_spec=polygon_run_spec, overwrite=overwrite)
+        
+        # Create output cell-by-gene
         cell_by_gene = self.create_cell_by_gene(x_format=x_format, prefix=prefix, suffix=suffix, overwrite=overwrite)
 
         self.save_seg_spot_table(overwrite=overwrite)
@@ -1220,9 +1240,11 @@ class SegmentationPipeline:
         print(f'Job IDs: {jobs[0].job_id}-{jobs[-1].job_id.split("_")[-1]}')
         with tqdm(total=len(jobs)) as pbar:
             while not jobs.is_done():
+                # Wait until all jobs are done to return, checking every 60 seconds
                 time.sleep(60)
                 n_done = int(np.sum([1 for job in jobs.jobs if job.is_done()]))
                 pbar.update(n_done - pbar.n)
+        # If none of the jobs completed properly we don't want to continue/rerun because it implies a ubiquitous issue which must be resolved
         if not np.any([job.state().state == "COMPLETED" for job in jobs.jobs]):
             raise RuntimeError(f'All jobs failed. Please check error logs in {self.output_dir.joinpath("hpc-jobs")}')
 
@@ -1248,6 +1270,7 @@ class SegmentationPipeline:
         print('Tiling segmentation region...')
         subtable = self.raw_spot_table
 
+        # Use grid tiles because we want tiles of equal size, not transcript count
         tiles = subtable.grid_tiles(max_tile_size=max_tile_size, overlap=overlap, min_transcripts=min_transcripts)
         regions = [tile.parent_region for tile in tiles]
 
@@ -1279,6 +1302,7 @@ class SegmentationPipeline:
         print(f"Generating segmentation spec for {len(regions)} tiles...")
         run_spec = {}
         for i, region in enumerate(regions):
+            # run_spec[i] = (function, args, kwargs)
             run_spec[i] = (
                 run_segmentation,
                 (),
@@ -1312,6 +1336,7 @@ class SegmentationPipeline:
         if overwrite: # If we are allowed to overwrite, just return
             return
         
+        # Checking run_spec args (idx=2) for user-specified kwargs containing files that we may want to overwrite
         files_to_check = [v[2][k] for v in run_spec.values() for k in overwrite_file_keys]
         for file in files_to_check:
             if file is not None and os.path.exists(file):
@@ -1409,10 +1434,6 @@ class SegmentationPipeline:
             run_spec = self.load_run_spec(self.seg_run_spec_path)
 
         print('Merging tiles...')
-        # Merging updates the spot table cell_ids in place
-
-        # tuples cannot be saved in anndata object, so convert to list
-        # this is an issue if gauss or median kernels are specified
         seg_opts = self.seg_opts
 
         truncated_meta = {
@@ -1421,6 +1442,7 @@ class SegmentationPipeline:
                 'polygon_opts': self.polygon_opts
                 }
 
+        # Merging updates the spot table cell_ids in place so we define empty SegmentedSpotTable to dump result into
         self.seg_spot_table = SegmentedSpotTable(
                 spot_table=self.raw_spot_table, 
                 cell_ids=np.empty(len(self.raw_spot_table), dtype=int),
@@ -1446,13 +1468,16 @@ class SegmentationPipeline:
                 tile_rgn = tile_spec[2]['subregion']
                 tile = self.raw_spot_table.get_subregion(xlim = tile_rgn[0], ylim = tile_rgn[1])
             
-            if detect_z_planes: # If we detected z-planes to segment on, we must account for that now
+            if detect_z_planes: 
+                # If we detected z-planes to segment on, we must account for that now as cell ids will only be present for some planes
                 tile = SegmentedSpotTable(tile, np.zeros(len(tile), dtype=int))
                 z_plane_mask = tile.z_plane_mask(tile.detect_z_planes(float_cut=detect_z_planes))
                 tile.cell_ids[z_plane_mask] = np.load(cell_id_file)
             else:
                 tile_cids = np.load(cell_id_file)
                 tile = SegmentedSpotTable(tile, tile_cids)
+            # padding removes cells which are close to edge and may be poorly segmented
+            # padding is set to 5 as a default as it is half a typical tile size
             result = self.seg_spot_table.merge_cells(tile, padding=5)
             merge_results.append(result)
 
@@ -1481,10 +1506,8 @@ class SegmentationPipeline:
         """
         self.polygon_subsets_path.mkdir(exist_ok=True)
 
-        # Find all the cell ids
-        unique_cells = np.unique(self.seg_spot_table.cell_ids)
-        unique_cells = np.delete(unique_cells, np.where((unique_cells == 0) | (unique_cells == -1)))
-        num_cells = len(unique_cells)
+        # Polygon jobs are split by cells--not area--so we need to get the number of cells
+        num_cells = len(self.seg_spot_table.unique_cell_ids())
 
         # list of tuples assigning cells to jobs
         if 'num_jobs' in self.polygon_hpc_opts:
@@ -1504,7 +1527,7 @@ class SegmentationPipeline:
             # Save an input file with the cell IDs to calculate for each job
             if not overwrite and (self.polygon_subsets_path / f'cell_id_subset_{i}.npy').exists():
                 raise FileExistsError(f'cell_id_subset_{i}.npy already exists and overwriting is not enabled.')
-            np.save(self.polygon_subsets_path / f'cell_id_subset_{i}.npy', unique_cells[start_idx:end_idx])
+            np.save(self.polygon_subsets_path / f'cell_id_subset_{i}.npy', self.seg_spot_table.unique_cell_ids()[start_idx:end_idx])
             
             # run_spec[i] = (function, args, kwargs)
             run_spec[i] = (
@@ -1553,8 +1576,8 @@ class SegmentationPipeline:
                 print(f"Skipping tile {i} : no result file generated")
                 skipped.append(i)
                 continue
-
-            self.seg_spot_table.load_cell_polygons(result_file, cell_ids=cell_subset_file, reset_cache=False, disable_tqdm=True) # The reset_cache=False is important to allow reading in the various cell subsets without overwriting
+            # The reset_cache=False is important to allow reading in the various cell subsets without overwriting
+            self.seg_spot_table.load_cell_polygons(result_file, cell_ids=cell_subset_file, reset_cache=False, disable_tqdm=True)
 
         if len(run_spec) == len(skipped):
             raise RuntimeError('All tiles were skipped, check error logs.')
@@ -1651,11 +1674,15 @@ class SegmentationPipeline:
         """
         with open(json_file, 'r') as f:
             config = json.load(f)
+            
+        # Cannot save the class in the json so we need to convert it back from string to the class
         seg_method_name = config['seg_method'].rpartition('.')[-1]
         if seg_method_name == 'CellposeSegmentationMethod':
             config['seg_method'] = sis.segmentation.CellposeSegmentationMethod
         else:
             raise NotImplementedError(f'Segmentation method {seg_method_name} not implemented.')
+        
+        # Cannot save tuple in the json so we need to convert back from list
         if isinstance(config['subrgn'], list):
             config['subrgn'] = tuple([tuple(l) for l in config['subrgn']])
 
@@ -1710,6 +1737,7 @@ class SegmentationPipeline:
                     A dictionary with keys as types of failues and bools representing if that failure occured in the inputted SlurmJobArray
         """
         job_state_dict = jobs.state()
+        # Only supported failure types, as others are not automatically addressable
         failure_types= {"OUT_OF_MEMORY": False, "TIMEOUT": False, "CANCELLED": False}
         failed_jobs_indices = []
         for job_index, job_state in enumerate(job_state_dict.values()):
@@ -1717,7 +1745,7 @@ class SegmentationPipeline:
                 continue
             elif job_state.state in failure_types.keys():
                 failed_jobs_indices.append(job_index)
-                failure_types[job_state.state] = True
+                failure_types[job_state.state] = True # want to tell the user why their jobs failed
             else:
                 raise ValueError(f"Could not automatically rerun jobs. Job state must be one of OUT_OF_MEMORY, TIMEOUT, or CANCELLED. Job state was {job_state.state}")
         
@@ -1755,10 +1783,13 @@ class SegmentationPipeline:
         else:
             raise ValueError('Invalid job type.')
         
+        # Query the run_specs of failed jobs so we can resubmit them
+        # We can only fix HPC issues automatically, so the run_spec will stay the same
         new_run_spec = {}
         for job_array_index, failed_tile_index in enumerate(indices_to_rerun):
             new_run_spec[job_array_index] = run_spec[failed_tile_index]
         
+        # If job failed due to memory constraints we adjust the hpc options accordingly
         if failure_types["OUT_OF_MEMORY"]:
             if mem is not None and memory_to_bytes(mem) > memory_to_bytes(hpc_opts["mem"]):
                 new_mem = mem # If the user set memory is larger than the previously used memory set the memory to the user setting
@@ -1772,6 +1803,7 @@ class SegmentationPipeline:
             hpc_opts["mem"] = new_mem
             print('New memory allocation:', hpc_opts["mem"])
         
+        # If job failed due to time constraints, we adjust hpc options accordingly
         if failure_types["TIMEOUT"]:
             if time is not None and slurm_time_to_seconds(time) > slurm_time_to_seconds(hpc_opts["time"]):
                 new_time = time # If the user set time is larger than the previously used time set the time to the user setting
@@ -1997,6 +2029,7 @@ class XeniumSegmentationPipeline(SegmentationPipeline):
             ):
         super().__init__(dt_file, image_path, output_dir, dt_cache, subrgn, seg_method, seg_opts, polygon_opts, seg_hpc_opts=seg_hpc_opts, polygon_hpc_opts=polygon_hpc_opts, hpc_opts=hpc_opts)
 
+        # Couple extra variables for Xenium segmentation
         if 'z_plane_thickness' not in seg_opts['options']:
             raise ValueError('z_plane_thickness required in seg_opts for matching z coordinates to image planes')
         self.z_depth = seg_opts['options']['z_plane_thickness'] # This is used for binning z-locations to image planes

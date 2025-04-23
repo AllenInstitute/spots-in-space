@@ -50,7 +50,7 @@ class ImageBase:
                 A view of this image limited to the region
         """
         corners = np.array(region).T
-        tl, br = self.transform.map_to_pixels(corners)
+        tl, br = self.transform.map_to_pixels(corners) # tl is top-left (xmin, ymin), br is bottom-right (xmax, ymax)
         tl = tl.astype(int)
         br = np.ceil(br).astype(int) if incl_end else br.astype(int)
         return ImageView(self, rows=(tl[0],br[0]), cols=(tl[1],br[1]))
@@ -115,7 +115,7 @@ class ImageBase:
         if frame == 'mean':
             data = data.mean(axis=0)
         else:
-            data = data[0]
+            data = data[0] # can only specify 1 frame, so guaranteed idx=0
 
         self._show_image(data, ax, **kwds)
 
@@ -141,7 +141,7 @@ class ImageBase:
         shape = self.shape
         px_corners = np.array([[0, 0], shape[1:3]])
         (left, top), (right, bottom) = self.transform.map_from_pixels(px_corners)
-        kwds['extent'] = (left, right, bottom, top)
+        kwds['extent'] = (left, right, bottom, top) # properly labels xy coordinates in shown plot rather than pixel coordinates
         ax.imshow(data, **kwds)
         # don't let imshow invert the y axis
         if ax.yaxis_inverted() != y_inverted:
@@ -213,6 +213,7 @@ class Image(ImageBase):
         if channel is not None:
             return self.channels.index(channel)
         else:
+            # If there is more than one channel force user to specify, otherwise just return the one channel
             assert self.shape[3] == 1, "Must specify channel to return"
             return 0
 
@@ -262,7 +263,8 @@ class ImageFile(ImageBase):
                 Optional unique identifier for this image
         """
         um_to_px = np.loadtxt(transform_file)[:2]
-        # transpose rows so we map to (row,col) instead of (col,row)
+        # swizzle first and second rows so we map from (x, y) to (row,col) instead of (col,row)
+        # since images take (row, col) as coordinates
         um_to_px = um_to_px[::-1]
         tr = ImageTransform(um_to_px)
         return ImageFile(file=image_file, transform=tr, axes=['frame', 'row', 'col', 'channel'], channels=[channel], name=name)
@@ -363,7 +365,7 @@ class ImageTransform:
     def inverse_matrix(self):
         """Returns the inverse of the transformation matrix
         """
-        if self._inverse is None:
+        if self._inverse is None: # if we haven't stored inverse, calculate it
             m3 = np.eye(3)
             m3[:2] = self.matrix
             self._inverse = np.linalg.inv(m3)[:2]
@@ -461,6 +463,8 @@ class XeniumImageFile(ImageBase):
             XeniumImageFile
                 An XeniumImageFile object
         """
+        # swizzle first and second rows so we map from (x, y) to (row,col) instead of (col,row)
+        # since images take (row, col) as coordinates
         tr = ImageTransform(transform_matrix[::-1])
         return XeniumImageFile(file=image_file, transform=tr, axes=['frame', 'row', 'col', 'channel'],
                                 channels=[channel], z_index= z_index, name=name,
@@ -470,7 +474,7 @@ class XeniumImageFile(ImageBase):
     def shape(self):
         """Return 4D shape (frames, rows, columns, channels)
         """
-        if self._shape is None:
+        if self._shape is None: # Caching helps speed up retrieval of shape
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
                 with tifffile.TiffFile(self.file) as tcontext:
@@ -489,11 +493,12 @@ class XeniumImageFile(ImageBase):
         Channel name is left for support, but not currently used.
         """
         #index = self._get_channel_index(channel)
-        if isinstance( self.whole_image_array, type(None)):
+        if isinstance( self.whole_image_array, type(None)): # if it's not cached, we have to read
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
                 with tifffile.TiffFile(self.file) as src:
                     if self.keep_images_in_memory:
+                        # since the Xenium images are large, we leave it as an option whether to cache the images or not
                         self.whole_image_array = self._standard_image_shape(src.series[0][self.z_index].asarray())
                     else:
                         return self._standard_image_shape(src.series[0][self.z_index].asarray())
@@ -566,6 +571,7 @@ class ImageStack(ImageBase):
         stains = set()
         z_inds = set()
         for filename in image_files:
+            # Pull stain and z-index from filename
             m = re.match(r'mosaic_(\S+)_z(\d+).tif', os.path.split(filename)[1])
             if m is None:
                 continue

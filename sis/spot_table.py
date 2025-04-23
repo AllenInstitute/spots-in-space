@@ -46,6 +46,7 @@ def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file: str|No
         print('Loading SpotTable and cell ids...', end='')
         spot_table = load_func(**load_args)
         if subregion is not None:
+            # String represents image channel, so we load image and get bounds. Otherwise, subregion is a tuple.
             subregion = spot_table.get_image(channel=subregion).bounds() if isinstance(subregion, str) else subregion
             spot_table = spot_table.get_subregion(*subregion)
         cell_ids = np.load(cell_id_file)
@@ -62,11 +63,11 @@ def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file: str|No
     print(f"subregion {subregion} {len(seg_spot_table)}")
     print('[DONE]')
 
+    # If a cell subset file is provided, load the cells to run. Otherwise, use all cells in the spot table.
     if cell_subset_file is not None:
         cells_to_run = np.load(cell_subset_file)
     else:
-        cells_to_run = np.unique(seg_spot_table.cell_ids)
-        cells_to_run = np.delete(cells_to_run, np.where((cells_to_run == 0) | (cells_to_run == -1)))
+        cells_to_run = seg_spot_table.unique_cell_ids()
 
     print('Calculating Cell Polygons...')
     seg_spot_table.calculate_cell_polygons(cells_to_run=cells_to_run, alpha_inv_coeff=alpha_inv_coeff, separate_z_planes=separate_z_planes)
@@ -169,12 +170,14 @@ class SpotTable:
         self.parent_region = parent_region
 
         if gene_names is not None:
+            # gene_names are specified, so we need to create gene_ids and name/id mappings
             assert gene_ids is None and gene_id_to_name is None
             gene_ids, gene_to_id, id_to_gene = self._make_gene_index(gene_names)
             self.gene_ids = gene_ids
             self.gene_name_to_id = gene_to_id
             self.gene_id_to_name = id_to_gene
         elif gene_ids is not None:
+            # gene_id and id to name mappings are specified so we need to create name to id mappings
             assert gene_id_to_name is not None
             self.gene_ids = gene_ids
             self.gene_id_to_name = gene_id_to_name
@@ -206,6 +209,7 @@ class SpotTable:
         pos = self.pos[item]
         gene_ids = self.gene_ids[item]
 
+        # Want to store region used to create subset
         if len(pos) > 0:
             parent_region = ((pos[:,0].min(), pos[:,0].max()), (pos[:,1].min(), pos[:,1].max()))
         else:
@@ -235,7 +239,7 @@ class SpotTable:
             pandas.DataFrame
                 The dataframe containing the specified columns.
         """
-        if self.pos.shape[1] == 2 and 'z' in cols:
+        if self.pos.shape[1] == 2 and 'z' in cols: # Handle 2D data elegantly
             cols.remove('z')
         return pandas.DataFrame({col:getattr(self, col) for col in cols})
 
@@ -329,7 +333,7 @@ class SpotTable:
             (self.y <  ylim[1])
         )
         sub = self[mask]
-        sub.parent_region = (xlim, ylim)
+        sub.parent_region = (xlim, ylim) # want to store region used to create subregion
         sub.images = [img.get_subregion(sub.parent_region, incl_end=incl_end) for img in sub.images]
         return sub
 
@@ -743,7 +747,9 @@ class SpotTable:
             raise ValueError(f"Unsupported file type for transcript_file: {transcript_file}")
 
         pos= spot_dataframe.loc[:,["x_location","y_location","z_location"]].values
-        z_bins = np.arange(0, np.max(pos[:, 2]) + z_depth, z_depth) # bin float z locations to integers
+        
+        # Xenium z-values are continuous. For image operations, we bin float z locations to integers
+        z_bins = np.arange(0, np.max(pos[:, 2]) + z_depth, z_depth) 
         pos[:, 2] = (np.digitize(pos[:,2], z_bins) - 1).astype(int)
 
         gene_names = spot_dataframe.loc[:,"feature_name"].values
@@ -1050,6 +1056,7 @@ class SpotTable:
         width = bounds[0][1] - bounds[0][0]
         height = bounds[1][1] - bounds[1][0]
 
+        # Bump up n_cols until the column width is less than the max_tile_size
         n_cols = int(width / max_tile_size)
         while True:
             n_cols += 1
@@ -1057,6 +1064,7 @@ class SpotTable:
             if col_width <= max_tile_size:
                 break
 
+        # Bump up n_rows until the row height is less than the max_tile_size
         n_rows = int(height / max_tile_size)
         while True:
             n_rows += 1
@@ -1065,9 +1073,11 @@ class SpotTable:
                 break
 
         tiles = []
+        # Use found column width and row height to iterate through and generate tiles
         for row in tqdm(range(n_rows)):
             ystart = bounds[1][0] + row * (row_height - overlap)
             ylim = (ystart, ystart + row_height)
+            # Make a tile for the entire row, to be split into columns
             row_tile = self.get_subregion(bounds[0], ylim, incl_end=incl_end)
             for col in range(n_cols):
                 xstart = bounds[0][0] + col * (col_width - overlap)
@@ -1166,8 +1176,8 @@ class SpotTable:
         xrange = x.min(), x.max()
         yrange = y.min(), y.max()
         
-        gene_id_bins = np.arange(len(self.gene_id_to_name) + 1)
-        x_bins = int(np.ceil((xrange[1] - xrange[0]) / binsize))
+        gene_id_bins = np.arange(len(self.gene_id_to_name) + 1) # Always one bin for each gene ID
+        x_bins = int(np.ceil((xrange[1] - xrange[0]) / binsize)) # x & y bins depend on binsize
         y_bins = int(np.ceil((yrange[1] - yrange[0]) / binsize))
         
         hist = np.histogramdd(
@@ -1245,6 +1255,7 @@ class SpotTable:
             log : bool, optional
                 Whether to take the log of the binned counts.
         """
+        # Bin x and y into *image_size* pixels
         xbins = np.linspace(self.x.min(), self.x.max(), image_size)
         ybins = np.linspace(self.y.min(), self.y.max(), image_size)
         hist = np.histogram2d(self.x, self.y, bins=[xbins, ybins])
@@ -1315,6 +1326,7 @@ class SpotTable:
         if channel is not None:
             selected_img = selected_img.get_channel(channel)
 
+        # Frames and frame are different for backwards compatibility reasons
         if frames is not None:
             selected_img = selected_img.get_frames(frames)
         elif frame is not None:
@@ -1428,6 +1440,7 @@ class SegmentedSpotTable:
                 production_cell_ids=production_cell_ids, 
                 pcid_to_cid=self._pcid_to_cid,
                 cid_to_pcid=self._cid_to_pcid,
+                seg_metadata=self.seg_metadata
         )
             
         return subset
@@ -1444,7 +1457,7 @@ class SegmentedSpotTable:
         """
         self._old_cell_ids = self._cell_ids.copy()
         self._cell_ids = cid
-        self.cell_ids_changed()
+        self.cell_ids_changed() # This function handles all things that could break due to ids changing
 
     @property
     def production_cell_ids(self):
@@ -1453,14 +1466,30 @@ class SegmentedSpotTable:
         return self._production_cell_ids
     
     @production_cell_ids.setter
-    def production_cell_ids(self, pcids: np.ndarray):
+    def production_cell_ids(self, pcids: np.ndarray|None):
         """Setter for production_cell_ids to make sure we update dictionaries mapping cell_ids & production_cell_ids with valid mappings
         """
+        if pcids is None:
+            # Need to handle None case explicitly so we don't error creating a mapping from None 
+            self._production_cell_ids = None
+            self._pcid_to_cid = None
+            self._cid_to_pcid = None
+            return
+        
+        # We should ensure that production cell ids are strings
+        if not np.issubdtype(pcids.dtype, np.str_):
+            raise ValueError("production_cell_ids must be of type 'str' or 'np.str_'")
+        
+        # Make a dictionary containing all pairs of cell_ids and production_cell_ids
         test_df = pandas.DataFrame(self.cell_ids, index=np.arange(len(self.cell_ids)), columns=['cell_ids'])
         test_df['production_cell_ids'] = pcids
         test_df = test_df.drop_duplicates(['cell_ids', 'production_cell_ids'])
+        
+        # See if each combo of cell_ids and production_cell_ids exists only once in the dataframe
+        # i.e. there exists a valid bidirectional map
         exists_cid_to_pcid_mapping = test_df.groupby('cell_ids')['production_cell_ids'].count().max() == 1
         exists_pcid_to_cid_mapping = test_df.groupby('production_cell_ids')['cell_ids'].count().max() == 1
+        
         if exists_cid_to_pcid_mapping and exists_pcid_to_cid_mapping:
             self._pcid_to_cid = dict(zip(test_df['production_cell_ids'], test_df['cell_ids']))
             self._cid_to_pcid = dict(zip(test_df['cell_ids'], test_df['production_cell_ids']))
@@ -1481,9 +1510,9 @@ class SegmentedSpotTable:
         """
         if self.production_cell_ids is None:
             raise ValueError("production_cell_ids must be set to use convert_cell_id()")
-        if isinstance(cell_id, (int, np.integer)):
+        if isinstance(cell_id, (int, np.integer)): # If cell_id is an integer, it is a cell id
             return self._cid_to_pcid[cell_id]
-        elif isinstance(cell_id, str):
+        elif isinstance(cell_id, str): # If cell_id is a string, it is a production cell id
             return self._pcid_to_cid[cell_id]
         else:
             raise ValueError("cell_id must be of type 'int' or 'str'")
@@ -1537,7 +1566,7 @@ class SegmentedSpotTable:
     def unique_cell_ids(self):
         """Create and cache a numpy array of unique cell ids (excluding background)
         """
-        if self._unique_cell_ids is None:
+        if self._unique_cell_ids is None: # If we don't have the unique cell ids cached, we need to create them
             unique_cell_ids = np.unique(self.cell_ids) # Pull out unique cell ids
             self._unique_cell_ids = np.delete(unique_cell_ids, np.where((unique_cell_ids == 0) | (unique_cell_ids == -1))) # Remove background ids
         return self._unique_cell_ids
@@ -1624,6 +1653,7 @@ class SegmentedSpotTable:
         if self.cell_polygons is not None:
             # We can copy the cell polygons over because individual cells do not change
             # We are only adding or removing cells
+            # We must do this manually because __getitem__ will not copy the cell_polygons to protect against changing cell polygons
             filtered_table.cell_polygons = {cid: self.cell_polygons[cid] for cid in cells if cid in self.cell_polygons}
 
         return filtered_table
@@ -1642,7 +1672,7 @@ class SegmentedSpotTable:
             cell_by_gene_df.columns: pandas.Index
                 The gene ids used to construct the matrix
         """
-        filtered_table = self.filter_cells(real_cells=True) # Don't want to include unassigned cells
+        filtered_table = self.filter_cells(real_cells=True) # Don't want to include unassigned transcripts
         spot_df = filtered_table.dataframe(cols=['cell_ids', 'gene_ids']).rename({'cell_ids': 'cell', 'gene_ids': 'gene'}, axis=1)
         cell_by_gene_df = pandas.pivot_table(spot_df, columns='gene', index='cell', aggfunc=len, fill_value=0)
         
@@ -1768,9 +1798,10 @@ class SegmentedSpotTable:
             ((xmin, xmax), (ymin, ymax))
                 The bounds of the cell.
         """
-        if self._cell_bounds is None:
+        if self._cell_bounds is None: # If not cached, we have to calculate
             self._cell_bounds = {}
             for cid in self.unique_cell_ids():
+                # Isolate cell coordinates
                 inds = self.cell_indices(cid)
                 rows = self.pos[inds]
                 self._cell_bounds[cid] = ((rows[:,0].min(), rows[:,0].max()),
@@ -1790,6 +1821,7 @@ class SegmentedSpotTable:
         """
         centroids = []
         for cid in self.unique_cell_ids():
+            # Isolate cell coordinates
             inds = self.cell_indices(cid)
             cell_ts_xyz = self.pos[inds]
             centroids.append(np.mean(cell_ts_xyz, axis=0))
@@ -1800,8 +1832,8 @@ class SegmentedSpotTable:
             empty[:] = np.nan
             centroids = np.append(centroids, empty, axis=1)
             
-        indices = [self.convert_cell_id(cid) for cid in self.unique_cell_ids()] if use_production_ids else self.unique_cell_ids()
-        return pandas.DataFrame(data=centroids, index=indices, columns=['center_x', 'center_y', 'center_z'])
+        df_idx = [self.convert_cell_id(cid) for cid in self.unique_cell_ids()] if use_production_ids else self.unique_cell_ids()
+        return pandas.DataFrame(data=centroids, index=df_idx, columns=['center_x', 'center_y', 'center_z'])
 
     @staticmethod
     def cell_polygon(cell_points_array, alpha_inv):
@@ -1967,6 +1999,7 @@ class SegmentedSpotTable:
                 A dictionary containing the area/volume, center_x, center_y, and center_z of the cell polygon.
         """
         if isinstance(cell_polygon, dict): # If we have separate polygons for each z-plane
+            # we define centroid across z-planes as a weighted average (by area) of centroids of polygons
             area = 0
             weighted_x, weighted_y, weighted_z = 0, 0, 0
             for z, polygon in cell_polygon.items():
@@ -1978,8 +2011,7 @@ class SegmentedSpotTable:
                     weighted_z += z * polygon.area
                     
             volume = area * z_plane_thickness
-            center_x, center_y, center_z = weighted_x / area, weighted_y / area, weighted_z / area # we define centroid as a weighted average (by area) of centroids of polygons
-            
+            center_x, center_y, center_z = weighted_x / area, weighted_y / area, weighted_z / area 
             return {"volume": volume, "center_x": center_x, "center_y": center_y, "center_z": center_z}
         else: # If we have one polygon for each cell (either one representing all z-planes or just one z-plane)
             return {"area": cell_polygon.area, "center_x": cell_polygon.centroid.coords[0][0], "center_y": cell_polygon.centroid.coords[0][1]}
@@ -2010,6 +2042,8 @@ class SegmentedSpotTable:
 
         cell_features = []
         for cid in tqdm(self.cell_polygons, disable=disable_tqdm):
+            # Default features to empty, to be updated by calculate_cell_features()
+            # Ensures we always have area and volume
             feature_info = {"cell_id":cid, "volume": np.nan, "area": np.nan, "center_x": np.nan, "center_y": np.nan, "center_z": np.nan}
             if use_both_ids:
                 feature_info.update({"production_cell_id": self.convert_cell_id(cid)})
@@ -2044,15 +2078,19 @@ class SegmentedSpotTable:
 
         all_polygons = []
         for cid in self.cell_polygons:
-            if self.cell_polygons[cid] and bool_3d_poly: # Polygon for cell and 3D polygons for spot table
+            if self.cell_polygons[cid] and bool_3d_poly:
+                # Polygon for cell and 3D polygons for spot table
                 for z_plane, polygon in self.cell_polygons[cid].items():
                     # Each z-plane is a separate feature
                     all_polygons.append(geojson.Feature(geometry=polygon, id=self.convert_cell_id(cid) if use_production_ids else str(cid), z_plane=str(z_plane)))
-            elif self.cell_polygons[cid] and not bool_3d_poly: # Polygon for cell and 2D polygons for spot table
+            elif self.cell_polygons[cid] and not bool_3d_poly:
+                # Polygon for cell and 2D polygons for spot table
                 all_polygons.append(geojson.Feature(geometry=self.cell_polygons[cid], id=self.convert_cell_id(cid) if use_production_ids else str(cid)))
-            elif self.cell_polygons[cid] is None and bool_3d_poly: # No polygon for cell and 3D polygons for spot table
+            elif self.cell_polygons[cid] is None and bool_3d_poly:
+                # No polygon for cell and 3D polygons for spot table
                 all_polygons.append(geojson.Feature(geometry=None, id=self.convert_cell_id(cid) if use_production_ids else str(cid), z_plane=None))
-            else: # No polygon for cell and 2D polygons for spot table
+            else:
+                # No polygon for cell and 2D polygons for spot table
                 all_polygons.append(geojson.Feature(geometry=None, id=self.convert_cell_id(cid) if use_production_ids else str(cid)))
 
         return geojson.FeatureCollection(all_polygons)
@@ -2200,7 +2238,7 @@ class SegmentedSpotTable:
         if isinstance(cell_ids, (int, np.integer)):
             return np.array(self._cell_index[cell_ids])
         elif isinstance(cell_ids, str):
-            return np.array(self._cell_index[self.convert_cell_id(cell_ids)])
+            return np.array(self._cell_index[self.convert_cell_id(cell_ids)]) # Have to convert PCID before querying
         else:
             if len(cell_ids) == 0:
                 return np.array([], dtype=int)
@@ -2244,7 +2282,7 @@ class SegmentedSpotTable:
         if np.issubdtype(type(cell_ids), np.integer):
             mask[self.cell_indices(cell_ids)] = True
         elif isinstance(cell_ids, str):
-            mask[self.cell_indices(self.convert_cell_id(cell_ids))] = True
+            mask[self.cell_indices(self.convert_cell_id(cell_ids))] = True # Have to conver PCID before querying
         else:
             if isinstance(cell_ids[0], str):
                 cell_ids = np.vectorize(self._pcid_to_cid.get)(cell_ids)
@@ -2384,7 +2422,6 @@ class SegmentedSpotTable:
                 tile = tile.spot_table()            
             result = self.merge_cells(tile.copy(), padding=padding)
             merge_results.append(result)
-        self.cell_ids_changed()
         return merge_results
 
     @classmethod
@@ -2727,6 +2764,6 @@ class SegmentedSpotTable:
         """
         subtable = self.spot_table.get_subregion(xlim, ylim, incl_end)
         seg_subtable = self[subtable.parent_inds]
-        seg_subtable.spot_table.images = [img.get_subregion(subtable.parent_region, incl_end=incl_end) for img in subtable.images]
+        seg_subtable.spot_table.images = subtable.images # Images must be manually copied over since they are not subsectioned with __getitem__
 
         return seg_subtable

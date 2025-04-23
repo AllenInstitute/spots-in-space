@@ -15,6 +15,7 @@ def run_slurm_func(run_spec, conda_env=None, **kwds):
         **kwds
             All other keyword arguments are passed to run_slurm().
     """
+    # Pickle up the commands so it can be easily read in and run by the hpc_worker
     pkl_file = os.path.join(kwds['job_path'], kwds['job_name'] + '_func.pkl')
     pickle.dump(run_spec, open(pkl_file, 'wb'))
 
@@ -113,8 +114,10 @@ def run_slurm(*,
             with automatically chosen name)
     """
     if array is None:
+        # Slurm replaces "%j" with the job allocation number
         filename_prefix = os.path.join(job_path, job_name + "_%j")
     else:
+        # Slurm replaces "%A" with the job ID and "%a" with the array index
         filename_prefix = os.path.join(job_path, job_name + "_%A_%a")
 
     if output is None:
@@ -126,6 +129,7 @@ def run_slurm(*,
     if mail_user is None:
         mail_type = None
 
+    # Take all inputs and put them into slurm script
     arglist = [
         'partition', 'job_name', 'nodes', 'ntasks', 'array', 'mincpus', 'mem',
         'gpus_per_node', 'time', 'mail_user', 'mail_type', 'output', 'error',
@@ -146,8 +150,10 @@ def run_slurm(*,
     with open(job_file, 'w', newline='\n') as fh:
         fh.write(script)
 
+    # Run the slurm script
     sbatch_output = run(hpc_host, ['sbatch', job_file])
 
+    # Store the results
     if args['array'] is None:
         return SlurmJob(args=args, sbatch_output=sbatch_output, job_file=job_file, host=hpc_host)
     else:
@@ -180,6 +186,7 @@ class SlurmJob:
         self.host = host
         self.start_time = time.localtime()
 
+        # Pull out the job id
         m = re.match(r'Submitted batch job (\d+)', sbatch_output)
         self.base_job_id = m.groups()[0]
 
@@ -192,7 +199,7 @@ class SlurmJob:
         """Return the state code for this job in the form of the JobState class. 
         Which contains the state, state code, description, and whether the job is done
         """
-        table = sacct(host=self.host, job_id=self.base_job_id)
+        table = sacct(host=self.host, job_id=self.base_job_id) # Custom sacct returns a table mapping job IDs to their states
         return JobState(state=table.get(self.job_id, {'State': 'NO_INFO'})['State'])
 
     def is_done(self):
@@ -257,11 +264,13 @@ class SlurmJobArray(SlurmJob):
         self.job_file = job_file
         self.host = host
 
-        start, _, stop = args['array'].partition('-')
-
+        start, _, stop = args['array'].partition('-') # pull out JobArray indices
+        
+        # Pull out the job id
         m = re.match(r'Submitted batch job (\d+)', sbatch_output)
         self.job_id = m.groups()[0]
 
+        # Create a SlurmJob for each job in the array
         self.jobs = []
         for i in range(int(start), int(stop)+1):
             job = SlurmJob(args, sbatch_output, job_file, host, array_id=i, job_array=self)
@@ -370,14 +379,14 @@ class JobState:
             self.state = state
             self.state_code = JobState.state_to_code[state]
             self.description = JobState.state_descriptions[state]
-            self.is_done = self.state_code in ('BF', 'CA', 'CD', 'DL', 'F', 'NF', 'OOM', 'PR', 'TO', 'NO')
         elif state_code:
             self.state_code = state_code
             self.state, self.description = JobState.state_codes[state_code]
-            self.is_done = state_code in ('BF', 'CA', 'CD', 'DL', 'F', 'NF', 'OOM', 'PR', 'TO', 'NO')
         else:
             raise ValueError('Must input one of state_code or state')
         
+        self.is_done = self.state_code in ('BF', 'CA', 'CD', 'DL', 'F', 'NF', 'OOM', 'PR', 'TO', 'NO') # States that indicate the job is done
+
         
     def __repr__(self):
         return f"<JobState {self.state}>"
@@ -404,9 +413,9 @@ def squeue(host, job_id, cache_duration=10):
     last_time, last_state = _last_squeue.get(job_id, (None, None))
     now = time.time()
     if last_time is None or now - last_time > cache_duration:
-        stat = run(host, ['squeue', f'--job={job_id}'])
+        stat = run(host, ['squeue', f'--job={job_id}']) # use subprocess to call squeue
         lines = stat.split('\n')
-        cols = re.split(r'\s+', lines[0].strip())
+        cols = re.split(r'\s+', lines[0].strip()) # Get column names from first line
         table = {}
         for line in lines[1:]:
             line = line.strip()
@@ -414,6 +423,7 @@ def squeue(host, job_id, cache_duration=10):
                 continue
             tokens = re.split(r'\s+', line)
             tokens = tokens[:7] + [' '.join(tokens[7:])]  # NODELIST(REASON) column may contain spaces
+            # populate the table with job information
             fields = {cols[i]:field for i,field in enumerate(tokens)}
             table[fields.pop('JOBID')] = fields
         _last_squeue[job_id] = (now, table)
@@ -444,10 +454,11 @@ def sacct(host, job_id, cache_duration=10):
     last_time, last_state = _last_sacct.get(job_id, (None, None))
     now = time.time()
     if last_time is None or now - last_time > cache_duration:
+        # use subprocess to call sacct w/ only ID and state. -X ensures only 1 line is printed for each job
         stat = run(host, ['sacct', f'--job={job_id}', '--format=JobID%20,State%20', '-X'])
         lines = stat.split('\n')
         table = {}
-        for line in lines[2:]:
+        for line in lines[2:]: # First 2 lines are headers
             line = line.strip()
             if line == '':
                 continue
@@ -472,7 +483,9 @@ def double_mem(mem: str):
 	"""
 	i = len(mem)
 	while i > 0:
-		try:
+        # To isolate the number part of the memory string we keep trying to cast to int until its possible 
+        # (i.e. until the string no longer contains a letter)
+		try: 
 			return str(int(mem[:i]) * 2) + mem[i:]
 		except ValueError:
 			i -= 1
@@ -500,7 +513,7 @@ def memory_to_bytes(mem: str):
         # Convert to bytes based on the unit
         if unit.lower() in ['g', 'gb']:
             return amount * 1024**3
-        elif unit.lower() in ['m', 'mb', '']:
+        elif unit.lower() in ['m', 'mb', '']: # no unit means MB
             return amount * 1024**2
         elif unit.lower() in ['k', 'kb']:
             return amount * 1024
@@ -521,7 +534,7 @@ def slurm_time_to_seconds(time: str):
         int
             input time as seconds of type integer e.g. (219705 or 600 or 600)
     """
-    # Regular expression pattern
+    # All possible time formats that SLURM supports
     patterns = [
         (r'^(\d+)$', 'minutes'),
         (r'^(\d+):(\d+)$', 'minutes:seconds'),
@@ -565,7 +578,7 @@ def seconds_to_time(seconds: int):
         str
             input time as standardized time string e.g. ("0-00:30:00" or "2-12:30:03")
     """
-    # Calculate time components
+    # Calculate time components in descending order of magnitude using floor division and modulo
     days = seconds // (24 * 60 * 60)
     seconds %= (24 * 60 * 60)
     hours = seconds // (60 * 60)
@@ -595,6 +608,7 @@ def run(host: str, cmd: list):
     assert isinstance(cmd, list)
     if host != 'localhost':
         if host not in ssh_connections:
+            # if the host is not localhost & we don't have a connection open already, then we need to open an ssh connection
             conn = subprocess.Popen(['ssh', '-NM', host])
             ssh_connections[host] = conn
         cmd = ['ssh', host] + cmd
