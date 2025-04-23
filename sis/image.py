@@ -143,7 +143,10 @@ class ImageBase:
         (left, top), (right, bottom) = self.transform.map_from_pixels(px_corners)
         kwds['extent'] = (left, right, bottom, top) # properly labels xy coordinates in shown plot rather than pixel coordinates
         ax.imshow(data, **kwds)
-        # don't let imshow invert the y axis
+        # ax.yaxis_inverted() will return True after imshow, so we compare it against original axis
+        # Original axis generally will have not be inverted, this will create a != situation 
+        # and we will invert axes to get back to ax.yaxis_inverted()==False
+        # If user already had original axis inverted, then its okay, we can keep it inverted
         if ax.yaxis_inverted() != y_inverted:
             ax.invert_yaxis()
 
