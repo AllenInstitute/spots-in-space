@@ -1571,7 +1571,7 @@ class SegmentedSpotTable:
             self._unique_cell_ids = np.delete(unique_cell_ids, np.where((unique_cell_ids == 0) | (unique_cell_ids == -1))) # Remove background ids
         return self._unique_cell_ids
     
-    @cell_ids.setter
+    @unique_cell_ids.setter
     def unique_cell_ids(self, u_cid: np.ndarray):
         """Setter to make sure we don't set unique_cell_ids directly.
         """
