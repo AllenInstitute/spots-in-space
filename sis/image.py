@@ -525,12 +525,7 @@ class XeniumImageFile(ImageBase):
         """
         # index = self._get_channel_index(channel)
 
-        if self.keep_images_in_memory:
-            if isinstance(self.whole_image_array, type(None)):
-                self.get_data(channel = channel)
-            return self._standard_image_shape(self.whole_image_array[0][rows[0]:rows[1],cols[0]:cols[1]])
-        else:
-            return self._standard_image_shape(self.get_data(channel = channel)[0][rows[0]:rows[1],cols[0]:cols[1]])
+        return self._standard_image_shape(self.get_data(channel = channel)[0][rows[0]:rows[1],cols[0]:cols[1]])
 
     def _get_channel_index(self, channel):
         if channel is None and len(self.channels) == 1:

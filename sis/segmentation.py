@@ -856,7 +856,7 @@ class SegmentationPipeline:
             Path to the images.
         output_dir : str or Path
             Where to save output files.
-        dt_cache : str or Path, optional
+        dt_cache : str or Path or None
             Path to the detected transcripts cache file. Used for faster loading.
         subrgn : str or tuple
             The subregion to segment. Set to a string, e.g. 'DAPI', to segment the 
@@ -1477,8 +1477,8 @@ class SegmentationPipeline:
                 tile_cids = np.load(cell_id_file)
                 tile = SegmentedSpotTable(tile, tile_cids)
             # padding removes cells which are close to edge and may be poorly segmented
-            # padding is set to 5 as a default as it is half a typical tile size
-            result = self.seg_spot_table.merge_cells(tile, padding=5)
+            # padding is set to half the user defined cell seize
+            result = self.seg_spot_table.merge_cells(tile, padding=self.seg_opts['options']['cell_dia'] / 2)
             merge_results.append(result)
 
         cell_ids = self.seg_spot_table.cell_ids
@@ -1852,7 +1852,7 @@ class MerscopeSegmentationPipeline(SegmentationPipeline):
             Path to the images.
         output_dir : str or Path
             Where to save output files.
-        dt_cache : str or Path, optional
+        dt_cache : str or Path or None
             Path to the detected transcripts cache file. Used for faster loading.
         subrgn : str or tuple
             The subregion to segment. Set to a string, e.g. 'DAPI', to segment the 
@@ -1920,7 +1920,7 @@ class StereoSeqSegmentationPipeline(SegmentationPipeline):
             Path to the images.
         output_dir : str or Path
             Where to save output files.
-        dt_cache : str or Path, optional
+        dt_cache : str or Path or None
             Path to the detected transcripts cache file. Used for faster loading.
         subrgn : str or tuple
             The subregion to segment. Set to a string, e.g. 'DAPI', to segment the 
@@ -1988,7 +1988,7 @@ class XeniumSegmentationPipeline(SegmentationPipeline):
             Path to the images.
         output_dir : str or Path
             Where to save output files.
-        dt_cache : str or Path, optional
+        dt_cache : str or Path or None
             Path to the detected transcripts cache file. Used for faster loading.
         subrgn : str or tuple
             The subregion to segment. Set to a string, e.g. 'DAPI', to segment the 
