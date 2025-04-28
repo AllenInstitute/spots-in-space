@@ -14,7 +14,7 @@ MultiLineString = optional_import('shapely.geometry', names=['MultiLineString'])
 unary_union, polygonize = optional_import('shapely.ops', ['unary_union', 'polygonize'])
 make_valid = optional_import('shapely.validation', names=['make_valid'])[0]
 
-from .image import ImageBase, ImageFile, ImageStack, ImageTransform
+from .image import ImageBase, ImageFile, ImageStack, ImageTransform, XeniumImageFile, StereoSeqImageFile
 from . import util
 from . import _version
 
@@ -694,11 +694,7 @@ class SpotTable:
         assert cell_col == None
 
         if image_file is not None:
-            transform = ImageTransform(matrix=np.array([
-                [0, 1/xyscale, 0],
-                [1/xyscale, 0, 0],
-            ], dtype=float))
-            img = ImageFile(file=image_file, transform=transform, axes=['frame', 'row', 'col', 'channel'], channels=[image_channel], name="mosaic")
+            img = StereoSeqImageFile.load(image_file, xyscale, image_channel, name="mosaic")
         else:
             img = None
 
@@ -787,7 +783,7 @@ class SpotTable:
         # if requested, look for images as well (these are not saved in cache file)
         images = None
         if image_path is not None:
-            images = ImageStack.load_xenium_stacks(image_path, keep_images_in_memory=keep_images_in_memory)
+            images = XeniumImageFile.load(image_path, keep_images_in_memory=keep_images_in_memory)
 
         if (cache_file is None) or (not Path(cache_file).exists()):
             print("Loading transcripts...")
