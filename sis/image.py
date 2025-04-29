@@ -574,7 +574,7 @@ class XeniumImageFile(ImageFile):
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
                 with tifffile.TiffFile(self.file) as tcontext:
-                    self._shape = (1, tcontext.series[0].shape[1], tcontext.series[0].shape[2], 1)
+                    self._shape = (tcontext.series[0].shape[0], tcontext.series[0].shape[1], tcontext.series[0].shape[2], 1)
         return self._shape
 
 
