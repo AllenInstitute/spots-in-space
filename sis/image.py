@@ -504,7 +504,7 @@ class XeniumImageFile(ImageFile):
     
     def __init__(self, file: str, transform: ImageTransform, axes: list|None,
                   channels: list, name: str|None,
-                  pyramid_level: int= 0, cache_image: bool = True):
+                  pyramid_level: int=0, cache_image: bool = True):
         super().__init__()
         self.file = file
         self.transform = transform
@@ -517,13 +517,13 @@ class XeniumImageFile(ImageFile):
         self.cache_image = cache_image
 
     @classmethod
-    def load(cls, xenium_image_file, pyramid_to_keep=None, cache_image=True, name=None):
+    def load(cls, xenium_image_file, pyramid_level=None, cache_image=True, name=None):
         """Read standard Xenium image mosaic tiff file, returning list of XeniumImageFiles
         
         Parameters:
             xenium_image_file : str
                 Path to image file
-            pyramid_to_keep : int, optional
+            pyramid_level : int, optional
                 Xenium images are stored as OMEs which support image pyramids. This is the level of the pyramid to load.
                 This is not currently utilized anywhere, but included for potential future use.
             max_z_to_take : int, optional
@@ -561,9 +561,12 @@ class XeniumImageFile(ImageFile):
         # since images take (row, col) as coordinates
         transform = ImageTransform(um_to_pixel_matrix[::-1])
 
+        if pyramid_level is None:
+            pyramid_level = 0 # Default pyramid level to highest resolution
+
         return XeniumImageFile(file=xenium_image_file, transform=transform, axes=['frame', 'row', 'col', 'channel'],
                                 channels=['DAPI'], name=name,
-                                pyramid_level=pyramid_to_keep, cache_image=cache_image)
+                                pyramid_level=pyramid_level, cache_image=cache_image)
         
 
     @property
