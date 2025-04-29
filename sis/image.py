@@ -603,7 +603,7 @@ class XeniumImageFile(ImageFile):
                         return self._standard_image_shape(src.series[0].levels[pyramid_level].asarray())
         return self.whole_image_array
 
-    def get_sub_data(self, frames: tuple, rows: tuple, cols: tuple, pyramid_level: int|None=None):
+    def get_sub_data(self, frames: tuple, rows: tuple, cols: tuple, pyramid_level: int|None=None, channel: None=None):
         """Get image data for a subregion (defined by frames, rows, and cols, NOT by spot coordinates)
 
         Parameters
@@ -616,6 +616,8 @@ class XeniumImageFile(ImageFile):
             pyramid_level : int|None, optional
                 Xenium images can have multiple resolutions stored in an image pyramid.
                 This parameter specifies which level of the pyramid to load.
+            channel : None
+                This is not used for xenium data as we only get DAPI
         Returns:
             np.ndarray
                 Subregion of image data
