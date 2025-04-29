@@ -754,7 +754,7 @@ class SpotTable:
     
     
     @classmethod
-    def load_xenium(cls, transcript_file: str, cache_file: str|None=None, image_path: str=None, max_rows: int=None, z_depth: float=3.0, keep_images_in_memory: bool=True):
+    def load_xenium(cls, transcript_file: str, cache_file: str|None=None, image_path: str=None, max_rows: int=None, z_depth: float=3.0, cache_image: bool=True):
         """Load Xenium data from a detected transcripts CSV file.
             This is the preferred method for resegmentation. If you want the original Xenium
             segmentation, use SegmentedSpotTable.load_xenium.
@@ -774,7 +774,7 @@ class SpotTable:
             z_depth : float, optional
                 Depth (in um) of a imaging layer i.e. z-plane
                 Used to bin z-positiions into discrete planes
-            keep_images_in_memory : bool, optional
+            cache_image : bool, optional
                 Xenium images are large and not memory mapped and thus we may want to keep them in memory or not.
                 The trade off is speed vs memory.
         Returns
@@ -783,7 +783,7 @@ class SpotTable:
         # if requested, look for images as well (these are not saved in cache file)
         images = None
         if image_path is not None:
-            images = XeniumImageFile.load(image_path, keep_images_in_memory=keep_images_in_memory)
+            images = XeniumImageFile.load(image_path, cache_image=cache_image)
 
         if (cache_file is None) or (not Path(cache_file).exists()):
             print("Loading transcripts...")
