@@ -1448,25 +1448,23 @@ class SegmentationPipeline:
                 cell_ids=np.empty(len(self.raw_spot_table), dtype=int),
                 seg_metadata=truncated_meta,
                 )
-        self.seg_spot_table.cell_ids[:] = -1
+
+        if tiles is None:
+            tiles = []
+            for tile_spec in run_spec.values():
+                # Recreate each tile from spot_table and run_spec
+                tile_rgn = tile_spec[2]['subregion']
+                tile = self.raw_spot_table.get_subregion(xlim = tile_rgn[0], ylim = tile_rgn[1])
+                tiles.append(tile)
 
         merge_results = []
         skipped = []
-        for i, tile_spec in enumerate(tqdm(run_spec.values())):
+        for i, (tile_spec, tile) in enumerate(tqdm(zip(run_spec.values(), tiles))):
             cell_id_file = tile_spec[2]['cell_id_file']
             if not os.path.exists(cell_id_file):
                 print(f"Skipping tile {i} : no cell ID file generated")
                 skipped.append(i)
                 continue
-
-            if tiles is not None:
-                # Use tiles in memory
-                tile = tiles[i]
-
-            else:
-                # Recreate each tile from spot_table and run_spec
-                tile_rgn = tile_spec[2]['subregion']
-                tile = self.raw_spot_table.get_subregion(xlim = tile_rgn[0], ylim = tile_rgn[1])
             
             if detect_z_planes: 
                 # If we detected z-planes to segment on, we must account for that now as cell ids will only be present for some planes
@@ -1476,10 +1474,11 @@ class SegmentationPipeline:
             else:
                 tile_cids = np.load(cell_id_file)
                 tile = SegmentedSpotTable(tile, tile_cids)
-            # padding removes cells which are close to edge and may be poorly segmented
-            # padding is set to half the user defined cell seize
-            result = self.seg_spot_table.merge_cells(tile, padding=self.seg_opts['options']['cell_dia'] / 2)
-            merge_results.append(result)
+
+            tiles[i] = tile
+        # padding removes cells which are close to edge and may be poorly segmented
+        # padding is set to half the user defined cell seize
+        merge_results = self.seg_spot_table.set_cell_ids_from_tiles(tiles, padding=self.seg_opts['options']['cell_dia'] / 2)
 
         cell_ids = self.seg_spot_table.cell_ids
 
