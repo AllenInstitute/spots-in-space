@@ -1460,11 +1460,27 @@ class SpotTable:
         return selected_img            
         
     def show_image(self, ax, channel=None, z_index=None, z_pos=None, name=None):
-        """Show a channel / z plane from an image
+        """Show a channel / z plane from an image. 
+        
+        CURRENTLY BROKEN, slated for rework
         
         Parameters
         ----------
-            ax
+        ax : matplotlib.axes.Axes
+            The axes to plot the image on.
+        channel : str or None, optional
+            The channel name of the image to show.
+        z_index : int or None, optional
+            The z-index of the image to show.
+        z_pos : int or None, optional
+            The z-position of the image to show.
+        name : str or None, optional
+            The name of the image to show.
+            
+        Returns
+        -------
+        img : ImageBase
+            The image to show.
         """
         img = self.get_image(name=name, channel=channel)
         if z_index is not None:

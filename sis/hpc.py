@@ -717,7 +717,7 @@ def seconds_to_time(seconds: int):
     
     Parameters
     ----------
-    second s: int
+    seconds: int
         time amount in a seconds (1800 or 217803)
     
     Returns

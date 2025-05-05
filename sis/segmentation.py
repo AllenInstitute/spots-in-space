@@ -588,7 +588,11 @@ class CellposeSegmentationResult(SegmentationResult):
     input_spot_table : sis.spot_table.SpotTable
         The input spot table upon which segmentation was run
     cellpose_output : dict
-        The output of cellpose segmentation
+        The output of cellpose segmentation. Contains
+            - 'masks'
+            - 'flows'
+            - 'styles'
+            - 'diams' (if non-custom model).
     image_transform : sis.image.ImageTransform
         The transform that relates image and spot coordinates.
     _cell_ids : np.ndarray or None
@@ -605,7 +609,7 @@ class CellposeSegmentationResult(SegmentationResult):
         input_spot_table : sis.spot_table.SpotTable
             The input spot table upon which segmentation was run
         cellpose_output : dict
-            The output of cellpose segmentation
+            The output of cellpose segmentation. Contains 'masks', 'flows', 'styles', and 'diams' (if non-custom model).
         image_transform : sis.image.ImageTransform
             The transform that relates image and spot coordinates.
         detect_z_planes : float or None, optional
@@ -1920,7 +1924,7 @@ class SegmentationPipeline:
 
     @classmethod
     def from_json(cls, json_file):
-        """Alternate constructor to load from a SegmentationPipeline from a json file
+        """Alternate constructor to load a SegmentationPipeline from a json file
         
         Parameters
         ----------
