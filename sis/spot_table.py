@@ -1433,13 +1433,13 @@ class SpotTable:
         
         Parameters
         ----------
-        name : str or None
+        name : str or None, optional
             The name of the image to return.
-        channel : str or None
+        channel : str or None, optional
             The channel name of the image to return.
-        frame : int or None
+        frame : int or None, optional
             The frame number of the image to return.
-        frames : tuple or None
+        frames : tuple or None, optional
             A tuple of frame numbers to return.
             
         Returns
@@ -1470,7 +1470,24 @@ class SpotTable:
         elif frame is not None:
             selected_img = selected_img.get_frame(frame)
 
-        return selected_img            
+        return selected_img
+    
+    def show_image(self, ax=None, name=None, channel=None, frame:int|None=None, frames:tuple|None=None):
+        """
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes or None, optional
+            The axes to plot the image on. If None, a new figure is created.
+        name : str or None, optional
+            The name of the image to return.
+        channel : str or None, optional
+            The channel name of the image to return.
+        frame : int or None, optional
+            The frame number of the image to return.
+        frames : tuple or None, optional
+            A tuple of frame numbers to return.
+        """
+        self.get_image(name=name, channel=channel, frame=frame, frames=frames).show(ax=ax)
 
 
 class SegmentedSpotTable:
