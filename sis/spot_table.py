@@ -143,7 +143,7 @@ class SpotTable:
                  gene_names: None|np.ndarray=None, 
                  gene_ids: None|np.ndarray=None, 
                  gene_id_to_name: None|np.ndarray=None,
-                 parent_table: 'None|SpotTable'=None, 
+                 parent_table: None|SpotTable=None, 
                  parent_inds: None|np.ndarray=None, 
                  parent_region: None|tuple=None,
                  images: None|list[ImageBase]|ImageBase=None,
@@ -3047,6 +3047,7 @@ class SegmentedSpotTable:
         """
         subtable = self.spot_table.get_subregion(xlim, ylim, incl_end)
         seg_subtable = self[subtable.parent_inds]
+        seg_subtable.spot_table.parent_region = (xlim, ylim)
         seg_subtable.spot_table.images = subtable.images # Images must be manually copied over since they are not subsectioned with __getitem__
-
+        
         return seg_subtable
