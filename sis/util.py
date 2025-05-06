@@ -20,14 +20,17 @@ import zipfile
 def reduce_expression(data, umap_args):
     """Reduce the expression data using UMAP.
 
-    Parameters:
-        data : np.ndarray
-            The input expression data.
-        umap_args : dict
-            Additional UMAP arguments.
-    Returns:
-        ndarray
-            The reduced expression data.
+    Parameters
+    ----------
+    data : np.ndarray
+        The input expression data.
+    umap_args : dict
+        Additional UMAP arguments.
+   
+    Returns
+    -------
+    ndarray
+        The reduced expression data.
     """
     import umap
     from sklearn.preprocessing import StandardScaler
@@ -67,6 +70,18 @@ def reduce_expression(data, umap_args):
 
 
 def map_to_ubyte(data):
+    """Map a 2D or 3D array of floats to an 8-bit unsigned integer array.
+    
+    Parameters
+    ----------
+    data : np.ndarray
+        The input array of floats.
+    
+    Returns
+    -------
+    np.ndarray
+        The mapped array with values between 0 and 255.
+    """
     mn, mx = data.min(), data.max()
     return np.clip((data - mn) * 255 / (mx - mn), 0, 255).astype('ubyte')
 
@@ -75,15 +90,16 @@ def rainbow_wheel(points, center=None, radius=None, center_color=None):
     """Given an Nx2 array of point locations, return an Nx3 array of RGB
     colors derived from a rainbow color wheel centered over the mean point location.
     
-    Parameters:
-        points : np.ndarray
-            Nx2 array of point locations
-        center : np.ndarray, optional
-            1x2 array of center location (default: mean of points)
-        radius : np.ndarray, optional
-            1x2 array of radius in x and y directions (default: 4 * std of points)
-        center_color : tuple, optional
-            RGB color for the center point
+    Parameters
+    ----------
+    points : np.ndarray
+        Nx2 array of point locations
+    center : np.ndarray or None, optional
+        1x2 array of center location (default: mean of points)
+    radius : np.ndarray or None, optional
+        1x2 array of radius in x and y directions (default: 4 * std of points)
+    center_color : tuple or None, optional
+        RGB color for the center point
     """
     import matplotlib.pyplot as plt
     import scipy.interpolate
@@ -109,13 +125,19 @@ def show_float_rgb(data, extent, ax):
     """Show a color image given a WxHx3 array of floats.
     Each channel is normalized independently.
     
-    Parameters:
-        data : np.ndarray
-            WxHx3 array of floats
-        extent : list
-            List of four floats defining the extent of the image (see matplotlib.pyplot.imshow)
-        ax : matplotlib.axes.Axes
-            Axes to plot the image on
+    Parameters
+    ----------
+    data : np.ndarray
+        WxHx3 array of floats
+    extent : list
+        List of four floats defining the extent of the image (see matplotlib.pyplot.imshow)
+    ax : matplotlib.axes.Axes
+        Axes to plot the image on
+        
+    Returns
+    -------
+    matplotlib.image.AxesImage
+        The image displayed on the axes
     """
     rgb = np.empty(data.shape[:2] + (3,), dtype='ubyte')
     for i in (0, 1, 2):
@@ -125,13 +147,17 @@ def show_float_rgb(data, extent, ax):
 
 
 def load_config(configfile: str|Path|None=None):
-    """loads configuration yaml file for spatial analysis. If no file is found, returns empty dict
+    """loads configuration yaml file for spatial analysis. 
 
-    Parameters:
-        configfile : str|Path|None, optional
-            Path to yaml file. If None, will look for spatial_config.yml in the directory above this file 
-    Returns:
-        Dict of configuration parameters
+    Parameters
+    ----------
+    configfile : str or Path or None, optional
+        Path to yaml file. If None, will look for spatial_config.yml in the directory above this file 
+    
+    Returns
+    -------
+    dict
+        Dict of configuration parameters. If no file is found, returns empty dict
     """
     import yaml
 
@@ -161,26 +187,34 @@ def package_for_10x(anndata_object,
                     exist_ok =False,
                    annotation_category="Supertype"):
     """
-    takes a reference dataset as anndata object and writes a reference file that can be uploaded
+    Takes a reference dataset as anndata object and writes a reference file that can be uploaded
     to 10x as a reference for  Xenium  gene panel selection
     see https://www.10xgenomics.com/support/in-situ-gene-expression/documentation/steps/panel-design/xenium-panel-getting-started#input-ref-anno
 
 
     keyword arguments dry_run and exist_ok may help you avoid overwriting something important
     
-    Parameters:
-        anndata_object : AnnData
-            The input AnnData object.
-        output_directory : Path
-            The directory to save the output files.
-        gene_id_var_list : list
-            List of gene IDs for the features.tsv file.
-        dry_run : bool, optional
-            If True, only return features_tsv without writing files. Default is False.
-        exist_ok : bool, optional
-            If True, do not raise an error if the output directory already exists. Default is False.
-        annotation_category : str, optional
-            Column in anndata_object.obs to use for annotations. Default is "Supertype".
+    Parameters
+    ----------
+    anndata_object : AnnData
+        The input AnnData object.
+    output_directory : Path
+        The directory to save the output files.
+    gene_id_var_list : list
+        List of gene IDs for the features.tsv file.
+    dry_run : bool, optional
+        If True, only return features_tsv without writing files. Default is False.
+    exist_ok : bool, optional
+        If True, do not raise an error if the output directory already exists. Default is False.
+    annotation_category : str, optional
+        Column in anndata_object.obs to use for annotations. Default is "Supertype".
+        
+    Returns
+    -------
+    pandas.DataFrame
+        If dry_run is True, returns features_tsv DataFrame. 
+    None 
+        If dry_run is False, writes files to output_directory.
     """
     # organize some paths:
     pathlib.Path(output_directory).mkdir(exist_ok=exist_ok)
@@ -258,33 +292,34 @@ def plot_genes(spottable,  gene_list,
                color_start =0, incoming_ax = None ):
     """Plot the locations of genes in a SpotTable.
     
-    Parameters:
-        spottable : SpotTable
-            The SpotTable object containing gene expression data.
-        gene_list : list
-            List of genes to plot.
-        min_counts : int
-            Minimum number of counts for a gene to be plotted.
-        highlight_list : list, optional
-            List of genes to highlight. Default is empty list.
-        subsample : int, optional
-            Subsampling factor for plotting. Default is 1 (no subsampling).
-        figsize : list, optional
-            Figure size. Default is [15, 15].
-        transpose_plot : bool, optional
-            Whether to transpose the plot. Default is True.
-        fontsize : int, optional
-            Font size for the legend. Default is 20.
-        color_background : list, optional
-            Color for background points. Default is [.65, .65, .65].
-        markersize_background : float, optional
-            Marker size for background points. Default is 1.5.
-        markersize_highlight : float, optional
-            Marker size for highlighted points. Default is 5.
-        color_start : int, optional
-            Starting index for color cycle. Default is 0.
-        incoming_ax : matplotlib.axes.Axes, optional
-            Axes to plot on. If None, a new figure and axes will be created. Default is None.
+    Parameters
+    ----------
+    spottable : SpotTable
+        The SpotTable object containing gene expression data.
+    gene_list : list
+        List of genes to plot.
+    min_counts : int
+        Minimum number of counts for a gene to be plotted.
+    highlight_list : list, optional
+        List of genes to highlight. Default is empty list.
+    subsample : int, optional
+        Subsampling factor for plotting. Default is 1 (no subsampling).
+    figsize : list, optional
+        Figure size. Default is [15, 15].
+    transpose_plot : bool, optional
+        Whether to transpose the plot. Default is True.
+    fontsize : int, optional
+        Font size for the legend. Default is 20.
+    color_background : list, optional
+        Color for background points. Default is [.65, .65, .65].
+    markersize_background : float, optional
+        Marker size for background points. Default is 1.5.
+    markersize_highlight : float, optional
+        Marker size for highlighted points. Default is 5.
+    color_start : int, optional
+        Starting index for color cycle. Default is 0.
+    incoming_ax : matplotlib.axes.Axes or None, optional
+        Axes to plot on. If None, a new figure and axes will be created. Default is None.
     """
     first_background = True
     no_gray = list(plt.cm.tab10.colors[:7])
@@ -333,8 +368,6 @@ def plot_genes(spottable,  gene_list,
     plt.legend(fontsize=fontsize, markerscale=4)
 
 
-
-    
 def show_cells_and_transcripts(spottable, anndata_obj,
                                segmentation_geopandas,
                                genes_to_highlight=[],
@@ -351,24 +384,44 @@ def show_cells_and_transcripts(spottable, anndata_obj,
                                plot_patches=False,skip_genes=False,
                                **kwargs):
     """
-    Parameters:
-    
-    loaded_image_array
-    
-    will take a 2D numpy array and use it for background. otherwise a maximum projection of image data from the SpotTable is created and used.
-    
-    cell_annotation_category
-    
-    column in anndata_obj.obs to get annotation information from
-    
-    
-    cell_annotation_values 
-    
-    values in `cell_annotation_category` to show
-    
-    
-    **kwargs are passed to `plot_genes`
-    
+    Parameters
+    ----------
+    spottable : SpotTable
+        The SpotTable object containing gene expression data.
+    anndata_obj : AnnData
+        The AnnData object containing cell annotations.
+    segmentation_geopandas : geopandas.GeoDataFrame
+        GeoDataFrame containing cell segmentation polygons.
+    genes_to_highlight : list, optional
+        List of genes to highlight in the plot. Default is empty list.
+    cell_annotation_category : str, optional
+        column in anndata_obj.obs to get annotation information from
+    cell_annotation_values : list or None, optional
+        List of values in `cell_annotation_category` to show in the plot.
+    cell_annotation_values_background : list or None, optional
+        List of values in `cell_annotation_category` to show in the background.
+    cell_annotation_colormapping : dict or None, optional
+        Dictionary mapping cell annotation values to colors and linewidths.
+    plot_blanks : bool, optional
+        Whether to plot blank genes. Default is False.
+    loaded_image_array : np.ndarray or None, optional
+        will take a 2D numpy array and use it for background. otherwise a maximum projection of image data from the SpotTable is created and used.
+    loaded_image_extent : np.ndarray or None, optional
+        Extent of the image data. If not provided, it will be calculated from the SpotTable.
+    initial_figsize : list, optional
+        Initial figure size for the plot. Default is [20, 20].
+    fontsize : int, optional
+        Font size for the legend. Default is 20.
+    image_cmap : str, optional
+        Colormap for the image background. Default is "Greys".
+    selected_cell_outline_weight : float, optional
+        Line width for selected cell outlines. Default is 1.0.
+    plot_patches : bool, optional
+        Whether to plot cell outlines as patches. Default is False.
+    skip_genes : bool, optional
+        Whether to skip plotting genes. Default is False.
+    **kwargs
+        Pass to plot_genes()
     """
     import geopandas as gpd
 
@@ -554,17 +607,18 @@ def plot_cbg_centroids(cell_by_gene: ad.AnnData, ax, x='center_x', y='center_y',
     """
     Plot the centroids of cells in a cell-by-gene AnnData object.
     
-    Parameters:
-        cell_by_gene : AnnData
-            The input AnnData object.
-        ax : matplotlib.axes.Axes
-            Axes to plot on.
-        x : str, optional
-            Column name for x-coordinates. Default is 'center_x'.
-        y : str, optional
-            Column name for y-coordinates. Default is 'center_y'.
-        **kwargs : keyword arguments
-            Additional arguments passed to sns.scatterplot.
+    Parameters
+    ----------
+    cell_by_gene : AnnData
+        The input AnnData object.
+    ax : matplotlib.axes.Axes
+        Axes to plot on.
+    x : str, optional
+        Column name for x-coordinates. Default is 'center_x'.
+    y : str, optional
+        Column name for y-coordinates. Default is 'center_y'.
+    **kwargs : keyword arguments
+        Additional arguments passed to sns.scatterplot.
     """
     g = sns.scatterplot(data=cell_by_gene.obs, x=x, y=y, ax=ax, **kwargs)
     ax.set_aspect('equal', adjustable='box', anchor='C')
@@ -576,7 +630,13 @@ def example_function():
 
 
 def unpack_test_data():
+    """Unpacks the test data for the spots-in-space project.
 
+    Returns
+    -------
+    Tuple[str, str]
+        A tuple containing the confirmation strings for the Xenium and Merscope test data.
+    """
     SIS_DIR = pathlib.Path().absolute()
     print(SIS_DIR)
 
@@ -616,16 +676,21 @@ def make_cirro_compatible(cell_by_gene: ad.AnnData,obs_spatial_columns =  ['cent
     (https://cirrocumulus.readthedocs.io). Also, generate UMAP from .X as an 
     additional visualization option.
 
-    Parameters:
-        cell_by_gene: AnnData object output by 
-                      sis.spot_table.cell_by_gene_anndata()
-        in_place: bool, if True, modifies the input anndata object in place.
-        include_z: bool, whether to include z-coordinate in obsm['spatial'].
-                     Default is False.  If True, expects 'center_z' in cell_by_gene.obs.
-        generate_umap: bool, whether to generate UMAP from .X. Default is True.
+    Parameters
+    ----------
+    cell_by_gene: AnnData object output by 
+                    sis.spot_table.cell_by_gene_anndata()
+    in_place: bool, if True, modifies the input anndata object in place.
+    include_z: bool, whether to include z-coordinate in obsm['spatial'].
+                    Default is False.  If True, expects 'center_z' in cell_by_gene.obs.
+    generate_umap: bool, whether to generate UMAP from .X. Default is True.
         
-    Returns:
-        cell_by_gene_cirro: copy of cell_by_gene with cirrocumulus-compatible fields, unless in_place, then returns True
+    Returns
+    -------
+    bool 
+        If in_place is True, modifies the input AnnData object and returns True.
+    cell_by_gene_cirro : anndata.AnnData
+        If in_place is False, returns a new AnnData object with the obsm updated to make cirrocumulus-compatible fields.
     '''
     # confirm AnnData is in correct format
     if not set(obs_spatial_columns).issubset(cell_by_gene.obs.columns):
@@ -667,16 +732,19 @@ def make_cirro_compatible(cell_by_gene: ad.AnnData,obs_spatial_columns =  ['cent
 def convert_value_nested_dict(d: dict, oldtype, newtype) -> dict:
     """Helper function to convert a value in a nested dict from oldtype to newtype.
     
-    Parameters:
-        d : dict
-            The input dictionary.
-        oldtype : type
-            The type of the value to be converted.
-        newtype : type
-            The type to convert the value to.
-    Returns:
-        x : dict
-            The dictionary with converted values.
+    Parameters
+    ----------
+    d : dict
+        The input dictionary.
+    oldtype : type
+        The type of the value to be converted.
+    newtype : type
+        The type to convert the value to.
+        
+    Returns
+    -------
+    x : dict
+        The dictionary with converted values.
     """
     x = {}
     for k, v in d.items():
@@ -686,4 +754,3 @@ def convert_value_nested_dict(d: dict, oldtype, newtype) -> dict:
             v = newtype(v)
         x[k] = v
     return x
-
