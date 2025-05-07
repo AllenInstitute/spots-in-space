@@ -1745,7 +1745,7 @@ class SegmentationPipeline:
         self.polygon_subsets_path.mkdir(exist_ok=True)
 
         # Polygon jobs are split by cells--not area--so we need to get the number of cells
-        num_cells = len(self.seg_spot_table.unique_cell_ids())
+        num_cells = len(self.seg_spot_table.unique_cell_ids)
 
         # list of tuples assigning cells to jobs
         if 'num_jobs' in self.polygon_hpc_opts:
@@ -1765,7 +1765,7 @@ class SegmentationPipeline:
             # Save an input file with the cell IDs to calculate for each job
             if not overwrite and (self.polygon_subsets_path / f'cell_id_subset_{i}.npy').exists():
                 raise FileExistsError(f'cell_id_subset_{i}.npy already exists and overwriting is not enabled.')
-            np.save(self.polygon_subsets_path / f'cell_id_subset_{i}.npy', self.seg_spot_table.unique_cell_ids()[start_idx:end_idx])
+            np.save(self.polygon_subsets_path / f'cell_id_subset_{i}.npy', self.seg_spot_table.unique_cell_ids[start_idx:end_idx])
             
             # run_spec[i] = (function, args, kwargs)
             run_spec[i] = (
