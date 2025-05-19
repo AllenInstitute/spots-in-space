@@ -501,7 +501,7 @@ class StereoSeqImageFile(ImageFile):
 
     @classmethod
     def load(cls, image_file, xyscale, channel, name=None):
-        """Read a Merscope image file and return an ImageFile object
+        """Read a StereoSeq image file and return an ImageFile object
         
         Parameters
         ----------
