@@ -14,7 +14,7 @@ MultiLineString = optional_import('shapely.geometry', names=['MultiLineString'])
 unary_union, polygonize = optional_import('shapely.ops', ['unary_union', 'polygonize'])
 make_valid = optional_import('shapely.validation', names=['make_valid'])[0]
 
-from .image import ImageBase, ImageFile, ImageStack, ImageTransform
+from .image import ImageBase, ImageFile, ImageStack, ImageTransform, XeniumImageFile, StereoSeqImageFile
 from . import util
 from . import _version
 
@@ -68,7 +68,7 @@ def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file: str|No
     if cell_subset_file is not None:
         cells_to_run = np.load(cell_subset_file)
     else:
-        cells_to_run = seg_spot_table.unique_cell_ids()
+        cells_to_run = seg_spot_table.unique_cell_ids
 
     print('Calculating Cell Polygons...')
     seg_spot_table.calculate_cell_polygons(cells_to_run=cells_to_run, alpha_inv_coeff=alpha_inv_coeff, separate_z_planes=separate_z_planes)
@@ -143,7 +143,7 @@ class SpotTable:
                  gene_names: None|np.ndarray=None, 
                  gene_ids: None|np.ndarray=None, 
                  gene_id_to_name: None|np.ndarray=None,
-                 parent_table: 'None|SpotTable'=None, 
+                 parent_table: None|SpotTable=None, 
                  parent_inds: None|np.ndarray=None, 
                  parent_region: None|tuple=None,
                  images: None|list[ImageBase]|ImageBase=None,
@@ -585,7 +585,7 @@ class SpotTable:
         return raw_data, pos, gene_names
 
     @classmethod
-    def load_merscope(cls, csv_file: str, cache_file: str|None, image_path: str|None=None, max_rows: int|None=None):
+    def load_merscope(cls, csv_file: str, cache_file: str|None=None, image_path: str|None=None, max_rows: int|None=None):
         """Load MERSCOPE data from a detected transcripts CSV file. This is the
         preferred method for resegmentation. If you want the original MERSCOPE
         segmentation, use SegmentedSpotTable.load_merscope.
@@ -764,11 +764,7 @@ class SpotTable:
         assert cell_col == None
 
         if image_file is not None:
-            transform = ImageTransform(matrix=np.array([
-                [0, 1/xyscale, 0],
-                [1/xyscale, 0, 0],
-            ], dtype=float))
-            img = ImageFile(file=image_file, transform=transform, axes=['frame', 'row', 'col', 'channel'], channels=[image_channel], name="mosaic")
+            img = StereoSeqImageFile.load(image_file, xyscale, image_channel, name="mosaic")
         else:
             img = None
 
@@ -830,7 +826,7 @@ class SpotTable:
     
     
     @classmethod
-    def load_xenium(cls, transcript_file: str, cache_file: str|None=None, image_path: str|None=None, max_rows: int|None=None, z_depth: float=3.0, keep_images_in_memory: bool=True):
+    def load_xenium(cls, transcript_file: str, cache_file: str|None=None, image_path: str=None, max_rows: int=None, z_depth: float=3.0, pyramid_level: int|None=None, cache_image: bool=True):
         """Load Xenium data from a detected transcripts CSV file.
             This is the preferred method for resegmentation. If you want the original Xenium
             segmentation, use SegmentedSpotTable.load_xenium.
@@ -840,18 +836,22 @@ class SpotTable:
         ----------
         transcript_file : str
             Path to the detected transcripts file.
-        cache_file : str or None, optional
+        cache_file : str, optional
             Path to the detected transcripts cache file, which is an npz file 
             representing the raw SpotTable (without cell_ids). If passed, will
             create a cache file if one does not already exists.
-        image_path : str or None, optional
+        image_path : str, optional
             Path to directory containing a Xenium image stack.
-        max_rows : int or None, optional
+        max_rows : int, optional
             Maximum number of rows to load from the CSV file.
         z_depth : float, optional
             Depth (in um) of a imaging layer i.e. z-plane
             Used to bin z-positiions into discrete planes
-        keep_images_in_memory : bool, optional
+        pyramid_level : int, optional
+            Xenium images can have multiple resolutions stored in an image pyramid.
+            This parameter specifies which level of the pyramid to load.
+            If None, we default to highest resolution
+        cache_image : bool, optional
             Xenium images are large and not memory mapped and thus we may want to keep them in memory or not.
             The trade off is speed vs memory.
             
@@ -863,7 +863,7 @@ class SpotTable:
         # if requested, look for images as well (these are not saved in cache file)
         images = None
         if image_path is not None:
-            images = ImageStack.load_xenium_stacks(image_path, keep_images_in_memory=keep_images_in_memory)
+            images = XeniumImageFile.load(image_path, pyramid_level=pyramid_level, cache_image=cache_image)
 
         if (cache_file is None) or (not Path(cache_file).exists()):
             print("Loading transcripts...")
@@ -1229,12 +1229,12 @@ class SpotTable:
         ax.add_patch(rect)
         return rect
     
-    def scatter_plot(self, ax=None, x='x', y='y', color='gene_ids', alpha=0.2, size=1.5, z_slice=None, palette=None):
+    def scatter_plot(self, ax=None, x='x', y='y', color='gene_ids', alpha=0.2, size=1.5, z_idx=None, z_pos=None, palette=None):
         """Plot a scatter plot of the spots in this table.
         
         Parameters
         ----------
-        ax : matplotlib.axes.Axes or None, optional
+        ax : matplotlib.axes.Axes, optional
             The axes to plot the scatter plot on.
         x : str, optional
             The attribute to use for the x-axis.
@@ -1246,24 +1246,38 @@ class SpotTable:
             The alpha value for the points.
         size : float, optional
             The size of the points.
-        z_slice : int or None, optional
-            The z-slice to plot. If None, plot all z-slices.
-        palette : str or list or None, optional
+        z_idx : int or None, optional
+            Index of the z-plane to plot in the sorted list of z-planes in the SpotTable. 
+            If None and *z_pos* is None, plot all z-slices.
+        z_pos : int or None, optional
+            Coordinates of the z-plane to plot. 
+            If None and *z_pos* is None, plot all z-slices.
+        palette : str or list, optional
             The palette to use for the colors.
         """
         import seaborn
         import matplotlib.pyplot as plt
+        
+        if z_idx is not None and z_pos is not None:
+            raise ValueError('Only one of *z_idx* or *z_pos* can be set')
+            
+        if z_idx is not None:
+            z_pos = np.unique(self.z)[z_idx]
+            mask = self.z == z_pos
+            plt_st = self[mask]
+        elif z_pos is not None:
+            mask = self.z == z_pos
+            plt_st = self[mask]
+        else:
+            plt_st = self
+
         if ax is None:
             fig, ax = plt.subplots()
-        
-        if z_slice is not None:
-            zvals = np.unique(self.z)
-            zval = zvals[int(z_slice * (len(zvals)-1))]
-            mask = self.z == zval
-            self = self[mask]
+    
+        df = plt_st.dataframe(cols=[x, y, color])
 
         seaborn.scatterplot(
-            data=self.dataframe(cols=[x, y, color]),
+            data=df,
             x=x, 
             y=y, 
             hue=color, 
@@ -1275,6 +1289,8 @@ class SpotTable:
             legend=False
         )
         ax.set_aspect('equal')
+        ax.set_xlim(df[x].min(), df[x].max())
+        ax.set_ylim(df[y].min(), df[y].max())
 
 
     def binned_expression_counts(self, binsize):
@@ -1363,7 +1379,7 @@ class SpotTable:
 
         return bec, (xbins, ybins, gbins), (reduced,)
 
-    def show_binned_heatmap(self, ax, image_size=300, log=True):
+    def show_binned_heatmap(self, ax, image_size=300, bin_size=None, log=True):
         """Show an image of binned spot positions.
         
         Parameters
@@ -1371,13 +1387,27 @@ class SpotTable:
         ax : matplotlib.axes.Axes
             The axes to plot the heatmap on.
         image_size : int, optional
-            Size of the image in pixels.
+            Height/width of the image in pixels.
+        bin_size : int, optional
+                Size of each bin in um. Alternative to image_size.
         log : bool, optional
             Whether to take the log of the binned counts.
         """
-        # Bin x and y into *image_size* pixels
-        xbins = np.linspace(self.x.min(), self.x.max(), image_size)
-        ybins = np.linspace(self.y.min(), self.y.max(), image_size)
+        if image_size is not None and bin_size is not None:
+            import warnings
+            warnings.warn("Both image_size and bin_size specified: using bin_size to create image", UserWarning)
+        elif image_size is None and bin_size is None:
+            raise ValueError('Must specify either image_size or bin_size')
+            
+        if bin_size is not None:
+            # Bin x and y into *bin_size* bins
+            xbins = np.arange(self.x.min(), self.x.max(), bin_size)
+            ybins = np.arange(self.y.min(), self.y.max(), bin_size)
+        elif image_size is not None:
+            # Bin x and y into *image_size* pixels
+            xbins = np.linspace(self.x.min(), self.x.max(), image_size)
+            ybins = np.linspace(self.y.min(), self.y.max(), image_size)
+            
         hist = np.histogram2d(self.x, self.y, bins=[xbins, ybins])
         if log:
             img = np.log(hist[0] + 1)
@@ -1385,23 +1415,6 @@ class SpotTable:
             img = hist[0]
         ax.imshow(img.T, origin='lower', aspect='equal', cmap='inferno', extent=[xbins[0], xbins[-1], ybins[0], ybins[-1]])
 
-    def show_subregion_images(self, subtables, ax, **kwds):
-        """Show a spot table image and successive subregions
-        
-        Parameters
-        ----------
-        subtables : list of SpotTables
-            List of subregions to show.
-        ax : list of matplotlib.axes.Axes
-            The axes to plot the images on.
-        **kwds : dict[str, Any], optional
-            Additional arguments to pass to the show_image method.
-        """
-        tables = [self] + list(subtables)
-        for i, table in enumerate(tables):
-            table.show_image(ax=ax[i], **kwds)
-            if i > 0:
-                table.plot_rect(ax[i-1], 'c')
 
     def add_image(self, image):
         """Attach an image to this dataset
@@ -1420,13 +1433,13 @@ class SpotTable:
         
         Parameters
         ----------
-        name : str or None
+        name : str or None, optional
             The name of the image to return.
-        channel : str or None
+        channel : str or None, optional
             The channel name of the image to return.
-        frame : int or None
+        frame : int or None, optional
             The frame number of the image to return.
-        frames : tuple or None
+        frames : tuple or None, optional
             A tuple of frame numbers to return.
             
         Returns
@@ -1457,39 +1470,24 @@ class SpotTable:
         elif frame is not None:
             selected_img = selected_img.get_frame(frame)
 
-        return selected_img            
-        
-    def show_image(self, ax, channel=None, z_index=None, z_pos=None, name=None):
-        """Show a channel / z plane from an image. 
-        
-        CURRENTLY BROKEN, slated for rework
-        
+        return selected_img
+    
+    def show_image(self, ax=None, name=None, channel=None, frame:int|None=None, frames:tuple|None=None):
+        """
         Parameters
         ----------
-        ax : matplotlib.axes.Axes
-            The axes to plot the image on.
-        channel : str or None, optional
-            The channel name of the image to show.
-        z_index : int or None, optional
-            The z-index of the image to show.
-        z_pos : int or None, optional
-            The z-position of the image to show.
+        ax : matplotlib.axes.Axes or None, optional
+            The axes to plot the image on. If None, a new figure is created.
         name : str or None, optional
-            The name of the image to show.
-            
-        Returns
-        -------
-        img : ImageBase
-            The image to show.
+            The name of the image to return.
+        channel : str or None, optional
+            The channel name of the image to return.
+        frame : int or None, optional
+            The frame number of the image to return.
+        frames : tuple or None, optional
+            A tuple of frame numbers to return.
         """
-        img = self.get_image(name=name, channel=channel)
-        if z_index is not None:
-            img = img.get_z_index(z_index)
-        if z_pos is not None:
-            img = img.get_z_pos(z_pos)
-            
-        return img
-
+        self.get_image(name=name, channel=channel, frame=frame, frames=frames).show(ax=ax)
 
 
 class SegmentedSpotTable:
@@ -1739,6 +1737,7 @@ class SegmentedSpotTable:
                     warnings.warn("Some cells were modified, removed, or created. Cell polygons have been kept for unchanged cells but removed for modified, removed, or created cells.")
         self._old_cell_ids = None
         
+    @property
     def unique_cell_ids(self):
         """Create and cache a numpy array of unique cell ids (excluding background)
         
@@ -1751,6 +1750,12 @@ class SegmentedSpotTable:
             unique_cell_ids = np.unique(self.cell_ids) # Pull out unique cell ids
             self._unique_cell_ids = np.delete(unique_cell_ids, np.where((unique_cell_ids == 0) | (unique_cell_ids == -1))) # Remove background ids
         return self._unique_cell_ids
+    
+    @unique_cell_ids.setter
+    def unique_cell_ids(self, u_cid: np.ndarray):
+        """Setter to make sure we don't set unique_cell_ids directly.
+        """
+        raise ValueError("unique_cell_ids cannot be set directly. Use cell_ids instead.")
   
     def generate_production_cell_ids(self, prefix: str|None=None, suffix: str|None=None):
         """Generates cell ids which count up from 1 to the total cell count rather than jumping between integers.
@@ -1779,11 +1784,11 @@ class SegmentedSpotTable:
             prefix = ''
             
         # Create dictionary to map cell ids to production ids 
-        cid_to_pcid = dict(zip(self.unique_cell_ids(), np.char.mod(f'{prefix}%d{suffix}', np.arange(1, len(self.unique_cell_ids())+1))))
+        cid_to_pcid = dict(zip(self.unique_cell_ids, np.char.mod(f'{prefix}%d{suffix}', np.arange(1, len(self.unique_cell_ids)+1))))
         cid_to_pcid[-1] = "-1"
     
         # Create dictionary to map production cell ids to cell ids 
-        pcid_to_cid = dict(zip(np.char.mod(f'{prefix}%d{suffix}', np.arange(1, len(self.unique_cell_ids())+1)), self.unique_cell_ids())) 
+        pcid_to_cid = dict(zip(np.char.mod(f'{prefix}%d{suffix}', np.arange(1, len(self.unique_cell_ids)+1)), self.unique_cell_ids)) 
         pcid_to_cid["-1"] = -1
     
         # Reset the current production cell ids and before we call cell_ids_changed for speed
@@ -1992,7 +1997,7 @@ class SegmentedSpotTable:
         """
         if self._cell_bounds is None: # If not cached, we have to calculate
             self._cell_bounds = {}
-            for cid in self.unique_cell_ids():
+            for cid in self.unique_cell_ids:
                 # Isolate cell coordinates
                 inds = self.cell_indices(cid)
                 rows = self.pos[inds]
@@ -2015,7 +2020,7 @@ class SegmentedSpotTable:
             A DataFrame of cell centroids with columns ['center_x', 'center_y', 'center_z']
         """
         centroids = []
-        for cid in self.unique_cell_ids():
+        for cid in self.unique_cell_ids:
             # Isolate cell coordinates
             inds = self.cell_indices(cid)
             cell_ts_xyz = self.pos[inds]
@@ -2027,7 +2032,7 @@ class SegmentedSpotTable:
             empty[:] = np.nan
             centroids = np.append(centroids, empty, axis=1)
             
-        df_idx = [self.convert_cell_id(cid) for cid in self.unique_cell_ids()] if use_production_ids else self.unique_cell_ids()
+        df_idx = [self.convert_cell_id(cid) for cid in self.unique_cell_ids] if use_production_ids else self.unique_cell_ids
         return pandas.DataFrame(data=centroids, index=df_idx, columns=['center_x', 'center_y', 'center_z'])
 
     @staticmethod
@@ -2170,7 +2175,7 @@ class SegmentedSpotTable:
             If True, disable the progress bar.
         """
         if cells_to_run is None: # If you only want to calculate a subset of cells
-            cells_to_run = self.unique_cell_ids()
+            cells_to_run = self.unique_cell_ids
 
         # run through all cell_ids, generate polygons and add to self.cell_polygons dict 
         # increases the alpha_inv parameter by 0.5 until a single polygon is generated
@@ -2380,13 +2385,13 @@ class SegmentedSpotTable:
                 polygon_json = json.load(f)
 
             # Make sure we cast read in info to the same type as the spot table
-            cell_id_type = type(self.unique_cell_ids()[0])
+            cell_id_type = type(self.unique_cell_ids[0])
             z_plane_type = None if self.pos.shape[1] < 3 else type(self.pos[0, 2])
 
             if polygon_json['type'] == 'FeatureCollection': # All files generated from this repo should be this
                 for feature in tqdm(polygon_json['features'], disable=disable_tqdm):
                     cid = cell_id_type(feature['id'])
-                    if cid in self.unique_cell_ids():
+                    if cid in self.unique_cell_ids:
                         # Make sure it is a polygon or None otherwise we don't read it
                         if feature['geometry'] and feature['geometry']['type'] == 'Polygon': 
                             polygon = Polygon(feature['geometry']['coordinates'][0])
@@ -2414,12 +2419,12 @@ class SegmentedSpotTable:
                         elif not geometry:
                             self.cell_polygons[cell_ids.pop(0)] = geometry
                 else: # If we don't have the cell IDs we will have to infer
-                    if len(self.unique_cell_ids()) < len(polygon_json['geometries']):
+                    if len(self.unique_cell_ids) < len(polygon_json['geometries']):
                         raise ValueError("Number of cells in input file exceeds SpotTable")
 
                     # This method ensure compatibility with both JSONs which store None and those which dont
-                    valid_cells = [cid for cid in self.unique_cell_ids() if len(np.unique(self.pos[self.cell_indices(cid)][:, :2], axis=0)) > 3]
-                    invalid_cells = [cid for cid in self.unique_cell_ids() if len(np.unique(self.pos[self.cell_indices(cid)][:, :2], axis=0)) <= 3]
+                    valid_cells = [cid for cid in self.unique_cell_ids if len(np.unique(self.pos[self.cell_indices(cid)][:, :2], axis=0)) > 3]
+                    invalid_cells = [cid for cid in self.unique_cell_ids if len(np.unique(self.pos[self.cell_indices(cid)][:, :2], axis=0)) <= 3]
 
                     for geometry in tqdm(polygon_json['geometries'], disable=disable_tqdm):
                         if geometry and geometry['type'] == 'Polygon':
@@ -2483,7 +2488,7 @@ class SegmentedSpotTable:
             A list of cell ids that are entirely inside the region.
         """
         cell_ids = []
-        for cid in self.unique_cell_ids():
+        for cid in self.unique_cell_ids:
             (x0, x1), (y0, y1) = self.cell_bounds(cid)
             if x0 > xlim[0] and x1 < xlim[1] and y0 > ylim[0] and y1 < ylim[1]:
                 cell_ids.append(cid)
@@ -2702,7 +2707,7 @@ class SegmentedSpotTable:
         return cell_ids
 
     @classmethod
-    def load_merscope(cls, csv_file: str, cache_file: str|None, image_path: str|None=None, max_rows: int|None=None):
+    def load_merscope(cls, csv_file: str, cache_file: str|None=None, image_path: str|None=None, max_rows: int|None=None):
         """Load MERSCOPE data from a detected transcripts CSV file, including
         the original segmentation. If you are resegmenting the data, prefer
         SpotTable.load_merscope.
@@ -2734,7 +2739,7 @@ class SegmentedSpotTable:
 
 
     @classmethod
-    def load_xenium(cls, transcript_file: str, cache_file: str|None, image_path: str|None=None, max_rows: int|None=None, z_depth: float=3.0):
+    def load_xenium(cls, transcript_file: str, cache_file: str|None=None, image_path: str|None=None, max_rows: int|None=None, z_depth: float=3.0):
         """Load Xenium data from a detected transcripts CSV file, including
         the original segmentation. If you are resegmenting the data, prefer
         SpotTable.load_xenium.
@@ -2897,15 +2902,14 @@ class SegmentedSpotTable:
             keyword arguments for SegmentedSpotTable.scatter_plot()
         """
         kwds['color'] = 'cell_ids'
-        kwds['palette'] = self.cell_palette(self.cell_ids)
-        return self.scatter_plot(*args, **kwds)
+        self.scatter_plot(*args, **kwds)
 
-    def scatter_plot(self, ax=None, x='x', y='y', color='gene_ids', alpha=0.2, size=1.5, z_slice=None, palette=None):
+    def scatter_plot(self, ax=None, x='x', y='y', color='gene_ids', alpha=0.2, size=1.5, z_idx=None, z_pos=None, palette=None):
         """Plot a scatter plot of the spots in this table colored by *color*
         
         Parameters
         ----------
-        ax : matplotlib.axes.Axes or None, optional
+        ax : matplotlib.axes.Axes, optional
             The axes to plot the scatter plot on.
         x : str, optional
             The attribute to use for the x-axis.
@@ -2917,9 +2921,13 @@ class SegmentedSpotTable:
             The alpha value for the points.
         size : float, optional
             The size of the points.
-        z_slice : int or None or None, optional
-            The z-slice to plot. If None, plot all z-slices.
-        palette : str or list or None, optional
+        z_idx : int or None, optional
+            Index of the z-plane to plot in the sorted list of z-planes in the SpotTable. 
+            If None and *z_pos* is None, plot all z-slices.
+        z_pos : int or None, optional
+            Coordinates of the z-plane to plot. 
+            If None and *z_pos* is None, plot all z-slices.
+        palette : str or list, optional
             The palette to use for the colors.
         """
         import seaborn
@@ -2927,17 +2935,26 @@ class SegmentedSpotTable:
         if color in ['cell', 'cell_ids']:
             palette = self.cell_palette(self.cell_ids)
 
+        if z_idx is not None and z_pos is not None:
+            raise ValueError('Only one of *z_idx* or *z_pos* can be set')
+            
+        if z_idx is not None:
+            z_pos = np.unique(self.z)[z_idx]
+            mask = self.z == z_pos
+            plt_st = self[mask]
+        elif z_pos is not None:
+            mask = self.z == z_pos
+            plt_st = self[mask]
+        else:
+            plt_st = self
+
         if ax is None:
             fig, ax = plt.subplots()
-        
-        if z_slice is not None:
-            zvals = np.unique(self.z)
-            zval = zvals[int(z_slice * (len(zvals)-1))]
-            mask = self.z == zval
-            self = self[mask]
+    
+        df = plt_st.dataframe(cols=[x, y, color])
 
         seaborn.scatterplot(
-            data=self.dataframe(cols=[x, y, color]),
+            data=df,
             x=x, 
             y=y, 
             hue=color, 
@@ -2949,6 +2966,9 @@ class SegmentedSpotTable:
             legend=False
         )
         ax.set_aspect('equal')
+        ax.set_xlim(df[x].min(), df[x].max())
+        ax.set_ylim(df[y].min(), df[y].max())
+        
 
     @staticmethod
     def cell_palette(cells):
@@ -3027,6 +3047,7 @@ class SegmentedSpotTable:
         """
         subtable = self.spot_table.get_subregion(xlim, ylim, incl_end)
         seg_subtable = self[subtable.parent_inds]
+        seg_subtable.spot_table.parent_region = (xlim, ylim)
         seg_subtable.spot_table.images = subtable.images # Images must be manually copied over since they are not subsectioned with __getitem__
-
+        
         return seg_subtable

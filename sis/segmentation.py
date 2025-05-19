@@ -29,7 +29,7 @@ def run_segmentation(load_func, load_args:dict, method_class, method_args:dict, 
         The method of SpotTable used to load a dataset (e.g. SpotTable.load_merscope).
     load_args : dict
         Parameters passed to load_func.
-    method_class :
+    method_class : SegmentationMethod
         The SegmentationMethod used for segmentation.
     method_args : dict
         The arguments to pass to method_class.
@@ -1019,7 +1019,7 @@ class SegmentationPipeline:
             Path to the images.
         output_dir : str or Path
             Where to save output files.
-        dt_cache : str or Path or None, optional
+        dt_cache : str or Path or None
             Path to the detected transcripts cache file. Used for faster loading.
         subrgn : str or tuple
             The subregion to segment. Set to a string, e.g. 'DAPI', to segment the 
@@ -1679,25 +1679,23 @@ class SegmentationPipeline:
                 cell_ids=np.empty(len(self.raw_spot_table), dtype=int),
                 seg_metadata=truncated_meta,
                 )
-        self.seg_spot_table.cell_ids[:] = -1
+
+        if tiles is None:
+            tiles = []
+            for tile_spec in run_spec.values():
+                # Recreate each tile from spot_table and run_spec
+                tile_rgn = tile_spec[2]['subregion']
+                tile = self.raw_spot_table.get_subregion(xlim = tile_rgn[0], ylim = tile_rgn[1])
+                tiles.append(tile)
 
         merge_results = []
         skipped = []
-        for i, tile_spec in enumerate(tqdm(run_spec.values())):
+        for i, (tile_spec, tile) in enumerate(tqdm(zip(run_spec.values(), tiles))):
             cell_id_file = tile_spec[2]['cell_id_file']
             if not os.path.exists(cell_id_file):
                 print(f"Skipping tile {i} : no cell ID file generated")
                 skipped.append(i)
                 continue
-
-            if tiles is not None:
-                # Use tiles in memory
-                tile = tiles[i]
-
-            else:
-                # Recreate each tile from spot_table and run_spec
-                tile_rgn = tile_spec[2]['subregion']
-                tile = self.raw_spot_table.get_subregion(xlim = tile_rgn[0], ylim = tile_rgn[1])
             
             if detect_z_planes: 
                 # If we detected z-planes to segment on, we must account for that now as cell ids will only be present for some planes
@@ -1707,10 +1705,11 @@ class SegmentationPipeline:
             else:
                 tile_cids = np.load(cell_id_file)
                 tile = SegmentedSpotTable(tile, tile_cids)
-            # padding removes cells which are close to edge and may be poorly segmented
-            # padding is set to 5 as a default as it is half a typical tile size
-            result = self.seg_spot_table.merge_cells(tile, padding=5)
-            merge_results.append(result)
+
+            tiles[i] = tile
+        # padding removes cells which are close to edge and may be poorly segmented
+        # padding is set to half the user defined cell seize
+        merge_results = self.seg_spot_table.set_cell_ids_from_tiles(tiles, padding=self.seg_opts['options']['cell_dia'] / 2)
 
         cell_ids = self.seg_spot_table.cell_ids
 
@@ -1746,7 +1745,7 @@ class SegmentationPipeline:
         self.polygon_subsets_path.mkdir(exist_ok=True)
 
         # Polygon jobs are split by cells--not area--so we need to get the number of cells
-        num_cells = len(self.seg_spot_table.unique_cell_ids())
+        num_cells = len(self.seg_spot_table.unique_cell_ids)
 
         # list of tuples assigning cells to jobs
         if 'num_jobs' in self.polygon_hpc_opts:
@@ -1766,7 +1765,7 @@ class SegmentationPipeline:
             # Save an input file with the cell IDs to calculate for each job
             if not overwrite and (self.polygon_subsets_path / f'cell_id_subset_{i}.npy').exists():
                 raise FileExistsError(f'cell_id_subset_{i}.npy already exists and overwriting is not enabled.')
-            np.save(self.polygon_subsets_path / f'cell_id_subset_{i}.npy', self.seg_spot_table.unique_cell_ids()[start_idx:end_idx])
+            np.save(self.polygon_subsets_path / f'cell_id_subset_{i}.npy', self.seg_spot_table.unique_cell_ids[start_idx:end_idx])
             
             # run_spec[i] = (function, args, kwargs)
             run_spec[i] = (
@@ -2264,10 +2263,10 @@ class XeniumSegmentationPipeline(SegmentationPipeline):
     See sis.segmentation.SegmentationPipeline for inherited attributes.
     z_depth : float
         The depth of each z-plane. Used to assign z-locations to image planes.
-    keep_images_in_memory : bool
+    cache_image : bool
         Whether to cache images after retrieval. Default True.
     """
-    def __init__(self, dt_file: Path|str, image_path: Path|str, output_dir: Path|str, dt_cache: Path|str|None, subrgn: str|tuple, seg_method: SegmentationMethod, seg_opts: dict, polygon_opts: dict|None=None, seg_hpc_opts: dict|None=None, polygon_hpc_opts: dict|None=None, hpc_opts: dict|None=None, keep_images_in_memory: bool=True):
+    def __init__(self, dt_file: Path|str, image_path: Path|str, output_dir: Path|str, dt_cache: Path|str|None, subrgn: str|tuple, seg_method: SegmentationMethod, seg_opts: dict, polygon_opts: dict|None=None, seg_hpc_opts: dict|None=None, polygon_hpc_opts: dict|None=None, hpc_opts: dict|None=None, cache_image: bool=True):
         """
         Parameters
         ----------
@@ -2297,7 +2296,7 @@ class XeniumSegmentationPipeline(SegmentationPipeline):
         hpc_opts : dict or None, optional
             Options to use for both segmenting tiles and calculating cell polygons on the hpc (can be used in place of submitting both seg_hpc_opts and polygon_hpc_opts).
             Default is None
-        keep_images_in_memory : bool, optional
+        cache_image : bool, optional
             Xenium images are large and not memory mapped and thus we may want to keep them in memory or not.
             The trade off is speed vs memory.
             
@@ -2312,7 +2311,7 @@ class XeniumSegmentationPipeline(SegmentationPipeline):
         if 'z_plane_thickness' not in seg_opts['options']:
             raise ValueError('z_plane_thickness required in seg_opts for matching z coordinates to image planes')
         self.z_depth = seg_opts['options']['z_plane_thickness'] # This is used for binning z-locations to image planes
-        self.keep_images_in_memory = keep_images_in_memory
+        self.cache_image = cache_image
 
     def get_load_func(self):
         """Get the function to load a spot table.
@@ -2333,6 +2332,6 @@ class XeniumSegmentationPipeline(SegmentationPipeline):
 
         load_args['max_rows'] = None
         load_args['z_depth'] = self.z_depth
-        load_args['keep_images_in_memory'] = self.keep_images_in_memory
+        load_args['cache_image'] = self.cache_image
 
         return load_args
