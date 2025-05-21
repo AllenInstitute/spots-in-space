@@ -2661,27 +2661,6 @@ class SegmentedSpotTable:
             merge_results.append(result)
         return merge_results
 
-    @classmethod
-    def load_baysor(cls, file_name: Path|str, **kwds):
-        """Return a new SegmentedSpotTable loaded from a baysor result file.
-        
-        Parameters
-        ----------
-        file_name : pathlib.Path or str
-            Path to the baysor result file.
-        **kwds : dict[str, Any], optional
-            Additional keyword arguments to pass to sis.segmentation.load_baysor_result()
-        
-        Returns
-        -------
-        sis.spot_table.SegmentedSpotTable
-        """
-        from .segmentation import load_baysor_result
-        result = load_baysor_result(file_name, **kwds)
-        pos = result[['x', 'y', 'z']].view(dtype=result.dtypes.fields['x'][0]).reshape(len(result), 3)
-        spot_table = SpotTable(pos=pos, gene_ids=result['gene'])
-        return cls(spot_table, cell_ids=result['cell'], seg_metadata={'seg_method': 'Baysor'})
-
     @staticmethod
     def load_merscope_cell_ids(csv_file: str, max_rows: int|None=None):
         """Load the original segmentation for a MERSCOPE dataset.
