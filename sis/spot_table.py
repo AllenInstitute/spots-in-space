@@ -3054,6 +3054,7 @@ class SegmentedSpotTable:
         seg_subtable : SegmentedSpotTable
             A SegmentedSpotTable including the subset of this table inside the region xlim, ylim.
         """
+        expt_dir = Path(expt_dir)
         transcript_file = expt_dir / 'transcripts.parquet'
         
         seg_spot_table = cls.load_xenium(transcript_file=transcript_file, cache_file=None, image_path=expt_dir / 'morphology.ome.tif', max_rows=max_rows, z_depth=z_depth)
