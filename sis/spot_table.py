@@ -3059,18 +3059,22 @@ class SegmentedSpotTable:
         
         seg_spot_table = cls.load_xenium(transcript_file=transcript_file, cache_file=None, image_path=expt_dir / 'morphology.ome.tif', max_rows=max_rows, z_depth=z_depth)
         
-        production_cell_ids = np.squeeze(pandas.read_parquet(transcript_file, columns=['cell_id']).values).astype(str) # Sometimes xenium ids are read in as bytes so just convert them now
-        
-        # Want to modify production_cell_ids have more information
+        # Want to read in experiment metadata
         with open(expt_dir / 'experiment.xenium', 'r') as f:
             import json
-            region_name = json.load(f)['region_name']
-        seg_spot_table.production_cell_ids = np.array([f'{region_name}_{cid}' for cid in production_cell_ids], dtype=str)
+            expt_metadata = json.load(f)
+        for metric, col in pandas.read_csv(expt_dir / 'metrics_summary.csv').items():
+            expt_metadata.setdefault(metric, col[0])
+        seg_spot_table.seg_metadata.update(expt_metadata)
+        
+        production_cell_ids = np.squeeze(pandas.read_parquet(transcript_file, columns=['cell_id']).values).astype(str) # Sometimes xenium ids are read in as bytes so just convert them now
+        # Want to modify production_cell_ids be unique across experiments
+        seg_spot_table.production_cell_ids = np.array([f'{expt_metadata['region_name']}_{cid}' for cid in production_cell_ids], dtype=str)
 
         # Read in stored polygons
         cell_boundaries = pandas.read_parquet(expt_dir / 'cell_boundaries.parquet')
         cell_boundaries['cell_id'] = cell_boundaries['cell_id'].astype(str) # Standardize cell_id type to str
-        cell_boundaries['cell_id'] = [f'{region_name}_{cid}' for cid in cell_boundaries['cell_id']] # Standardize cell_id to match production_cell_ids
+        cell_boundaries['cell_id'] = [f'{expt_metadata['region_name']}_{cid}' for cid in cell_boundaries['cell_id']] # Standardize cell_id to match production_cell_ids
         seg_spot_table.cell_polygons = {}
         for cid, coords in tqdm(cell_boundaries.groupby(by='cell_id')):
             if seg_spot_table._pcid_to_cid.get(cid) is None:
@@ -3087,11 +3091,11 @@ class SegmentedSpotTable:
         # So we read in and use the more accurate area and centroid measures in the cell-by-gene
         cell_info = pandas.read_parquet(expt_dir / 'cells.parquet')
         cell_info['cell_id'] = cell_info['cell_id'].astype(str)
-        cell_info['cell_id'] = [f'{region_name}_{cid}' for cid in cell_info['cell_id']]
+        cell_info['cell_id'] = [f'{expt_metadata['region_name']}_{cid}' for cid in cell_info['cell_id']]
         # Merge the cell into the cell_by_gene
         cell_info = cell_info.set_index('cell_id')
         cell_info = cell_info.rename(columns={'x_centroid': 'polygon_center_x', 'y_centroid': 'polygon_center_y', 'cell_area': 'area'})
-        cell_by_gene.obs.update(cell_info)
+        cell_by_gene.obs.update(cell_info)        
 
         for k, v in cell_by_gene.uns.items():
             if isinstance(v, geojson.feature.FeatureCollection) or isinstance(v, geojson.geometry.GeometryCollection):
