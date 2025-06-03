@@ -3069,14 +3069,14 @@ class SegmentedSpotTable:
         
         production_cell_ids = np.squeeze(pandas.read_parquet(transcript_file, columns=['cell_id']).values).astype(str) # Sometimes xenium ids are read in as bytes so just convert them now
         # Want to modify production_cell_ids be unique across experiments
-        seg_spot_table.production_cell_ids = np.array([f'{expt_metadata['region_name']}_{cid}' for cid in production_cell_ids], dtype=str)
+        seg_spot_table.production_cell_ids = np.array([f'{expt_metadata["region_name"]}_{cid}' for cid in production_cell_ids], dtype=str)
 
         # Read in stored polygons
         cell_boundaries = pandas.read_parquet(expt_dir / 'cell_boundaries.parquet')
         cell_boundaries['cell_id'] = cell_boundaries['cell_id'].astype(str) # Standardize cell_id type to str
-        cell_boundaries['cell_id'] = [f'{expt_metadata['region_name']}_{cid}' for cid in cell_boundaries['cell_id']] # Standardize cell_id to match production_cell_ids
+        cell_boundaries['cell_id'] = [f'{expt_metadata["region_name"]}_{cid}' for cid in cell_boundaries['cell_id']] # Standardize cell_id to match production_cell_ids
         seg_spot_table.cell_polygons = {}
-        for cid, coords in tqdm(cell_boundaries.groupby(by='cell_id')):
+        for cid, coords in cell_boundaries.groupby(by='cell_id'):
             if seg_spot_table._pcid_to_cid.get(cid) is None:
                 # Because cells are determined imagewise and not transcript wise, 
                 # there are some cells without transcripts and thus which don't have production cell_ids
@@ -3091,7 +3091,7 @@ class SegmentedSpotTable:
         # So we read in and use the more accurate area and centroid measures in the cell-by-gene
         cell_info = pandas.read_parquet(expt_dir / 'cells.parquet')
         cell_info['cell_id'] = cell_info['cell_id'].astype(str)
-        cell_info['cell_id'] = [f'{expt_metadata['region_name']}_{cid}' for cid in cell_info['cell_id']]
+        cell_info['cell_id'] = [f'{expt_metadata["region_name"]}_{cid}' for cid in cell_info['cell_id']]
         # Merge the cell into the cell_by_gene
         cell_info = cell_info.set_index('cell_id')
         cell_info = cell_info.rename(columns={'x_centroid': 'polygon_center_x', 'y_centroid': 'polygon_center_y', 'cell_area': 'area'})
