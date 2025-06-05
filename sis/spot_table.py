@@ -3092,10 +3092,13 @@ class SegmentedSpotTable:
         cell_info = pandas.read_parquet(expt_dir / 'cells.parquet')
         cell_info['cell_id'] = cell_info['cell_id'].astype(str)
         cell_info['cell_id'] = [f'{expt_metadata["region_name"]}_{cid}' for cid in cell_info['cell_id']]
-        # Merge the cell into the cell_by_gene
+        # Update the equivalent metrics in the cell by gene under the expected name
         cell_info = cell_info.set_index('cell_id')
         cell_info = cell_info.rename(columns={'x_centroid': 'polygon_center_x', 'y_centroid': 'polygon_center_y', 'cell_area': 'area'})
-        cell_by_gene.obs.update(cell_info)        
+        cell_by_gene.obs.update(cell_info)
+        # Dump other metrics into the obs
+        additional_obs = [col for col in cell_info.columns if col in ['nucleus_area', 'segmentation_method']]
+        cell_by_gene.obs = pandas.merge(cell_by_gene.obs, cell_info[additional_obs], how='left', left_index=True, right_index=True)
 
         for k, v in cell_by_gene.uns.items():
             if isinstance(v, geojson.feature.FeatureCollection) or isinstance(v, geojson.geometry.GeometryCollection):
