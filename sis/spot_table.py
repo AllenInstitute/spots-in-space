@@ -17,6 +17,8 @@ make_valid = optional_import('shapely.validation', names=['make_valid'])[0]
 from .image import ImageBase, ImageFile, ImageStack, ImageTransform, XeniumImageFile, StereoSeqImageFile
 from . import util
 from . import _version
+from sis.util import convert_value_nested_dict
+
 
 
 def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file: str|None, subregion: str|tuple|None, cell_subset_file:str|None, result_file:str|None, alpha_inv_coeff: float=1, separate_z_planes=True):
@@ -2740,7 +2742,7 @@ class SegmentedSpotTable:
             Maximum number of rows to load from the CSV file.
         z_depth : float, optional
             Depth (in um) of a imaging layer i.e. z-plane
-            Used to bin z-positiions into discrete planes
+            Used to bin z-positions into discrete planes
             
         Returns
         -------
@@ -2757,21 +2759,18 @@ class SegmentedSpotTable:
                 raise ValueError('max_rows is not supported for parquet files as pandas does not allow partial reading')
             cell_ids = pandas.read_parquet(transcript_file, columns=['cell_id']).values
 
-        cell_ids = np.squeeze(cell_ids)
+        cell_ids = np.squeeze(cell_ids).astype(str) # Sometimes xenium ids are read in as bytes so just convert them now
 
         # Xenium cell_id column is string, but SegmentedSpotTable needs ints, so convert
-        if not np.issubdtype(cell_ids.dtype, np.integer):
-            unique_ids = np.unique(cell_ids)
-            bg_id = 'UNASSIGNED'
-            assert bg_id in unique_ids  # if this changes with Xenium version, may need more options
-            if unique_ids[0] != bg_id:
-                # put background cell id first so it will be paired with 0
-                temp = set(unique_ids).difference([bg_id])
-                unique_ids = [bg_id] + list(temp)
+        unique_ids = list(np.unique(cell_ids))
+        bg_id = 'UNASSIGNED'
+        assert bg_id in unique_ids  # if this changes with Xenium version, may need more options
+        unique_ids.remove(bg_id) # Remove background cell id so it won't be assigned to a random number
 
-            cid_to_ints_mapping = dict(zip(unique_ids, np.arange(0, len(unique_ids))))
-            cell_ids = [cid_to_ints_mapping[cid] for cid in cell_ids]
-            cell_ids = np.array(cell_ids)
+        cid_to_ints_mapping = dict(zip(unique_ids, np.arange(1, len(unique_ids)+1)))
+        cid_to_ints_mapping[bg_id] = -1 # Set background to -1 to be more in line with later expectations
+        cell_ids = [cid_to_ints_mapping[cid] for cid in cell_ids]
+        cell_ids = np.array(cell_ids)
 
         return cls(spot_table=raw_spot_table, cell_ids=cell_ids, seg_metadata={'seg_method': 'Xenium'})
 
@@ -3030,3 +3029,84 @@ class SegmentedSpotTable:
         seg_subtable.spot_table.images = subtable.images # Images must be manually copied over since they are not subsectioned with __getitem__
         
         return seg_subtable
+    
+    @classmethod
+    def save_xenium_kit_cbg(cls, expt_dir, output_file, max_rows: int|None=None, z_depth: float=3.0, x_format: str='sparse'):
+        """Takes the results of a xenium experiment segmented with the Xenium segmentation kit
+        and saves them into the SIS standard format
+        
+        Parameters
+        ----------
+        expt_dir : Path or str
+            Path to the Xenium experiment directory containing the xenium experiment and its segmentation results
+        output_file : Path or str
+            Path to save the Anndata to
+        max_rows : int or None, optional
+            Maximum number of rows to load from the transcripts file
+        z_depth : float, optional
+            Depth (in um) of a imaging layer i.e. z-plane
+            Used to bin z-positions into discrete planes
+        x_format : str, optional
+            The format of the data matrix (X in the anndata), either 'dense' or 'sparse'.
+        
+        Returns
+        -------
+        seg_subtable : SegmentedSpotTable
+            A SegmentedSpotTable including the subset of this table inside the region xlim, ylim.
+        """
+        expt_dir = Path(expt_dir)
+        transcript_file = expt_dir / 'transcripts.parquet'
+        
+        seg_spot_table = cls.load_xenium(transcript_file=transcript_file, cache_file=None, image_path=expt_dir / 'morphology.ome.tif', max_rows=max_rows, z_depth=z_depth)
+        
+        # Want to read in experiment metadata
+        with open(expt_dir / 'experiment.xenium', 'r') as f:
+            import json
+            expt_metadata = json.load(f)
+        for metric, col in pandas.read_csv(expt_dir / 'metrics_summary.csv').items():
+            expt_metadata.setdefault(metric, col[0])
+        seg_spot_table.seg_metadata.update(expt_metadata)
+        
+        production_cell_ids = np.squeeze(pandas.read_parquet(transcript_file, columns=['cell_id']).values).astype(str) # Sometimes xenium ids are read in as bytes so just convert them now
+        # Want to modify production_cell_ids be unique across experiments
+        seg_spot_table.production_cell_ids = np.array([f'{expt_metadata["region_name"]}_{cid}' for cid in production_cell_ids], dtype=str)
+
+        # Read in stored polygons
+        cell_boundaries = pandas.read_parquet(expt_dir / 'cell_boundaries.parquet')
+        cell_boundaries['cell_id'] = cell_boundaries['cell_id'].astype(str) # Standardize cell_id type to str
+        cell_boundaries['cell_id'] = [f'{expt_metadata["region_name"]}_{cid}' for cid in cell_boundaries['cell_id']] # Standardize cell_id to match production_cell_ids
+        seg_spot_table.cell_polygons = {}
+        for cid, coords in cell_boundaries.groupby(by='cell_id'):
+            if seg_spot_table._pcid_to_cid.get(cid) is None:
+                # Because cells are determined imagewise and not transcript wise, 
+                # there are some cells without transcripts and thus which don't have production cell_ids
+                continue
+            seg_spot_table.cell_polygons[seg_spot_table.convert_cell_id(cid)] = shapely.geometry.polygon.Polygon(coords[['vertex_x', 'vertex_y']])
+
+        cell_by_gene = seg_spot_table.cell_by_gene_anndata(x_format=x_format)
+
+        # Xenium also records cell centroids and areas
+        # Cell polygons only ever have 13 vertices so I assume that they are downsampled before stored
+        # The cell areas/centroids don't exactly match those of the downsampled polygons
+        # So we read in and use the more accurate area and centroid measures in the cell-by-gene
+        cell_info = pandas.read_parquet(expt_dir / 'cells.parquet')
+        cell_info['cell_id'] = cell_info['cell_id'].astype(str)
+        cell_info['cell_id'] = [f'{expt_metadata["region_name"]}_{cid}' for cid in cell_info['cell_id']]
+        # Update the equivalent metrics in the cell by gene under the expected name
+        cell_info = cell_info.set_index('cell_id')
+        cell_info = cell_info.rename(columns={'x_centroid': 'polygon_center_x', 'y_centroid': 'polygon_center_y', 'cell_area': 'area'})
+        cell_by_gene.obs.update(cell_info)
+        # Dump other metrics into the obs
+        additional_obs = [col for col in cell_info.columns if col in ['nucleus_area', 'segmentation_method']]
+        cell_by_gene.obs = pandas.merge(cell_by_gene.obs, cell_info[additional_obs], how='left', left_index=True, right_index=True)
+
+        for k, v in cell_by_gene.uns.items():
+            if isinstance(v, geojson.feature.FeatureCollection) or isinstance(v, geojson.geometry.GeometryCollection):
+                cell_by_gene.uns[k] = geojson.dumps(v)
+                
+        # tuples cannot be saved in anndata object, so convert to str
+        # this is an issue if gauss or median kernels are specified
+        cell_by_gene.uns = convert_value_nested_dict(cell_by_gene.uns, tuple, str)
+        
+        cell_by_gene.write(output_file)
+    
