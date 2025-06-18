@@ -71,36 +71,47 @@ class ImageBase:
         c = self.transform.map_from_pixels([self.shape[1:3]])[0]
         return ((o[0], c[0]), (o[1], c[1]))
 
-    def get_frame(self, frame: int):
+    def get_frame(self, frame: int|None):
         """Return a view of this image limited to the given frame
         
         Parameters
         ----------
-        frame : int
+        frame : int or None
             Frame to return data from
         
         Returns
         -------
         ImageView
         """
+        if frame is None:
+            return self
         return self.get_frames((frame, frame+1))
 
-    def get_frames(self, frames: tuple):
+    def get_frames(self, frames: tuple|int|None):
         """
         Return a view of this image limited to the given frames
         
         Parameters
         ----------
-        frames : tuple
-            first_frame is inclusive, last_frame is exclusive]
+        frames : tuple or int or None
+            if tuple: first_frame is inclusive, last_frame is exclusive
+            if int: single frame to return
+            if None: return full image
         
         Returns
         -------
         ImageView
         """
-        z_len = self.shape[0]
-        assert frames[1] <= z_len
-        return ImageView(self, frames=frames)
+        if frames is None:
+            return self
+        elif isinstance(frames, int):
+            assert frames <= self.shape[0]
+            return ImageView(self, frames=(frames, frames+1))
+        elif isinstance(frames, tuple):
+            assert frames[1] <= self.shape[0]
+            return ImageView(self, frames=frames)
+        else:
+            raise ValueError('Frames must be None, an int, or a tuple of (first_frame, last_frame)')
 
     def show(self, ax=None, frame: int|str|None=None, channel: str=None, **kwds):
         """Show the image in a matplotlib axis
@@ -122,7 +133,7 @@ class ImageBase:
 
         img = self
         if isinstance(frame, int):
-            img = img.get_frame(frame)
+            img = img.get_frames(frame)
             
         data = img.get_data(channel=channel)
 

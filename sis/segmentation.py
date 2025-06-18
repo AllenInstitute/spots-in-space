@@ -228,7 +228,6 @@ class CellposeSegmentationMethod(SegmentationMethod):
             'diameter': None # if None, cellpose will estimate diameter or use from pretrained model file
         }
         cp_opts.update(self.options['cellpose_options']) # Update defaults with options provided by user
-        cp_opts.setdefault('anisotropy', self.options['z_plane_thickness'] / self.options['px_size'])
         if self.options['cell_dia'] is not None: # cell diameter must be converted to pixels from um
             manual_diam = self.options['cell_dia'] / self.options['px_size']
             cp_opts.update({'diameter': manual_diam})
@@ -258,6 +257,8 @@ class CellposeSegmentationMethod(SegmentationMethod):
 
         # prepare image data for segmentation
         cp_opts['do_3D'] = list(images.values())[0].shape[0] > 1
+        if cp_opts['do_3D']: # Only need to use anisotropy if we are segmenting in 3d
+            cp_opts.setdefault('anisotropy', self.options['z_plane_thickness'] / self.options['px_size'])
         if len(images) == 2:
             assert images['cyto'].shape == images['nuclei'].shape
 
@@ -395,12 +396,8 @@ class CellposeSegmentationMethod(SegmentationMethod):
         else:
             # Assume the image is already present in the spot table
             # Support both multiple frames and individual frames
-            if 'frames' in img_spec:
-                return spot_table.get_image(channel=img_spec['channel'], frames=img_spec['frames'])
-            elif 'frame' in img_spec:
-                return spot_table.get_image(channel=img_spec['channel'], frame=img_spec['frame'])
-            else:
-                return spot_table.get_image(channel=img_spec['channel'])
+            return spot_table.get_iamge(channel=img_spec['channel'],
+                                        frames=img_spec.get('frames', img_spec.get('frame', None)))
 
 
     def _suggest_image_spec(self, spot_table, px_size, images):
@@ -439,7 +436,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
         
         return {'image_shape': (1, shape[0], shape[1]), 'image_transform': image_tr}
 
-    def get_total_mrna_image(self, spot_table, image_shape:tuple, image_transform:ImageTransform, n_planes:int, frame: int|None=None, frames:tuple|None=None, gauss_kernel=(1, 3, 3), median_kernel=(2, 10, 10)):
+    def get_total_mrna_image(self, spot_table, image_shape:tuple, image_transform:ImageTransform, n_planes:int, frames:tuple|int|None=None, gauss_kernel=(1, 3, 3), median_kernel=(2, 10, 10)):
         """Create a total mRNA image (histogram of spot density) from the spot table.
        
         Can be used to approximate cytosol staining for segmentation.
@@ -455,10 +452,9 @@ class CellposeSegmentationMethod(SegmentationMethod):
             The transform that relates image and spot coordinates (?).
         n_planes : int
             The number of z planes in the image.
-        frame : int or None, optional
-            The frame (specific z plane) used to create the image, if wanting to create a 2D image from a 3D image.
-        frames : tuple or None, optional
-            A tuple of the first (inclusive) and last (exclusive) indices of the frames (specific z planes) used to create the image, if wanting to create a 2D image from a 3D image. e.g. frames=(2,5) would create an image from z planes 2, 3, and 4.
+        frames : tuple or int or None, optional
+            A tuple of the first (inclusive) and last (exclusive) indices of the frames (specific z planes) used to create the image, e.g. frames=(2,5) would create an image from z planes 2, 3, and 4.
+            else, if an int is provided, that specific z plane is used.
         gauss_kernel : tuple, optional
             Kernel used for gaussian smoothing of the image. Default (1, 3, 3).
         median_kernel : tuple, optional
@@ -493,13 +489,8 @@ class CellposeSegmentationMethod(SegmentationMethod):
         density_img = scipy.ndimage.gaussian_filter(density_img, gauss_kernel)
         density_img = scipy.ndimage.median_filter(density_img, median_kernel)
 
-        # Create sis.Image class from the density image and get the frame or frames specified
-        if frames is not None:
-            return Image(density_img[..., np.newaxis], transform=image_transform, channels=['Total mRNA'], name=None).get_frames(frames)
-        elif frame is not None:
-            return Image(density_img[..., np.newaxis], transform=image_transform, channels=['Total mRNA'], name=None).get_frame(frame)
-        else:
-            return Image(density_img[..., np.newaxis], transform=image_transform, channels=['Total mRNA'], name=None)
+        # Create sis.Image class from the density image and get the frames specified
+        return Image(density_img[..., np.newaxis], transform=image_transform, channels=['Total mRNA'], name=None).get_frames(frames)
 
     def map_spots_to_img_px(self, spot_table: SpotTable, image: Image|None=None, image_transform: ImageTransform|None=None, image_shape: tuple|None=None, detect_z_planes: float|None=None):
         """Map spot table (x, y, z) positions to image pixels (frame, row, col). 

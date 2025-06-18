@@ -631,7 +631,7 @@ class SpotTable:
             return cls.load_npz(cache_file, images=images)
 
     @staticmethod
-    def read_stereoseq_gem(gem_file: str, gem_cols: dict|tuple, cell_col: int|None, skiprows: int|None, max_rows: int|None):
+    def read_stereoseq_gem(gem_file: str, gem_cols: dict|tuple, cell_col: int|None=None, skiprows: int|None=None, max_rows: int|None=None):
         """Helper function to read raw data from a StereoSeq dataset.
         
         Parameters
@@ -772,7 +772,7 @@ class SpotTable:
 
         if cache_file is None or not os.path.exists(cache_file):
             print('Loading gem...')
-            pos, gene_ids, gene_id_to_name = SpotTable.read_stereoseq_gem(gem_file, gem_cols, cell_col, skiprows, max_rows)
+            pos, gene_ids, gene_id_to_name = SpotTable.read_stereoseq_gem(gem_file, gem_cols, cell_col=cell_col, skiprows=skiprows, max_rows=max_rows)
                 
             if cache_file is not None:                
                 print("Recompressing to npz..")
@@ -1430,7 +1430,7 @@ class SpotTable:
             raise Exception(f"An image named {image.name} is already attached")
         self.images.append(image)
 
-    def get_image(self, name=None, channel=None, frame:int|None=None, frames:tuple|None=None):
+    def get_image(self, name=None, channel=None, frames:tuple|int|None=None):
         """Return the image with the given name or channel name
         
         Parameters
@@ -1439,10 +1439,9 @@ class SpotTable:
             The name of the image to return.
         channel : str or None, optional
             The channel name of the image to return.
-        frame : int or None, optional
-            The frame number of the image to return.
-        frames : tuple or None, optional
-            A tuple of frame numbers to return.
+        frames : tuple or int or None, optional
+            A tuple of the first (inclusive) and last (exclusive) indices of the frames (specific z planes) used to create the image, e.g. frames=(2,5) would create an image from z planes 2, 3, and 4.
+            else, if an int is provided, that specific z plane is used.
             
         Returns
         -------
@@ -1466,15 +1465,11 @@ class SpotTable:
         if channel is not None:
             selected_img = selected_img.get_channel(channel)
 
-        # Frames and frame are different for backwards compatibility reasons
-        if frames is not None:
-            selected_img = selected_img.get_frames(frames)
-        elif frame is not None:
-            selected_img = selected_img.get_frame(frame)
+        selected_img = selected_img.get_frames(frames)
 
         return selected_img
     
-    def show_image(self, ax=None, name=None, channel=None, frame:int|None=None, frames:tuple|None=None):
+    def show_image(self, ax=None, name=None, channel=None, frames:tuple|int|None=None):
         """
         Parameters
         ----------
@@ -1484,12 +1479,11 @@ class SpotTable:
             The name of the image to return.
         channel : str or None, optional
             The channel name of the image to return.
-        frame : int or None, optional
-            The frame number of the image to return.
         frames : tuple or None, optional
-            A tuple of frame numbers to return.
+            A tuple of the first (inclusive) and last (exclusive) indices of the frames (specific z planes) used to create the image, e.g. frames=(2,5) would create an image from z planes 2, 3, and 4.
+            else, if an int is provided, that specific z plane is used.
         """
-        self.get_image(name=name, channel=channel, frame=frame, frames=frames).show(ax=ax)
+        self.get_image(name=name, channel=channel, frames=frames).show(ax=ax)
 
 
 class SegmentedSpotTable:
@@ -1959,7 +1953,7 @@ class SegmentedSpotTable:
             cell_feature_df = pandas.DataFrame(index=adata.obs.index)
             cell_feature_df[['volume', 'area', 'polygon_center_x', 'polygon_center_y', 'polygon_center_z']] = np.nan
         else:
-            cell_feature_df = self.get_cell_features(use_production_ids=True, disable_tqdm=True).set_index('production_cell_id')
+            cell_feature_df = self.calculate_all_cell_features(use_production_ids=True, disable_tqdm=True).set_index('production_cell_id')
             cell_feature_df.rename(columns={"center_x": "polygon_center_x", "center_y": "polygon_center_y", "center_z": "polygon_center_z"}, inplace=True)
         adata.obs = adata.obs.merge(cell_feature_df, how='left', left_index=True, right_index=True)
         
@@ -2233,7 +2227,7 @@ class SegmentedSpotTable:
             return {"area": cell_polygon.area, "center_x": cell_polygon.centroid.coords[0][0], "center_y": cell_polygon.centroid.coords[0][1]}
     
     
-    def get_cell_features(self, z_plane_thickness=1.5, use_production_ids: bool=False, use_both_ids: bool=False, disable_tqdm=False):
+    def calculate_all_cell_features(self, z_plane_thickness=1.5, use_production_ids: bool=False, use_both_ids: bool=False, disable_tqdm=False):
         """Calculate the cell features for each cell with polygons. Return them in a pandas DataFrame
         
         Parameters
