@@ -2754,6 +2754,7 @@ class SegmentedSpotTable:
             cell_ids = pandas.read_parquet(transcript_file, columns=['cell_id']).values
 
         cell_ids = np.squeeze(cell_ids).astype(str) # Sometimes xenium ids are read in as bytes so just convert them now
+        cell_labels = cell_ids.copy()
 
         # Xenium cell_id column is string, but SegmentedSpotTable needs ints, so convert
         unique_ids = list(np.unique(cell_ids))
@@ -2766,8 +2767,9 @@ class SegmentedSpotTable:
         cell_ids = [cid_to_ints_mapping[cid] for cid in cell_ids]
         cell_ids = np.array(cell_ids)
 
-        return cls(spot_table=raw_spot_table, cell_ids=cell_ids, seg_metadata={'seg_method': 'Xenium'})
+        spottable = cls(spot_table=raw_spot_table, cell_ids=cell_ids, seg_metadata={'seg_method': 'Xenium'})
 
+        spottable.production_cell_ids = cell_labels
 
     @classmethod
     def load_stereoseq(cls, gem_file: str|None=None, cache_file: str|None=None, gem_cols: dict|tuple=(('gene', 0), ('x', 1), ('y', 2), ('MIDcounts', 3)), 
