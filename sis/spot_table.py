@@ -2775,6 +2775,8 @@ class SegmentedSpotTable:
         spottable = cls(spot_table=raw_spot_table, cell_ids=cell_ids, seg_metadata={'seg_method': 'Xenium'})
 
         spottable.cell_labels = cell_labels
+        
+        return spottable
 
     @classmethod
     def load_stereoseq(cls, gem_file: str|None=None, cache_file: str|None=None, gem_cols: dict|tuple=(('gene', 0), ('x', 1), ('y', 2), ('MIDcounts', 3)), 
@@ -3068,9 +3070,8 @@ class SegmentedSpotTable:
             expt_metadata.setdefault(metric, col[0])
         seg_spot_table.seg_metadata.update(expt_metadata)
         
-        cell_labels = np.squeeze(pandas.read_parquet(transcript_file, columns=['cell_id']).values).astype(str) # Sometimes xenium ids are read in as bytes so just convert them now
         # Want to modify cell_labels be unique across experiments
-        seg_spot_table.cell_labels = np.array([f'{expt_metadata["region_name"]}_{cid}' for cid in cell_labels], dtype=str)
+        seg_spot_table.cell_labels = np.array([f'{expt_metadata["region_name"]}_{cid}' for cid in seg_spot_table.cell_labels], dtype=str)
 
         # Read in stored polygons
         cell_boundaries = pandas.read_parquet(expt_dir / 'cell_boundaries.parquet')
