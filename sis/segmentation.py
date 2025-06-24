@@ -1153,9 +1153,9 @@ class SegmentationPipeline:
             Desired format for the cell by gene anndata X. Options: 'dense' or
             'sparse'.
         prefix: str, optional
-            The string to prepend to all production cell ids.
+            The string to prepend to all cell labels
         suffix: str, optional
-            The string to append to all production cell ids.
+            The string to append to all cell labels
         overwrite: bool, optional
             Whether to allow overwriting of output files. Default False.
         clean_up: str or bool or None, optional
@@ -1635,9 +1635,9 @@ class SegmentationPipeline:
             Desired format for the cell by gene anndata X. Options: 'dense' or
             'sparse'.
         prefix : str, optional
-            The string to prepend to all production cell ids.
+            The string to prepend to all cell labels
         suffix : str, optional
-            The string to append to all production cell ids.
+            The string to append to all cell labels
         overwrite : bool, optional
             Whether to allow overwriting of output files. Default False.
         
@@ -1646,7 +1646,7 @@ class SegmentationPipeline:
         cell_by_gene : anndata.AnnData
             The cell by gene table.
         """
-        self.seg_spot_table.generate_production_cell_ids(prefix=prefix, suffix=suffix)
+        self.seg_spot_table.generate_cell_labels(prefix=prefix, suffix=suffix)
         cell_by_gene = self.seg_spot_table.cell_by_gene_anndata(x_format=x_format)
         self.save_cbg(cell_by_gene, overwrite)
 
