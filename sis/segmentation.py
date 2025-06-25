@@ -1144,7 +1144,7 @@ class SegmentationPipeline:
         subtable = table.get_subregion(xlim=subrgn[0], ylim=subrgn[1])
         self.raw_spot_table = subtable
 
-    def run(self, x_format: str, prefix: str='', suffix: str='', overwrite: bool=False, clean_up: str|bool|None='all_ints', tile_size: int=200, min_transcripts: int=0, rerun: bool=True):
+    def run(self, x_format: str, x_dtype: str='uint16', additional_obs: dict|None=None, prefix: str='', suffix: str='', overwrite: bool=False, clean_up: str|bool|None='all_ints', tile_size: int=200, min_transcripts: int=0, rerun: bool=True):
         """Run all steps to perform tiled segmentation.
 
         Parameters
@@ -1152,6 +1152,11 @@ class SegmentationPipeline:
         x_format: str
             Desired format for the cell by gene anndata X. Options: 'dense' or
             'sparse'.
+        x_dtype : str, optional
+            The data type of the matrix.
+        additional_obs : dict or None, optional
+            Additional columns to add to the anndata.obs DataFrame.
+            Keys are column names and values are arrays of the same length as the number of cells.
         prefix: str, optional
             The string to prepend to all cell labels
         suffix: str, optional
@@ -1203,7 +1208,7 @@ class SegmentationPipeline:
         cell_polygons, cell_polygons_skipped = self.merge_cell_polygons(run_spec=polygon_run_spec, overwrite=overwrite)
         
         # Create output cell-by-gene
-        cell_by_gene = self.create_cell_by_gene(x_format=x_format, prefix=prefix, suffix=suffix, overwrite=overwrite)
+        cell_by_gene = self.create_cell_by_gene(x_format=x_format, x_dtype=x_dtype, additional_obs=additional_obs, prefix=prefix, suffix=suffix, overwrite=overwrite)
 
         self.save_seg_spot_table(overwrite=overwrite)
 
@@ -1626,7 +1631,7 @@ class SegmentationPipeline:
         return self.seg_spot_table.cell_polygons, skipped
     
     
-    def create_cell_by_gene(self, x_format: str, prefix: str='', suffix: str='', overwrite: bool=False):
+    def create_cell_by_gene(self, x_format: str, x_dtype: str='uint16', additional_obs: dict|None=None, prefix: str='', suffix: str='', overwrite: bool=False):
         """Create and save a cell by gene AnnData object from the attached spot table.
         
         Parameters
@@ -1634,6 +1639,11 @@ class SegmentationPipeline:
         x_format : str
             Desired format for the cell by gene anndata X. Options: 'dense' or
             'sparse'.
+        x_dtype : str, optional
+            The data type of the matrix.
+        additional_obs : dict or None, optional
+            Additional columns to add to the anndata.obs DataFrame.
+            Keys are column names and values are arrays of the same length as the number of cells.
         prefix : str, optional
             The string to prepend to all cell labels
         suffix : str, optional
@@ -1647,7 +1657,7 @@ class SegmentationPipeline:
             The cell by gene table.
         """
         self.seg_spot_table.generate_cell_labels(prefix=prefix, suffix=suffix)
-        cell_by_gene = self.seg_spot_table.cell_by_gene_anndata(x_format=x_format)
+        cell_by_gene = self.seg_spot_table.cell_by_gene_anndata(x_format=x_format, x_dtype=x_dtype, additional_obs=additional_obs)
         self.save_cbg(cell_by_gene, overwrite)
 
         return cell_by_gene

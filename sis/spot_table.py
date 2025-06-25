@@ -1916,7 +1916,7 @@ class SegmentedSpotTable:
         cellxgene = scipy.sparse.csr_matrix((data, (rowind, colind)), dtype=dtype)
         return cellxgene, cell_ids, gene_ids
 
-    def cell_by_gene_anndata(self, x_format, x_dtype='uint16'):
+    def cell_by_gene_anndata(self, x_format, x_dtype='uint16', additional_obs: dict|None=None):
         """Return a cell-by-gene table in AnnData format.
         
         Obs includes: area/volume, cell transcipt centroids, cell polygon centroids, cell labels, cell ids
@@ -1929,6 +1929,9 @@ class SegmentedSpotTable:
             The format of the data matrix, either 'dense' or 'sparse'.
         x_dtype : str, optional
             The data type of the matrix.
+        additional_obs : dict or None, optional
+            Additional columns to add to the anndata.obs DataFrame.
+            Keys are column names and values are arrays of the same length as the number of cells.
             
         Returns
         -------
@@ -1959,11 +1962,19 @@ class SegmentedSpotTable:
             cell_feature_df[['volume', 'area', 'polygon_center_x', 'polygon_center_y', 'polygon_center_z']] = np.nan
         else:
             cell_feature_df = self.calculate_all_cell_features(use_cell_labels=True, disable_tqdm=True).set_index('cell_label')
-            cell_feature_df.rename(columns={"center_x": "polygon_center_x", "center_y": "polygon_center_y", "center_z": "polygon_center_z"}, inplace=True)
         adata.obs = adata.obs.merge(cell_feature_df, how='left', left_index=True, right_index=True)
         
         adata.obs['SpotTable_cell_id'] = cell_ids
-
+        adata.obs['cell_label'] = adata.obs_names # Also include labels in Dataframe itself
+        
+        # Keep track of what segmentation was used directly in the obs
+        if 'seg_opts' in self.seg_metadata:
+            adata.obs['segmentation_job_id'] = f'SIS_{Path(self.seg_metadata["seg_opts"]['cellpose_model']).name}'
+        else:
+            adata.obs['segmentation_job_id'] = self.seg_metadata['seg_method']
+        
+        adata.obs = adata.obs.assign(**additional_obs)
+        
         # Fill var
         adata.var_names = self.map_gene_ids_to_names(gene_ids)
         adata.var['probe_name'] = self.map_gene_ids_to_names(gene_ids)
@@ -2018,7 +2029,7 @@ class SegmentedSpotTable:
         Returns
         -------
         pandas.DataFrame
-            A DataFrame of cell centroids with columns ['center_x', 'center_y', 'center_z']
+            A DataFrame of cell centroids with columns ['x', 'y', 'z']
         """
         centroids = []
         for cid in self.unique_cell_ids:
@@ -2028,13 +2039,13 @@ class SegmentedSpotTable:
             centroids.append(np.mean(cell_ts_xyz, axis=0))
         centroids = np.array(centroids)
         
-        if centroids.shape[1] < 3: # If 2d, we still put in center_z column to keep consistent with 3d
+        if centroids.shape[1] < 3: # If 2d, we still put in z column to keep consistent with 3d
             empty = np.zeros((len(centroids),1))
             empty[:] = np.nan
             centroids = np.append(centroids, empty, axis=1)
             
         df_idx = [self.convert_cell_id(cid) for cid in self.unique_cell_ids] if use_cell_labels else self.unique_cell_ids
-        return pandas.DataFrame(data=centroids, index=df_idx, columns=['center_x', 'center_y', 'center_z'])
+        return pandas.DataFrame(data=centroids, index=df_idx, columns=['x', 'y', 'z'])
 
     @staticmethod
     def cell_polygon(cell_points_array, alpha_inv):
@@ -2227,9 +2238,9 @@ class SegmentedSpotTable:
                     
             volume = area * z_plane_thickness
             center_x, center_y, center_z = weighted_x / area, weighted_y / area, weighted_z / area 
-            return {"volume": volume, "center_x": center_x, "center_y": center_y, "center_z": center_z}
+            return {"volume": volume, "polygon_center_x": center_x, "polygon_center_y": center_y, "polygon_center_z": center_z}
         else: # If we have one polygon for each cell (either one representing all z-planes or just one z-plane)
-            return {"area": cell_polygon.area, "center_x": cell_polygon.centroid.coords[0][0], "center_y": cell_polygon.centroid.coords[0][1]}
+            return {"area": cell_polygon.area, "polygon_center_x": cell_polygon.centroid.coords[0][0], "polygon_center_y": cell_polygon.centroid.coords[0][1]}
     
     
     def calculate_all_cell_features(self, z_plane_thickness=1.5, use_cell_labels: bool=False, use_both_tags: bool=False, disable_tqdm=False):
@@ -2249,7 +2260,7 @@ class SegmentedSpotTable:
         Returns
         -------
         df : pandas.DataFrame
-            A DataFrame of cell features with columns ['cell_id', 'volume', 'area', 'center_x', 'center_y', 'center_z']
+            A DataFrame of cell features with columns ['cell_id', 'volume', 'area', 'polygon_center_x', 'polygon_center_y', 'polygon_center_z']
         """
         # run through self.polys and calculate features
         if self.cell_polygons is None or len(self.cell_polygons.keys()) == 0:
@@ -2262,7 +2273,7 @@ class SegmentedSpotTable:
         for cid in tqdm(self.cell_polygons, disable=disable_tqdm):
             # Default features to empty, to be updated by calculate_cell_features()
             # Ensures we always have area and volume
-            feature_info = {"cell_id":cid, "volume": np.nan, "area": np.nan, "center_x": np.nan, "center_y": np.nan, "center_z": np.nan}
+            feature_info = {"cell_id":cid, "volume": np.nan, "area": np.nan, "polygon_center_x": np.nan, "polygon_center_y": np.nan, "polygon_center_z": np.nan}
             if use_both_tags:
                 feature_info.update({"cell_label": self.convert_cell_id(cid)})
             if use_cell_labels:
@@ -3034,7 +3045,7 @@ class SegmentedSpotTable:
         return seg_subtable
     
     @classmethod
-    def save_xenium_kit_cbg(cls, expt_dir, output_file, max_rows: int|None=None, z_depth: float=3.0, x_format: str='sparse'):
+    def save_xenium_kit_cbg(cls, expt_dir, output_file, max_rows: int|None=None, z_depth: float=3.0, x_format: str='sparse', additional_obs: dict|None=None):
         """Takes the results of a xenium experiment segmented with the Xenium segmentation kit
         and saves them into the SIS standard format
         
@@ -3051,7 +3062,10 @@ class SegmentedSpotTable:
             Used to bin z-positions into discrete planes
         x_format : str, optional
             The format of the data matrix (X in the anndata), either 'dense' or 'sparse'.
-        
+        additional_obs : dict or None, optional
+            Additional columns to add to the anndata.obs DataFrame.
+            Keys are column names and values are arrays of the same length as the number of cells.
+            
         Returns
         -------
         seg_subtable : SegmentedSpotTable
@@ -3085,7 +3099,7 @@ class SegmentedSpotTable:
                 continue
             seg_spot_table.cell_polygons[seg_spot_table.convert_cell_id(cid)] = shapely.geometry.polygon.Polygon(coords[['vertex_x', 'vertex_y']])
 
-        cell_by_gene = seg_spot_table.cell_by_gene_anndata(x_format=x_format)
+        cell_by_gene = seg_spot_table.cell_by_gene_anndata(x_format=x_format, additional_obs=additional_obs)
 
         # Xenium also records cell centroids and areas
         # Cell polygons only ever have 13 vertices so I assume that they are downsampled before stored
@@ -3099,8 +3113,8 @@ class SegmentedSpotTable:
         cell_info = cell_info.rename(columns={'x_centroid': 'polygon_center_x', 'y_centroid': 'polygon_center_y', 'cell_area': 'area'})
         cell_by_gene.obs.update(cell_info)
         # Dump other metrics into the obs
-        additional_obs = [col for col in cell_info.columns if col in ['nucleus_area', 'segmentation_method']]
-        cell_by_gene.obs = pandas.merge(cell_by_gene.obs, cell_info[additional_obs], how='left', left_index=True, right_index=True)
+        additional_xen_cols = [col for col in cell_info.columns if col in ['nucleus_area', 'segmentation_method']]
+        cell_by_gene.obs = pandas.merge(cell_by_gene.obs, cell_info[additional_xen_cols], how='left', left_index=True, right_index=True)
 
         for k, v in cell_by_gene.uns.items():
             if isinstance(v, geojson.feature.FeatureCollection) or isinstance(v, geojson.geometry.GeometryCollection):
