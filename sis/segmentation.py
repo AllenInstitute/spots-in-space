@@ -45,7 +45,7 @@ def run_segmentation(load_func, load_args:dict, method_class, method_args:dict, 
     if subregion is not None:
         spot_table = spot_table.get_subregion(*subregion)
     print(f"subregion {subregion} {len(spot_table)}")
-    seg = method_class(**method_args)
+    seg = method_class(method_args)
     result = seg.run(spot_table)
     print(f"cell_ids {len(result.cell_ids)}")
 
@@ -1198,7 +1198,7 @@ class SegmentationPipeline:
         self.seg_jobs = self.submit_jobs('segmentation', seg_run_spec, overwrite)
         if rerun:
             self.seg_jobs = self.rerun_failed_jobs('segmentation_rerun', self.seg_jobs, seg_run_spec)
-        cell_ids, merge_results, seg_skipped = self.merge_segmented_tiles(run_spec=seg_run_spec, tiles=tiles, detect_z_planes=self.seg_opts['options'].get('detect_z_planes', None), overwrite=overwrite)
+        cell_ids, merge_results, seg_skipped = self.merge_segmented_tiles(run_spec=seg_run_spec, tiles=tiles, detect_z_planes=self.seg_opts.get('detect_z_planes', None), overwrite=overwrite)
         
         # Generate polygons for identified cells
         polygon_run_spec = self.get_polygon_run_spec(overwrite)
@@ -1456,11 +1456,9 @@ class SegmentationPipeline:
             run_spec = self.load_run_spec(self.seg_run_spec_path)
 
         print('Merging tiles...')
-        seg_opts = self.seg_opts
-
         truncated_meta = {
                 'seg_method': str(self.seg_method),
-                'seg_opts': seg_opts,
+                'seg_opts': self.seg_opts,
                 'polygon_opts': self.polygon_opts
                 }
 
@@ -1500,7 +1498,7 @@ class SegmentationPipeline:
             tiles[i] = tile
         # padding removes cells which are close to edge and may be poorly segmented
         # padding is set to half the user defined cell seize
-        merge_results = self.seg_spot_table.set_cell_ids_from_tiles(tiles, padding=self.seg_opts['options']['cell_dia'] / 2)
+        merge_results = self.seg_spot_table.set_cell_ids_from_tiles(tiles, padding=self.seg_opts['cell_dia'] / 2)
 
         cell_ids = self.seg_spot_table.cell_ids
 
@@ -2099,14 +2097,14 @@ class XeniumSegmentationPipeline(SegmentationPipeline):
         Raises
         ------
         ValueError
-            If 'z_plane_thickness' is not provided in seg_opts['options']. This is required to match z coordinates to image planes.
+            If 'z_plane_thickness' is not provided in seg_opts. This is required to match z coordinates to image planes.
         """
         super().__init__(dt_file, image_path, output_dir, dt_cache, subrgn, seg_method, seg_opts, polygon_opts, seg_hpc_opts=seg_hpc_opts, polygon_hpc_opts=polygon_hpc_opts, hpc_opts=hpc_opts)
 
         # Couple extra variables for Xenium segmentation
-        if 'z_plane_thickness' not in seg_opts['options']:
+        if 'z_plane_thickness' not in seg_opts:
             raise ValueError('z_plane_thickness required in seg_opts for matching z coordinates to image planes')
-        self.z_depth = seg_opts['options']['z_plane_thickness'] # This is used for binning z-locations to image planes
+        self.z_depth = seg_opts['z_plane_thickness'] # This is used for binning z-locations to image planes
         self.cache_image = cache_image
 
     def get_load_func(self):

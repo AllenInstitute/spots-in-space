@@ -1969,7 +1969,7 @@ class SegmentedSpotTable:
         
         # Keep track of what segmentation was used directly in the obs
         if 'seg_opts' in self.seg_metadata:
-            adata.obs['segmentation_job_id'] = f'SIS_{Path(self.seg_metadata["seg_opts"]['cellpose_model']).name}'
+            adata.obs['segmentation_job_id'] = f'SIS_{Path(self.seg_metadata['seg_opts']['cellpose_model']).name}'
         else:
             adata.obs['segmentation_job_id'] = self.seg_metadata['seg_method']
         
