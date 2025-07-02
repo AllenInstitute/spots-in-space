@@ -603,7 +603,7 @@ def show_cells_and_transcripts(spottable, anndata_obj,
 
 
     
-def plot_cbg_centroids(cell_by_gene: ad.AnnData, ax, x='center_x', y='center_y', **kwargs):
+def plot_cbg_centroids(cell_by_gene: ad.AnnData, ax, x='x', y='y', **kwargs):
     """
     Plot the centroids of cells in a cell-by-gene AnnData object.
     
@@ -614,9 +614,9 @@ def plot_cbg_centroids(cell_by_gene: ad.AnnData, ax, x='center_x', y='center_y',
     ax : matplotlib.axes.Axes
         Axes to plot on.
     x : str, optional
-        Column name for x-coordinates. Default is 'center_x'.
+        Column name for x-coordinates. Default is 'x'.
     y : str, optional
-        Column name for y-coordinates. Default is 'center_y'.
+        Column name for y-coordinates. Default is 'y'.
     **kwargs : keyword arguments
         Additional arguments passed to sns.scatterplot.
     """
@@ -667,7 +667,7 @@ def unpack_test_data():
 
 
 
-def make_cirro_compatible(cell_by_gene: ad.AnnData,obs_spatial_columns =  ['center_x',  'center_y'],
+def make_cirro_compatible(cell_by_gene: ad.AnnData,obs_spatial_columns =  ['x',  'y'],
                            in_place: bool = False, 
                            generate_umap: bool = True):
     '''Make an AnnData object compatible with Cirrocumulus visualization tool.
