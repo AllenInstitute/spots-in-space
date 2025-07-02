@@ -396,7 +396,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
         else:
             # Assume the image is already present in the spot table
             # Support both multiple frames and individual frames
-            return spot_table.get_iamge(channel=img_spec['channel'],
+            return spot_table.get_image(channel=img_spec['channel'],
                                         frames=img_spec.get('frames', img_spec.get('frame', None)))
 
 

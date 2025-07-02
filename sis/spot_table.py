@@ -1973,7 +1973,9 @@ class SegmentedSpotTable:
         else:
             adata.obs['segmentation_job_id'] = self.seg_metadata['seg_method']
         
-        adata.obs = adata.obs.assign(**additional_obs)
+        # Add additional user obs columns if provided
+        if additional_obs is not None:
+            adata.obs = adata.obs.assign(**additional_obs)
         
         # Fill var
         adata.var_names = self.map_gene_ids_to_names(gene_ids)
