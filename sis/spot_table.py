@@ -631,7 +631,7 @@ class SpotTable:
             return cls.load_npz(cache_file, images=images)
 
     @staticmethod
-    def read_stereoseq_gem(gem_file: str, gem_cols: dict|tuple, cell_col: int|None, skiprows: int|None, max_rows: int|None):
+    def read_stereoseq_gem(gem_file: str, gem_cols: dict|tuple, cell_col: int|None=None, skiprows: int|None=None, max_rows: int|None=None):
         """Helper function to read raw data from a StereoSeq dataset.
         
         Parameters
@@ -772,7 +772,7 @@ class SpotTable:
 
         if cache_file is None or not os.path.exists(cache_file):
             print('Loading gem...')
-            pos, gene_ids, gene_id_to_name = SpotTable.read_stereoseq_gem(gem_file, gem_cols, cell_col, skiprows, max_rows)
+            pos, gene_ids, gene_id_to_name = SpotTable.read_stereoseq_gem(gem_file, gem_cols, cell_col=cell_col, skiprows=skiprows, max_rows=max_rows)
                 
             if cache_file is not None:                
                 print("Recompressing to npz..")
@@ -1430,7 +1430,7 @@ class SpotTable:
             raise Exception(f"An image named {image.name} is already attached")
         self.images.append(image)
 
-    def get_image(self, name=None, channel=None, frame:int|None=None, frames:tuple|None=None):
+    def get_image(self, name=None, channel=None, frames:tuple|int|None=None):
         """Return the image with the given name or channel name
         
         Parameters
@@ -1439,10 +1439,9 @@ class SpotTable:
             The name of the image to return.
         channel : str or None, optional
             The channel name of the image to return.
-        frame : int or None, optional
-            The frame number of the image to return.
-        frames : tuple or None, optional
-            A tuple of frame numbers to return.
+        frames : tuple or int or None, optional
+            A tuple of the first (inclusive) and last (exclusive) indices of the frames (specific z planes) used to create the image, e.g. frames=(2,5) would create an image from z planes 2, 3, and 4.
+            else, if an int is provided, that specific z plane is used.
             
         Returns
         -------
@@ -1466,15 +1465,11 @@ class SpotTable:
         if channel is not None:
             selected_img = selected_img.get_channel(channel)
 
-        # Frames and frame are different for backwards compatibility reasons
-        if frames is not None:
-            selected_img = selected_img.get_frames(frames)
-        elif frame is not None:
-            selected_img = selected_img.get_frame(frame)
+        selected_img = selected_img.get_frames(frames)
 
         return selected_img
     
-    def show_image(self, ax=None, name=None, channel=None, frame:int|None=None, frames:tuple|None=None):
+    def show_image(self, ax=None, name=None, channel=None, frames:tuple|int|None=None):
         """
         Parameters
         ----------
@@ -1484,12 +1479,11 @@ class SpotTable:
             The name of the image to return.
         channel : str or None, optional
             The channel name of the image to return.
-        frame : int or None, optional
-            The frame number of the image to return.
         frames : tuple or None, optional
-            A tuple of frame numbers to return.
+            A tuple of the first (inclusive) and last (exclusive) indices of the frames (specific z planes) used to create the image, e.g. frames=(2,5) would create an image from z planes 2, 3, and 4.
+            else, if an int is provided, that specific z plane is used.
         """
-        self.get_image(name=name, channel=channel, frame=frame, frames=frames).show(ax=ax)
+        self.get_image(name=name, channel=channel, frames=frames).show(ax=ax)
 
 
 class SegmentedSpotTable:
@@ -1510,12 +1504,12 @@ class SegmentedSpotTable:
         Array of old cell ids before the most recent change. Used to update polygons when cell_ids are changed
     _cell_ids : np.ndarray
         Array of integer cell ids per spot
-    _production_cell_ids : np.ndarray or None
+    _cell_labels : np.ndarray or None
         Uniformly increasing cell ids stored as a string. Allows for user prefix and suffix
-    _pcid_to_cid : dict or None
-        Dictionary mapping production cell ids to cell ids
-    _cid_to_pcid : dict or None
-        Dictionary mapping cell ids to production cell ids
+    _cl_to_cid : dict or None
+        Dictionary mapping cell labels to cell ids
+    _cid_to_cl : dict or None
+        Dictionary mapping cell ids to cell labels
     _cell_index : dict or None
         Cached information about which transcripts belong to which cells, used to speed up lookups.
     _cell_bounds : dict or None
@@ -1528,7 +1522,7 @@ class SegmentedSpotTable:
         Metadata about segmentation, e.g. method, parameters, options. Will be saved in the cell by gene anndata uns if created.
     """
 
-    def __init__(self, spot_table: SpotTable, cell_ids: np.ndarray, production_cell_ids: None|np.ndarray=None, pcid_to_cid: None|dict=None, cid_to_pcid: None|dict=None, cell_polygons: None|dict=None, seg_metadata: None|dict=None):
+    def __init__(self, spot_table: SpotTable, cell_ids: np.ndarray, cell_labels: None|np.ndarray=None, cl_to_cid: None|dict=None, cid_to_cl: None|dict=None, cell_polygons: None|dict=None, seg_metadata: None|dict=None):
         """
         Parameters
         ----------
@@ -1537,12 +1531,12 @@ class SegmentedSpotTable:
             about transcript locations and gene ids.
         cell_ids : numpy.ndarray
             Array of integer cell ids per spot.
-        production_cell_ids : numpy.ndarray or None, optional
-            Array of string production cell ids per spot.
-        pcid_to_cid : dict or None, optional
-            Mapping of production cell ids to cell ids.
-        cid_to_pcid : dict or None, optional
-            Mapping of cell ids to production cell ids.
+        cell_labels : numpy.ndarray or None, optional
+            Array of string cell labels per spot.
+        cl_to_cid : dict or None, optional
+            Mapping of cell labels to cell ids.
+        cid_to_cl : dict or None, optional
+            Mapping of cell ids to cell labels.
         cell_polygons : dict or None, optional
             Polygons associated with each cell_id. Used to approximate the shapes
             of cells and measurements such as volume.
@@ -1557,9 +1551,9 @@ class SegmentedSpotTable:
         self.spot_table = spot_table
         self._old_cell_ids = None
         self._cell_ids = cell_ids
-        self._production_cell_ids = production_cell_ids
-        self._pcid_to_cid = pcid_to_cid
-        self._cid_to_pcid = cid_to_pcid
+        self._cell_labels = cell_labels
+        self._cl_to_cid = cl_to_cid
+        self._cid_to_cl = cid_to_cl
         self._cell_index = None
         self._cell_bounds = None
         self._unique_cell_ids = None
@@ -1591,15 +1585,15 @@ class SegmentedSpotTable:
         """
         spot_table = self.spot_table[item]
         cell_ids = self.cell_ids[item]
-        production_cell_ids = None if self.production_cell_ids is None else self.production_cell_ids[item]
+        cell_labels = None if self.cell_labels is None else self.cell_labels[item]
          # cell_polygons is not converted because we cannot guarantee the polygons will stay the same after subsetting
 
         subset = type(self)(
                 spot_table=spot_table,
                 cell_ids=cell_ids, 
-                production_cell_ids=production_cell_ids, 
-                pcid_to_cid=self._pcid_to_cid,
-                cid_to_pcid=self._cid_to_pcid,
+                cell_labels=cell_labels, 
+                cl_to_cid=self._cl_to_cid,
+                cid_to_cl=self._cid_to_cl,
                 seg_metadata=self.seg_metadata
         )
             
@@ -1624,74 +1618,79 @@ class SegmentedSpotTable:
         self.cell_ids_changed() # This function handles all things that could break due to ids changing
 
     @property
-    def production_cell_ids(self):
-        """An array of string production cell IDs.
+    def cell_labels(self):
+        """An array of string cell labels.
         
         Returns
         -------
         numpy.ndarray
-            Array of production cell IDs
+            Array of cell labels
         None
-            If production_cell_ids have not been set
+            If cell_labels have not been set
         """
-        return self._production_cell_ids
+        return self._cell_labels
     
-    @production_cell_ids.setter
-    def production_cell_ids(self, pcids: np.ndarray|None):
-        """Setter for production_cell_ids to make sure we update dictionaries mapping cell_ids & production_cell_ids with valid mappings
+    @cell_labels.setter
+    def cell_labels(self, labels: np.ndarray|None):
+        """Setter for cell_labels to make sure we update dictionaries mapping cell_ids & cell_labels with valid mappings
         """
-        if pcids is None:
+        if labels is None:
             # Need to handle None case explicitly so we don't error creating a mapping from None 
-            self._production_cell_ids = None
-            self._pcid_to_cid = None
-            self._cid_to_pcid = None
+            self._cell_labels = None
+            self._cl_to_cid = None
+            self._cid_to_cl = None
             return
         
-        # We should ensure that production cell ids are strings
-        if not np.issubdtype(pcids.dtype, np.str_):
-            raise ValueError("production_cell_ids must be of type 'str' or 'np.str_'")
+        # We should ensure that cell labels are strings
+        if not np.issubdtype(labels.dtype, np.str_):
+            raise ValueError("cell_labels must be of type 'str' or 'np.str_'")
         
-        # Make a dictionary containing all pairs of cell_ids and production_cell_ids
+        # Make a dictionary containing all pairs of cell_ids and cell_labels
         test_df = pandas.DataFrame(self.cell_ids, index=np.arange(len(self.cell_ids)), columns=['cell_ids'])
-        test_df['production_cell_ids'] = pcids
-        test_df = test_df.drop_duplicates(['cell_ids', 'production_cell_ids'])
+        test_df['cell_labels'] = labels
+        test_df = test_df.drop_duplicates(['cell_ids', 'cell_labels'])
         
-        # See if each combo of cell_ids and production_cell_ids exists only once in the dataframe
+        # See if each combo of cell_ids and cell_labels exists only once in the dataframe
         # i.e. there exists a valid bidirectional map
-        exists_cid_to_pcid_mapping = test_df.groupby('cell_ids')['production_cell_ids'].count().max() == 1
-        exists_pcid_to_cid_mapping = test_df.groupby('production_cell_ids')['cell_ids'].count().max() == 1
+        exists_cid_to_cl_mapping = test_df.groupby('cell_ids')['cell_labels'].count().max() == 1
+        exists_cl_to_cid_mapping = test_df.groupby('cell_labels')['cell_ids'].count().max() == 1
         
-        if exists_cid_to_pcid_mapping and exists_pcid_to_cid_mapping:
-            self._pcid_to_cid = dict(zip(test_df['production_cell_ids'], test_df['cell_ids']))
-            self._cid_to_pcid = dict(zip(test_df['cell_ids'], test_df['production_cell_ids']))
-            self._production_cell_ids = pcids
+        if exists_cid_to_cl_mapping and exists_cl_to_cid_mapping:
+            self._cl_to_cid = dict(zip(test_df['cell_labels'], test_df['cell_ids']))
+            self._cid_to_cl = dict(zip(test_df['cell_ids'], test_df['cell_labels']))
+            self._cell_labels = labels
         else:
-            raise ValueError("There must exist a valid function mapping cell_ids to production_cell_ids and vice versa.")
+            raise ValueError("There must exist a valid function mapping cell_ids to cell_labels and vice versa.")
 
 
     def convert_cell_id(self, cell_id: int|str):
-        """Convert a cell id to a production cell id and vice versa.
+        """Convert a cell id to a cell label and vice versa.
 
         Parameters
         ----------
         cell_id : int or str
-            The cell id (type int) or production cell id (type str) to query.
+            The cell id (type int) or cell label (type str) to query.
         
         Returns
         -------
         str 
-            If *cell_id* is an integer, returns the production cell id as a string.
+            If *cell_id* is an integer, returns the cell label as a string.
         int
             If *cell_id* is a string, returns the cell id as an integer.
         """
-        if self.production_cell_ids is None:
-            raise ValueError("production_cell_ids must be set to use convert_cell_id()")
+        if self.cell_labels is None:
+            raise ValueError("cell_labels must be set to use convert_cell_id()")
         if isinstance(cell_id, (int, np.integer)): # If cell_id is an integer, it is a cell id
-            return self._cid_to_pcid[cell_id]
-        elif isinstance(cell_id, str): # If cell_id is a string, it is a production cell id
-            return self._pcid_to_cid[cell_id]
+            return self._cid_to_cl[cell_id]
+        elif isinstance(cell_id, str): # If cell_id is a string, it is a cell label
+            return self._cl_to_cid[cell_id]
         else:
             raise ValueError("cell_id must be of type 'int' or 'str'")
+        
+    def convert_cell_label(self, cell_label: str|int):
+        """ Alias for convert_cell_id to limit user confusion.
+        """
+        return self.convert_cell_id(cell_label)
 
     def cell_ids_changed(self):
         """Call when self.cell_ids has been modified to invalidate caches.
@@ -1701,17 +1700,17 @@ class SegmentedSpotTable:
         self._cell_bounds = None
         self._unique_cell_ids = None
         
-        # If production cell ids don't exist we don't need to do any of the following check code
-        if self._production_cell_ids is not None:
-            # Production cell ids can just be reassigned if cell_ids are changed so long as there are no new cell ids
-            self._production_cell_ids = pandas.Series(self._cell_ids).map(self._cid_to_pcid)
-            if np.count_nonzero(self.production_cell_ids.isnull()) > 0:
-                self._production_cell_ids = None
-                self._pcid_to_cid = None
-                self._cid_to_pcid = None
-                warnings.warn("Cell ids have been changed and there are new cell ids. production_cell_ids have been set to None. If you would like new production cell ids, please run generate_production_cell_ids() again.")
+        # If cell labels don't exist we don't need to do any of the following check code
+        if self._cell_labels is not None:
+            # Cell labels can just be reassigned if cell_ids are changed so long as there are no new cell ids
+            self._cell_labels = pandas.Series(self._cell_ids).map(self._cid_to_cl)
+            if np.count_nonzero(self.cell_labels.isnull()) > 0:
+                self._cell_labels = None
+                self._cl_to_cid = None
+                self._cid_to_cl = None
+                warnings.warn("Cell ids have been changed and there are new cell ids. cell_labels have been set to None. If you would like new cell labels, please run generate_cell_labels() again.")
             else:
-                self._production_cell_ids = self.production_cell_ids.to_numpy()
+                self._cell_labels = self.cell_labels.to_numpy()
         
         # If cell polygons don't exist we don't need to do any of the following check code
         if self.cell_polygons is not None:
@@ -1759,17 +1758,17 @@ class SegmentedSpotTable:
         """
         raise ValueError("unique_cell_ids cannot be set directly. Use cell_ids instead.")
   
-    def generate_production_cell_ids(self, prefix: str|None=None, suffix: str|None=None):
+    def generate_cell_labels(self, prefix: str|None=None, suffix: str|None=None):
         """Generates cell ids which count up from 1 to the total cell count rather than jumping between integers.
-            Production cell ids are of type string to allow for concatenating a prefix and/or suffix to the id
-            If no prefix or suffix are specified, a UUID is used as a prefix to ensure that PCIDs are unique
+            Cell labels are of type string to allow for concatenating a prefix and/or suffix to the id
+            If no prefix or suffix are specified, a UUID is used as a prefix to ensure that labels are unique
     
         Parameters
         ----------
         prefix : str or None, optional
-            String to prepend to all production cell ids
+            String to prepend to all cell labels
         suffix : str or None, optional
-            String to postpend to all production cell ids
+            String to postpend to all cell labels
         """
 
         # Since we are assigning -1 to non-assigned transcript, we need to support negatives values
@@ -1785,25 +1784,25 @@ class SegmentedSpotTable:
         elif prefix is None: # If just the prefix is None, we set it to an empty string so it doesn't print out
             prefix = ''
             
-        # Create dictionary to map cell ids to production ids 
-        cid_to_pcid = dict(zip(self.unique_cell_ids, np.char.mod(f'{prefix}%d{suffix}', np.arange(1, len(self.unique_cell_ids)+1))))
-        cid_to_pcid[-1] = "-1"
+        # Create dictionary to map cell ids to cell labels
+        cid_to_cl = dict(zip(self.unique_cell_ids, np.char.mod(f'{prefix}%d{suffix}', np.arange(1, len(self.unique_cell_ids)+1))))
+        cid_to_cl[-1] = "-1"
     
-        # Create dictionary to map production cell ids to cell ids 
-        pcid_to_cid = dict(zip(np.char.mod(f'{prefix}%d{suffix}', np.arange(1, len(self.unique_cell_ids)+1)), self.unique_cell_ids)) 
-        pcid_to_cid["-1"] = -1
+        # Create dictionary to map cell labels to cell ids 
+        cl_to_cid = dict(zip(np.char.mod(f'{prefix}%d{suffix}', np.arange(1, len(self.unique_cell_ids)+1)), self.unique_cell_ids)) 
+        cl_to_cid["-1"] = -1
     
-        # Reset the current production cell ids and before we call cell_ids_changed for speed
-        self._production_cell_ids = None
+        # Reset the current cell labels and before we call cell_ids_changed for speed
+        self._cell_labels = None
     
-        # We set the cell ids which are 0 to -1 b/c they both mean background and we want to be consistent when we use a dictionary which goes b/w production & normal cell ids
+        # We set the cell ids which are 0 to -1 b/c they both mean background and we want to be consistent when we use a dictionary which goes b/w cell labels & ids
         self._old_cell_ids = self.cell_ids.copy() # Set this so polygons stay
         self.cell_ids[self.cell_ids == 0] = -1 
         self.cell_ids_changed()
     
-        self._production_cell_ids = pandas.Series(self.cell_ids).map(cid_to_pcid)
-        self._pcid_to_cid = pcid_to_cid
-        self._cid_to_pcid = cid_to_pcid
+        self._cell_labels = pandas.Series(self.cell_ids).map(cid_to_cl)
+        self._cl_to_cid = cl_to_cid
+        self._cid_to_cl = cid_to_cl
     
     def filter_cells(self, real_cells: bool|None=None, min_spot_count: int|None=None):
         """Return a filtered spot table containing only cells matching the filter criteria.
@@ -1917,10 +1916,10 @@ class SegmentedSpotTable:
         cellxgene = scipy.sparse.csr_matrix((data, (rowind, colind)), dtype=dtype)
         return cellxgene, cell_ids, gene_ids
 
-    def cell_by_gene_anndata(self, x_format, x_dtype='uint16'):
+    def cell_by_gene_anndata(self, x_format, x_dtype='uint16', additional_obs: dict|None=None):
         """Return a cell-by-gene table in AnnData format.
         
-        Obs includes: area/volume, cell transcipt centroids, cell polygon centroids, production cell ids, cell ids
+        Obs includes: area/volume, cell transcipt centroids, cell polygon centroids, cell labels, cell ids
         Var includes: probe name, num cells with reads, num segmented reads, num unsegmented reads
         Uns includes: segmentation metadata, cell polygons, and SIS version
         
@@ -1930,6 +1929,11 @@ class SegmentedSpotTable:
             The format of the data matrix, either 'dense' or 'sparse'.
         x_dtype : str, optional
             The data type of the matrix.
+        additional_obs : dict or None, optional
+            Additional columns to add to the anndata.obs DataFrame.
+            Accepts both {key : sequence} and {key : single_value} pairs.
+            Keys are column names and values are either arrays of the same length as the number of cells
+            OR a single value to be repeated for all cells.
             
         Returns
         -------
@@ -1937,8 +1941,8 @@ class SegmentedSpotTable:
             An AnnData object containing the cell-by-gene data.
         """
         import anndata
-        if self.production_cell_ids is None:
-            raise ValueError('production_cell_ids must be set to use cell_by_gene_anndata(). See SpotTable.generate_production_cell_ids()')
+        if self.cell_labels is None:
+            raise ValueError('cell_labels must be set to use cell_by_gene_anndata(). See SpotTable.generate_cell_labels()')
 
         # Create the anndata.X
         if x_format == 'sparse':
@@ -1951,7 +1955,7 @@ class SegmentedSpotTable:
 
         # Fill obs
         adata.obs_names = [self.convert_cell_id(cid) for cid in cell_ids]
-        adata.obs = adata.obs.merge(self.cell_centroids(use_production_ids=True), how='left', left_index=True, right_index=True)
+        adata.obs = adata.obs.merge(self.cell_centroids(use_cell_labels=True), how='left', left_index=True, right_index=True)
         
         # Calculate cell volumes
         if self.cell_polygons is None or len(self.cell_polygons.keys()) == 0:
@@ -1959,12 +1963,22 @@ class SegmentedSpotTable:
             cell_feature_df = pandas.DataFrame(index=adata.obs.index)
             cell_feature_df[['volume', 'area', 'polygon_center_x', 'polygon_center_y', 'polygon_center_z']] = np.nan
         else:
-            cell_feature_df = self.get_cell_features(use_production_ids=True, disable_tqdm=True).set_index('production_cell_id')
-            cell_feature_df.rename(columns={"center_x": "polygon_center_x", "center_y": "polygon_center_y", "center_z": "polygon_center_z"}, inplace=True)
+            cell_feature_df = self.calculate_all_cell_features(use_cell_labels=True, disable_tqdm=True).set_index('cell_label')
         adata.obs = adata.obs.merge(cell_feature_df, how='left', left_index=True, right_index=True)
         
         adata.obs['SpotTable_cell_id'] = cell_ids
-
+        adata.obs['cell_label'] = adata.obs_names # Also include labels in Dataframe itself
+        
+        # Keep track of what segmentation was used directly in the obs
+        if 'seg_opts' in self.seg_metadata:
+            adata.obs['segmentation_job_id'] = f'SIS_{Path(self.seg_metadata["seg_opts"]["cellpose_model"]).name}'
+        else:
+            adata.obs['segmentation_job_id'] = self.seg_metadata['seg_method']
+        
+        # Add additional user obs columns if provided
+        if additional_obs is not None:
+            adata.obs = adata.obs.assign(**additional_obs)
+        
         # Fill var
         adata.var_names = self.map_gene_ids_to_names(gene_ids)
         adata.var['probe_name'] = self.map_gene_ids_to_names(gene_ids)
@@ -1979,7 +1993,7 @@ class SegmentedSpotTable:
         # Fill uns
         adata.uns = {
                     'segmentation_metadata': self.seg_metadata, 
-                    'cell_polygons': self.get_geojson_collection(use_production_ids=True),
+                    'cell_polygons': self.get_geojson_collection(use_cell_labels=True),
                     'SIS_repo_hash': _version.get_versions()['version'],
                     }
         return adata
@@ -1990,7 +2004,7 @@ class SegmentedSpotTable:
         Parameters
         ----------
         cell_id : int or str
-            The cell id (type int) or production cell id (type str) to query.
+            The cell id (type int) or cell label (type str) to query.
         
         Returns
         -------
@@ -2008,18 +2022,18 @@ class SegmentedSpotTable:
 
         return self._cell_bounds[self.convert_cell_id(cell_id) if isinstance(cell_id, str) else cell_id]
 
-    def cell_centroids(self, use_production_ids=False):
+    def cell_centroids(self, use_cell_labels=False):
         """Return a Pandas DataFrame of cell centroids calculated as the means of the x,y,z coordinates for each cell
         
         Parameters
         ----------
-        use_production_ids : bool, optional
-            Whether to use production cell ids as the index
+        use_cell_labels : bool, optional
+            Whether to use cell labels as the index
             
         Returns
         -------
         pandas.DataFrame
-            A DataFrame of cell centroids with columns ['center_x', 'center_y', 'center_z']
+            A DataFrame of cell centroids with columns ['x', 'y', 'z']
         """
         centroids = []
         for cid in self.unique_cell_ids:
@@ -2029,13 +2043,13 @@ class SegmentedSpotTable:
             centroids.append(np.mean(cell_ts_xyz, axis=0))
         centroids = np.array(centroids)
         
-        if centroids.shape[1] < 3: # If 2d, we still put in center_z column to keep consistent with 3d
+        if centroids.shape[1] < 3: # If 2d, we still put in z column to keep consistent with 3d
             empty = np.zeros((len(centroids),1))
             empty[:] = np.nan
             centroids = np.append(centroids, empty, axis=1)
             
-        df_idx = [self.convert_cell_id(cid) for cid in self.unique_cell_ids] if use_production_ids else self.unique_cell_ids
-        return pandas.DataFrame(data=centroids, index=df_idx, columns=['center_x', 'center_y', 'center_z'])
+        df_idx = [self.convert_cell_id(cid) for cid in self.unique_cell_ids] if use_cell_labels else self.unique_cell_ids
+        return pandas.DataFrame(data=centroids, index=df_idx, columns=['x', 'y', 'z'])
 
     @staticmethod
     def cell_polygon(cell_points_array, alpha_inv):
@@ -2228,46 +2242,46 @@ class SegmentedSpotTable:
                     
             volume = area * z_plane_thickness
             center_x, center_y, center_z = weighted_x / area, weighted_y / area, weighted_z / area 
-            return {"volume": volume, "center_x": center_x, "center_y": center_y, "center_z": center_z}
+            return {"volume": volume, "polygon_center_x": center_x, "polygon_center_y": center_y, "polygon_center_z": center_z}
         else: # If we have one polygon for each cell (either one representing all z-planes or just one z-plane)
-            return {"area": cell_polygon.area, "center_x": cell_polygon.centroid.coords[0][0], "center_y": cell_polygon.centroid.coords[0][1]}
+            return {"area": cell_polygon.area, "polygon_center_x": cell_polygon.centroid.coords[0][0], "polygon_center_y": cell_polygon.centroid.coords[0][1]}
     
     
-    def get_cell_features(self, z_plane_thickness=1.5, use_production_ids: bool=False, use_both_ids: bool=False, disable_tqdm=False):
+    def calculate_all_cell_features(self, z_plane_thickness=1.5, use_cell_labels: bool=False, use_both_tags: bool=False, disable_tqdm=False):
         """Calculate the cell features for each cell with polygons. Return them in a pandas DataFrame
         
         Parameters
         ----------
         z_plane_thickness : float, optional
             The thickness of each z-plane.
-        use_production_ids : bool, optional
-            Whether to replace cell ids with production cell ids in the DataFrame
+        use_cell_labels : bool, optional
+            Whether to replace cell ids with cell labels in the DataFrame
         use_both_ids : bool, optional
-            Whether to include both cell ids and production cell ids in the DataFrame
+            Whether to include both cell ids and cell labels in the DataFrame
         disable_tqdm : bool, optional
             If True, disable the progress bar.
             
         Returns
         -------
         df : pandas.DataFrame
-            A DataFrame of cell features with columns ['cell_id', 'volume', 'area', 'center_x', 'center_y', 'center_z']
+            A DataFrame of cell features with columns ['cell_id', 'volume', 'area', 'polygon_center_x', 'polygon_center_y', 'polygon_center_z']
         """
         # run through self.polys and calculate features
         if self.cell_polygons is None or len(self.cell_polygons.keys()) == 0:
             raise ValueError("Cell polygons must be set before calculating cell features. See calculate_cell_polygons() or load_cell_polygons()")
 
-        if use_production_ids and use_both_ids:
-            raise ValueError("Only one of use_production_ids or use_both_ids can be set to True")
+        if use_cell_labels and use_both_tags:
+            raise ValueError("Only one of use_cell_labels or use_both_tags can be set to True")
 
         cell_features = []
         for cid in tqdm(self.cell_polygons, disable=disable_tqdm):
             # Default features to empty, to be updated by calculate_cell_features()
             # Ensures we always have area and volume
-            feature_info = {"cell_id":cid, "volume": np.nan, "area": np.nan, "center_x": np.nan, "center_y": np.nan, "center_z": np.nan}
-            if use_both_ids:
-                feature_info.update({"production_cell_id": self.convert_cell_id(cid)})
-            if use_production_ids:
-                feature_info.update({"production_cell_id": self.convert_cell_id(feature_info.pop("cell_id"))})
+            feature_info = {"cell_id":cid, "volume": np.nan, "area": np.nan, "polygon_center_x": np.nan, "polygon_center_y": np.nan, "polygon_center_z": np.nan}
+            if use_both_tags:
+                feature_info.update({"cell_label": self.convert_cell_id(cid)})
+            if use_cell_labels:
+                feature_info.update({"cell_label": self.convert_cell_id(feature_info.pop("cell_id"))})
             
             if self.cell_polygons[cid]: # Sometimes polygons can be None
                 feature_info.update(self.calculate_cell_features(self.cell_polygons[cid], z_plane_thickness=z_plane_thickness))
@@ -2280,13 +2294,13 @@ class SegmentedSpotTable:
         return df
 
 
-    def get_geojson_collection(self, use_production_ids=False):
+    def get_geojson_collection(self, use_cell_labels=False):
         """Create a geojson feature collection from the cell polygons
         
         Parameters
         ----------
-        use_production_ids : bool, optional
-            Whether to use production cell ids as the index
+        use_cell_labels : bool, optional
+            Whether to use cell labels as the index
             
         Returns
         -------
@@ -2304,29 +2318,29 @@ class SegmentedSpotTable:
                 # Polygon for cell and 3D polygons for spot table
                 for z_plane, polygon in self.cell_polygons[cid].items():
                     # Each z-plane is a separate feature
-                    all_polygons.append(geojson.Feature(geometry=polygon, id=self.convert_cell_id(cid) if use_production_ids else str(cid), z_plane=str(z_plane)))
+                    all_polygons.append(geojson.Feature(geometry=polygon, id=self.convert_cell_id(cid) if use_cell_labels else str(cid), z_plane=str(z_plane)))
             elif self.cell_polygons[cid] and not bool_3d_poly:
                 # Polygon for cell and 2D polygons for spot table
-                all_polygons.append(geojson.Feature(geometry=self.cell_polygons[cid], id=self.convert_cell_id(cid) if use_production_ids else str(cid)))
+                all_polygons.append(geojson.Feature(geometry=self.cell_polygons[cid], id=self.convert_cell_id(cid) if use_cell_labels else str(cid)))
             elif self.cell_polygons[cid] is None and bool_3d_poly:
                 # No polygon for cell and 3D polygons for spot table
-                all_polygons.append(geojson.Feature(geometry=None, id=self.convert_cell_id(cid) if use_production_ids else str(cid), z_plane=None))
+                all_polygons.append(geojson.Feature(geometry=None, id=self.convert_cell_id(cid) if use_cell_labels else str(cid), z_plane=None))
             else:
                 # No polygon for cell and 2D polygons for spot table
-                all_polygons.append(geojson.Feature(geometry=None, id=self.convert_cell_id(cid) if use_production_ids else str(cid)))
+                all_polygons.append(geojson.Feature(geometry=None, id=self.convert_cell_id(cid) if use_cell_labels else str(cid)))
 
         return geojson.FeatureCollection(all_polygons)
     
 
-    def save_cell_polygons(self, save_path: Path|str, use_production_ids=False):
+    def save_cell_polygons(self, save_path: Path|str, use_cell_labels=False):
         """Save a geojson geometry collection from the cell polygons
         
         Parameters
         ----------
         save_path : Path or str, optional
             Path to save the file to. Can be either '.geojson' or '.pkl'
-        use_production_ids : bool, optional
-            Whether to use production cell ids as the index
+        use_cell_labels : bool, optional
+            Whether to use cell labels as the index
         """
         # Handle input errors
         if isinstance(save_path, Path) or isinstance(save_path, str):
@@ -2342,7 +2356,7 @@ class SegmentedSpotTable:
         
         if extension == '.geojson':
             with open(save_path, "w") as f:
-                geojson.dump(self.get_geojson_collection(use_production_ids=use_production_ids), f)
+                geojson.dump(self.get_geojson_collection(use_cell_labels=use_cell_labels), f)
         else:
             import pickle
             with open(save_path, "wb") as f:
@@ -2448,7 +2462,7 @@ class SegmentedSpotTable:
         Parameters
         ----------
         cell_ids : int or str or np.ndarray
-            The cell ids (type int) or production cell ids (type str) to query.
+            The cell ids (type int) or cell labels (type str) to query.
         
         Returns
         -------
@@ -2464,13 +2478,13 @@ class SegmentedSpotTable:
         if isinstance(cell_ids, (int, np.integer)):
             return np.array(self._cell_index[cell_ids])
         elif isinstance(cell_ids, str):
-            return np.array(self._cell_index[self.convert_cell_id(cell_ids)]) # Have to convert PCID before querying
+            return np.array(self._cell_index[self.convert_cell_id(cell_ids)]) # Have to convert label before querying
         else:
             if len(cell_ids) == 0:
                 return np.array([], dtype=int)
 
             if isinstance(cell_ids[0], str):
-                cell_ids = np.vectorize(self._pcid_to_cid.get)(cell_ids)
+                cell_ids = np.vectorize(self._cl_to_cid.get)(cell_ids)
 
             return np.concatenate([self._cell_index[cid] for cid in cell_ids])
 
@@ -2502,7 +2516,7 @@ class SegmentedSpotTable:
         Parameters
         ----------
         cell_ids : int or str or np.ndarray
-            The cell ids (type int) or production cell ids (type str) to query.
+            The cell ids (type int) or cell labels (type str) to query.
         
         Returns
         -------
@@ -2514,10 +2528,10 @@ class SegmentedSpotTable:
         if np.issubdtype(type(cell_ids), np.integer):
             mask[self.cell_indices(cell_ids)] = True
         elif isinstance(cell_ids, str):
-            mask[self.cell_indices(self.convert_cell_id(cell_ids))] = True # Have to conver PCID before querying
+            mask[self.cell_indices(self.convert_cell_id(cell_ids))] = True # Have to conver label before querying
         else:
             if isinstance(cell_ids[0], str):
-                cell_ids = np.vectorize(self._pcid_to_cid.get)(cell_ids)
+                cell_ids = np.vectorize(self._cl_to_cid.get)(cell_ids)
 
             for cid in cell_ids:
                 mask[self.cell_indices(cid)] = True
@@ -2760,6 +2774,7 @@ class SegmentedSpotTable:
             cell_ids = pandas.read_parquet(transcript_file, columns=['cell_id']).values
 
         cell_ids = np.squeeze(cell_ids).astype(str) # Sometimes xenium ids are read in as bytes so just convert them now
+        cell_labels = cell_ids.copy()
 
         # Xenium cell_id column is string, but SegmentedSpotTable needs ints, so convert
         unique_ids = list(np.unique(cell_ids))
@@ -2772,8 +2787,11 @@ class SegmentedSpotTable:
         cell_ids = [cid_to_ints_mapping[cid] for cid in cell_ids]
         cell_ids = np.array(cell_ids)
 
-        return cls(spot_table=raw_spot_table, cell_ids=cell_ids, seg_metadata={'seg_method': 'Xenium'})
+        spottable = cls(spot_table=raw_spot_table, cell_ids=cell_ids, seg_metadata={'seg_method': 'Xenium'})
 
+        spottable.cell_labels = cell_labels
+        
+        return spottable
 
     @classmethod
     def load_stereoseq(cls, gem_file: str|None=None, cache_file: str|None=None, gem_cols: dict|tuple=(('gene', 0), ('x', 1), ('y', 2), ('MIDcounts', 3)), 
@@ -2818,9 +2836,9 @@ class SegmentedSpotTable:
         sst_fields = {
             'cell_ids': fields['cell_ids'],
             'seg_metadata': fields['seg_metadata'].item(),
-            'production_cell_ids': fields['production_cell_ids'].item() if np.any(fields['production_cell_ids']) is None else fields['production_cell_ids'],
-            'pcid_to_cid': fields['_pcid_to_cid'].item(),
-            'cid_to_pcid': fields['_cid_to_pcid'].item(),
+            'cell_labels': fields['cell_labels'].item() if np.any(fields['cell_labels']) is None else fields['cell_labels'],
+            'cl_to_cid': fields['_cl_to_cid'].item(),
+            'cid_to_cl': fields['_cid_to_cl'].item(),
             'cell_polygons': fields['cell_polygons'].item()
         }
 
@@ -2841,7 +2859,7 @@ class SegmentedSpotTable:
             'cell_ids': self.cell_ids,
         }
 
-        kwds = ['seg_metadata', 'production_cell_ids', '_pcid_to_cid', '_cid_to_pcid', 'cell_polygons']
+        kwds = ['seg_metadata', 'cell_labels', '_cl_to_cid', '_cid_to_cl', 'cell_polygons']
         fields.update({kwd: getattr(self, kwd) for kwd in kwds})
 
         np.savez_compressed(npz_file, **fields) 
@@ -2995,12 +3013,12 @@ class SegmentedSpotTable:
         spot_table = self.spot_table.copy(deep=deep)
         init_kwargs = {}
         init_kwargs.update(kwds)
-        for name in ['cell_ids', 'production_cell_ids', '_pcid_to_cid', '_cid_to_pcid', 'cell_polygons', 'seg_metadata']:
+        for name in ['cell_ids', 'cell_labels', '_cl_to_cid', '_cid_to_cl', 'cell_polygons', 'seg_metadata']:
             if name not in init_kwargs:
                 val = getattr(self, name)
                 if deep:
                     val = None if val is None else val.copy(),
-                if name.startswith('_'): # This is to handle _pcid_to_cid and _cid_to_pcid as arguments
+                if name.startswith('_'): # This is to handle _cl_to_cid and _cid_to_cl as arguments
                     name = name[1:]
                 init_kwargs[name] = val
             
@@ -3031,7 +3049,7 @@ class SegmentedSpotTable:
         return seg_subtable
     
     @classmethod
-    def save_xenium_kit_cbg(cls, expt_dir, output_file, max_rows: int|None=None, z_depth: float=3.0, x_format: str='sparse'):
+    def save_xenium_kit_cbg(cls, expt_dir, output_file, max_rows: int|None=None, z_depth: float=3.0, x_format: str='sparse', additional_obs: dict|None=None):
         """Takes the results of a xenium experiment segmented with the Xenium segmentation kit
         and saves them into the SIS standard format
         
@@ -3048,7 +3066,10 @@ class SegmentedSpotTable:
             Used to bin z-positions into discrete planes
         x_format : str, optional
             The format of the data matrix (X in the anndata), either 'dense' or 'sparse'.
-        
+        additional_obs : dict or None, optional
+            Additional columns to add to the anndata.obs DataFrame.
+            Keys are column names and values are arrays of the same length as the number of cells.
+            
         Returns
         -------
         seg_subtable : SegmentedSpotTable
@@ -3067,23 +3088,22 @@ class SegmentedSpotTable:
             expt_metadata.setdefault(metric, col[0])
         seg_spot_table.seg_metadata.update(expt_metadata)
         
-        production_cell_ids = np.squeeze(pandas.read_parquet(transcript_file, columns=['cell_id']).values).astype(str) # Sometimes xenium ids are read in as bytes so just convert them now
-        # Want to modify production_cell_ids be unique across experiments
-        seg_spot_table.production_cell_ids = np.array([f'{expt_metadata["region_name"]}_{cid}' for cid in production_cell_ids], dtype=str)
+        # Want to modify cell_labels be unique across experiments
+        seg_spot_table.cell_labels = np.array([f'{expt_metadata["region_name"]}_{cid}' for cid in seg_spot_table.cell_labels], dtype=str)
 
         # Read in stored polygons
         cell_boundaries = pandas.read_parquet(expt_dir / 'cell_boundaries.parquet')
         cell_boundaries['cell_id'] = cell_boundaries['cell_id'].astype(str) # Standardize cell_id type to str
-        cell_boundaries['cell_id'] = [f'{expt_metadata["region_name"]}_{cid}' for cid in cell_boundaries['cell_id']] # Standardize cell_id to match production_cell_ids
+        cell_boundaries['cell_id'] = [f'{expt_metadata["region_name"]}_{cid}' for cid in cell_boundaries['cell_id']] # Standardize cell_id to match cell_labels
         seg_spot_table.cell_polygons = {}
         for cid, coords in cell_boundaries.groupby(by='cell_id'):
-            if seg_spot_table._pcid_to_cid.get(cid) is None:
+            if seg_spot_table._cl_to_cid.get(cid) is None:
                 # Because cells are determined imagewise and not transcript wise, 
-                # there are some cells without transcripts and thus which don't have production cell_ids
+                # there are some cells without transcripts and thus which don't have cell labels
                 continue
             seg_spot_table.cell_polygons[seg_spot_table.convert_cell_id(cid)] = shapely.geometry.polygon.Polygon(coords[['vertex_x', 'vertex_y']])
 
-        cell_by_gene = seg_spot_table.cell_by_gene_anndata(x_format=x_format)
+        cell_by_gene = seg_spot_table.cell_by_gene_anndata(x_format=x_format, additional_obs=additional_obs)
 
         # Xenium also records cell centroids and areas
         # Cell polygons only ever have 13 vertices so I assume that they are downsampled before stored
@@ -3097,8 +3117,8 @@ class SegmentedSpotTable:
         cell_info = cell_info.rename(columns={'x_centroid': 'polygon_center_x', 'y_centroid': 'polygon_center_y', 'cell_area': 'area'})
         cell_by_gene.obs.update(cell_info)
         # Dump other metrics into the obs
-        additional_obs = [col for col in cell_info.columns if col in ['nucleus_area', 'segmentation_method']]
-        cell_by_gene.obs = pandas.merge(cell_by_gene.obs, cell_info[additional_obs], how='left', left_index=True, right_index=True)
+        additional_xen_cols = [col for col in cell_info.columns if col in ['nucleus_area', 'segmentation_method']]
+        cell_by_gene.obs = pandas.merge(cell_by_gene.obs, cell_info[additional_xen_cols], how='left', left_index=True, right_index=True)
 
         for k, v in cell_by_gene.uns.items():
             if isinstance(v, geojson.feature.FeatureCollection) or isinstance(v, geojson.geometry.GeometryCollection):

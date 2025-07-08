@@ -56,7 +56,7 @@ def test_load_merscope():
 def test_make_cirro_compatible():
 
     a = SegmentedSpotTable.load_merscope(DETECTED_TRANSCRIPTS_CSV, DETECTED_TRANSCRIPTS_CSV.parent.joinpath("detected_transcripts.npz"))
-    a.generate_production_cell_ids()
+    a.generate_cell_labels()
     
     a.calculate_cell_polygons(disable_tqdm=True)
 
