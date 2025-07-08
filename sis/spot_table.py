@@ -1931,7 +1931,9 @@ class SegmentedSpotTable:
             The data type of the matrix.
         additional_obs : dict or None, optional
             Additional columns to add to the anndata.obs DataFrame.
-            Keys are column names and values are arrays of the same length as the number of cells.
+            Accepts both {key : sequence} and {key : single_value} pairs.
+            Keys are column names and values are either arrays of the same length as the number of cells
+            OR a single value to be repeated for all cells.
             
         Returns
         -------
