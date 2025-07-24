@@ -20,8 +20,7 @@ from . import _version
 from sis.util import convert_value_nested_dict
 
 
-
-def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file: str|None, subregion: str|tuple|None, cell_subset_file:str|None, result_file:str|None, alpha_inv_coeff: float=1, separate_z_planes=True):
+def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file: str|None, subregion: str|tuple|None, cell_subset_file:str|None, result_file:str|None, alpha_inv_coeff: float=4/3, separate_z_planes=True):
     """Load a segmented spot table, calculate the cell polygons (possibly on a subset of cells), and save the result.
 
     Parameters
@@ -39,7 +38,7 @@ def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file: str|No
     result_file : str or None
         The file path to save the cell polygons.
     alpha_inv_coeff : float, optional
-        The coefficient for the alpha inverse calculation. Defaults to 1.
+        The coefficient for the alpha inverse calculation. Defaults to 4/3 as we found that to give good results empircally.
     separate_z_planes : bool, optional
         Whether to calculate cell polygons separately for each z-plane. Defaults to True.
     """
@@ -1970,7 +1969,9 @@ class SegmentedSpotTable:
         adata.obs['cell_label'] = adata.obs_names # Also include labels in Dataframe itself
         
         # Keep track of what segmentation was used directly in the obs
-        if 'seg_opts' in self.seg_metadata:
+        if self.seg_metadata is None:
+            adata.obs['segmentation_job_id'] = 'SIS'
+        elif 'seg_opts' in self.seg_metadata:
             adata.obs['segmentation_job_id'] = f'SIS_{Path(self.seg_metadata["seg_opts"]["cellpose_model"]).name}'
         else:
             adata.obs['segmentation_job_id'] = self.seg_metadata['seg_method']
@@ -2104,7 +2105,7 @@ class SegmentedSpotTable:
             # Area of triangle by Heron's formula
             area = np.sqrt(s*(s-a)*(s-b)*(s-c))
 
-            circum_r = a*b*c/(4.0*area)
+            circum_r = np.inf if area == 0 else a*b*c/(4.0*area) # avoid division by zero warning
 
             # Here's the radius filter.
             if circum_r < alpha_inv:
@@ -2119,7 +2120,7 @@ class SegmentedSpotTable:
         return tp
 
     @staticmethod
-    def calculate_optimal_polygon(xy_pos, alpha_inv, alpha_inv_coeff: float=1):
+    def calculate_optimal_polygon(xy_pos, alpha_inv, alpha_inv_coeff: float=4/3):
         """Calculate the optimal polygon for a set of points by increasing alpha_inv until a single polygon containing all points is generated
         After the alpha_inv is decided, the alpha_inv_coeff is applied to get promote a more natural cell shape
         
@@ -2131,7 +2132,8 @@ class SegmentedSpotTable:
             parameter that sets the radius filter on the Delaunay triangulation.  
             Traditionally alpha is defined as 1/radius, and here the function input is inverted for slightly more intuitive use
         alpha_inv_coeff : float, optional
-            coefficient to apply to alpha_inv to get a more natural cell shape
+            coefficient to apply to alpha_inv to get a more natural cell shape. 
+            Default is 4/3 as we found that to give good results empircally
         
         Returns
         -------
@@ -2173,7 +2175,7 @@ class SegmentedSpotTable:
             return None
 
 
-    def calculate_cell_polygons(self, alpha_inv=1.5, separate_z_planes=True, cells_to_run: np.ndarray|None=None, alpha_inv_coeff: float=1, disable_tqdm=False):
+    def calculate_cell_polygons(self, alpha_inv=1.5, separate_z_planes=True, cells_to_run: np.ndarray|None=None, alpha_inv_coeff: float=4/3, disable_tqdm=False):
         """Calculate the cell polygons for each cell id in self.cell_ids. Add these to the self.cell_polygons dictionary
         
         Parameters
@@ -2187,6 +2189,7 @@ class SegmentedSpotTable:
             If not None, only calculate polygons for these cell ids.
         alpha_inv_coeff : float, optional
             Coefficient to apply to alpha_inv to get a more natural cell shape
+            Default is 4/3 as we found that to give good results empircally
         disable_tqdm: bool
             If True, disable the progress bar.
         """
