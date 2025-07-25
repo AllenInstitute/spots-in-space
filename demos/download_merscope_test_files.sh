@@ -3,8 +3,8 @@
 BASE_URL="https://download.brainimagelibrary.org/aa/79/aa79b8ba5b3add56/638850/1199650932/merfish_output"
 
 # Set up the test data dir
-mkdir -p test_data/images/
-cd test_data
+mkdir -p merscope_test_data/images/
+cd merscope_test_data
 
 # Download transcript information
 echo "Downloading transcripts..."
