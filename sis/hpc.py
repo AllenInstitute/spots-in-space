@@ -216,7 +216,10 @@ class SlurmJob:
         self.start_time = time.localtime()
 
         # Pull out the job id
-        m = re.match(r'Submitted batch job (\d+)', sbatch_output)
+        for output_line in sbatch_output.split('\n'):
+            m = re.match(r'Submitted batch job (\d+)', output_line)
+            if m is not None:
+                break
         self.base_job_id = m.groups()[0]
 
         if array_id is None:
@@ -352,7 +355,10 @@ class SlurmJobArray(SlurmJob):
         start, _, stop = args['array'].partition('-') # pull out JobArray indices
         
         # Pull out the job id
-        m = re.match(r'Submitted batch job (\d+)', sbatch_output)
+        for output_line in sbatch_output.split('\n'):
+            m = re.match(r'Submitted batch job (\d+)', output_line)
+            if m is not None:
+                break
         self.job_id = m.groups()[0]
 
         # Create a SlurmJob for each job in the array
