@@ -1404,9 +1404,9 @@ class SegmentationPipeline:
         hpc_config = {
             'run_spec': run_spec,
             'conda_env': hpc_opts['conda_env'],
-            'hpc_host': hpc_opts['hpc_host'],
+            'hpc_host': hpc_opts.get('hpc_host', 'localhost'),
             'job_path': job_path,
-            'partition': hpc_opts['partition'],
+            'partition': hpc_opts.get('partition'),
             'job_name': job_type,
             'nodes': 1,
             'ntasks': 1,
