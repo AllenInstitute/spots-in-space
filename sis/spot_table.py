@@ -2903,7 +2903,7 @@ class SegmentedSpotTable:
         kwds['color'] = 'cell_ids'
         self.scatter_plot(*args, **kwds)
 
-    def scatter_plot(self, ax=None, x='x', y='y', color='gene_ids', alpha=0.2, size=1.5, z_idx=None, z_pos=None, palette=None):
+    def scatter_plot(self, ax=None, x='x', y='y', color='gene_ids', alpha=0.2, size=1.5, z_idx=None, z_pos=None, palette=None, show_polygons=False):
         """Plot a scatter plot of the spots in this table colored by *color*
         
         Parameters
@@ -2928,10 +2928,12 @@ class SegmentedSpotTable:
             If None and *z_pos* is None, plot all z-slices.
         palette : str or list, optional
             The palette to use for the colors.
+        show_polygons : bool, optional
+            If True, show cell polygons in the plot. If polygons are 3d, only works for individual z-planes
         """
         import seaborn
         import matplotlib.pyplot as plt
-        if color in ['cell', 'cell_ids']:
+        if color in ['cell', 'cell_ids'] and palette == None:
             palette = self.cell_palette(self.cell_ids)
 
         if z_idx is not None and z_pos is not None:
@@ -2968,6 +2970,21 @@ class SegmentedSpotTable:
         ax.set_xlim(df[x].min(), df[x].max())
         ax.set_ylim(df[y].min(), df[y].max())
         
+        if show_polygons and dict in set(type(k) for k in self.cell_polygons.values()): # Check if polygons are 3D
+            if z_idx is None and z_pos is None:
+                raise ValueError('Cannot show 3D polygons without specifying a z-plane using *z_idx* or *z_pos*')
+            
+            z_pos = z_pos if z_pos is not None else np.unique(self.z)[z_idx]
+            for cid in plt_st.unique_cell_ids:
+                if self.cell_polygons.get(cid) is not None and self.cell_polygons[cid].get(float(z_pos)) is not None: # Check the polygon exists for the z-plane
+                    x,y = self.cell_polygons[cid][float(z_pos)].exterior.xy # pull out the polygon coordinates
+                    ax.plot(x,y, color=palette[cid])
+        elif show_polygons: # if polygons are 2D
+            for cid in plt_st.unique_cell_ids:
+                if self.cell_polygons.get(cid) is not None:
+                    x,y = self.cell_polygons[cid].exterior.xy # pull out the polygon coordinates
+                    ax.plot(x,y, color=palette[cid])
+
 
     @staticmethod
     def cell_palette(cells):
@@ -3027,7 +3044,7 @@ class SegmentedSpotTable:
             
         return SegmentedSpotTable(spot_table=spot_table, **init_kwargs)
 
-    def get_subregion(self, xlim: tuple, ylim: tuple, incl_end: bool=False):
+    def get_subregion(self, xlim: tuple, ylim: tuple, incl_end: bool=False, save_cell_polygons: bool=True):
         """Return a SegmentedSpotTable including the subset of this table inside the region xlim, ylim
         
         Parameters
@@ -3038,6 +3055,8 @@ class SegmentedSpotTable:
             The y limits of the region.
         incl_end : bool, optional
             Include all pixels of the image that overlap with the region, rather than just those inside the region.
+        save_cell_polygons : bool, optional
+            If True, save the cell polygons in the subtable.
         
         Returns
         -------
@@ -3048,6 +3067,7 @@ class SegmentedSpotTable:
         seg_subtable = self[subtable.parent_inds]
         seg_subtable.spot_table.parent_region = (xlim, ylim)
         seg_subtable.spot_table.images = subtable.images # Images must be manually copied over since they are not subsectioned with __getitem__
+        seg_subtable.cell_polygons = {cid: self.spot_table.cell_polygons.get(cid) for cid in seg_subtable.unique_cell_ids} if save_cell_polygons else {}
         
         return seg_subtable
     
