@@ -1406,7 +1406,7 @@ class SegmentationPipeline:
             'conda_env': hpc_opts['conda_env'],
             'hpc_host': hpc_opts['hpc_host'],
             'job_path': job_path,
-            'partition': 'celltypes',
+            'partition': hpc_opts['partition'],
             'job_name': job_type,
             'nodes': 1,
             'ntasks': 1,
