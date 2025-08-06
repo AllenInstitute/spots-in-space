@@ -3067,7 +3067,8 @@ class SegmentedSpotTable:
         seg_subtable = self[subtable.parent_inds]
         seg_subtable.spot_table.parent_region = (xlim, ylim)
         seg_subtable.spot_table.images = subtable.images # Images must be manually copied over since they are not subsectioned with __getitem__
-        seg_subtable.cell_polygons = {cid: self.spot_table.cell_polygons.get(cid) for cid in seg_subtable.unique_cell_ids} if save_cell_polygons else {}
+        if self.cell_polygons is not None:
+            seg_subtable.cell_polygons = {cid: self.cell_polygons.get(cid) for cid in seg_subtable.unique_cell_ids} if save_cell_polygons else {}
         
         return seg_subtable
     
