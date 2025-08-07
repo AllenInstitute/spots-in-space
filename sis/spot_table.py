@@ -2129,7 +2129,9 @@ class SegmentedSpotTable:
             s = (a + b + c)/2.0
 
             # Area of triangle by Heron's formula
-            area = np.sqrt(s*(s-a)*(s-b)*(s-c))
+            # we do max(s-a, 0) to avoid negative values due to floating point errors from poorly shaped triangles
+            # by triangle inequality, semiperimeter is greater than each side so this should be fine
+            area = np.sqrt(s * max(s-a, 0) * max(s-b, 0) * max(s-c, 0))
 
             circum_r = np.inf if area == 0 else a*b*c/(4.0*area) # avoid division by zero warning
 
