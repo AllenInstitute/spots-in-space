@@ -1108,16 +1108,7 @@ class SegmentationPipeline:
         if not overwrite and self.cbg_path.exists():
             raise FileExistsError('Cell by gene already saved and overwriting is not enabled.')
         else:
-            # geojson objects must be converted to strings before saving
-            for k, v in cell_by_gene.uns.items():
-                if isinstance(v, geojson.feature.FeatureCollection) or isinstance(v, geojson.geometry.GeometryCollection):
-                    cell_by_gene.uns[k] = geojson.dumps(v)
-                    
-            # tuples cannot be saved in anndata object, so convert to str
-            # this is an issue if gauss or median kernels are specified
-            cell_by_gene.uns = convert_value_nested_dict(cell_by_gene.uns, tuple, str)
-            
-            cell_by_gene.write(self.cbg_path)
+            SegmentedSpotTable.save_anndata(self.cbg_path, cell_by_gene)
 
     def load_cbg(self):
         """Load the cell by gene anndata object from the cbg_path attribute
@@ -1144,7 +1135,7 @@ class SegmentationPipeline:
         subtable = table.get_subregion(xlim=subrgn[0], ylim=subrgn[1])
         self.raw_spot_table = subtable
 
-    def run(self, x_format: str, x_dtype: str='uint16', additional_obs: dict|None=None, prefix: str='', suffix: str='', overwrite: bool=False, clean_up: str|bool|None='all_ints', tile_size: int=200, min_transcripts: int=0, rerun: bool=True):
+    def run(self, x_format: str, x_dtype: str='uint16', additional_obs: dict|None=None, prefix: str|None='', suffix: str|None='', overwrite: bool=False, clean_up: str|bool|None='all_ints', tile_size: int=200, min_transcripts: int=0, rerun: bool=True):
         """Run all steps to perform tiled segmentation.
 
         Parameters
@@ -1157,10 +1148,10 @@ class SegmentationPipeline:
         additional_obs : dict or None, optional
             Additional columns to add to the anndata.obs DataFrame.
             Keys are column names and values are arrays of the same length as the number of cells.
-        prefix: str, optional
-            The string to prepend to all cell labels
-        suffix: str, optional
-            The string to append to all cell labels
+        prefix: str or None, optional
+            The string to prepend to all cell labels. If both prefix and suffix are None, will prepend a uuid to all cell labels.
+        suffix: str or None, optional
+            The string to append to all cell labels. If both prefix and suffix are None, will prepend a uuid to all cell labels.
         overwrite: bool, optional
             Whether to allow overwriting of output files. Default False.
         clean_up: str or bool or None, optional
@@ -1629,7 +1620,7 @@ class SegmentationPipeline:
         return self.seg_spot_table.cell_polygons, skipped
     
     
-    def create_cell_by_gene(self, x_format: str, x_dtype: str='uint16', additional_obs: dict|None=None, prefix: str='', suffix: str='', overwrite: bool=False):
+    def create_cell_by_gene(self, x_format: str, x_dtype: str='uint16', additional_obs: dict|None=None, prefix: str|None='', suffix: str|None='', overwrite: bool=False):
         """Create and save a cell by gene AnnData object from the attached spot table.
         
         Parameters
@@ -1642,10 +1633,10 @@ class SegmentationPipeline:
         additional_obs : dict or None, optional
             Additional columns to add to the anndata.obs DataFrame.
             Keys are column names and values are arrays of the same length as the number of cells.
-        prefix : str, optional
-            The string to prepend to all cell labels
-        suffix : str, optional
-            The string to append to all cell labels
+        prefix: str or None, optional
+            The string to prepend to all cell labels. If both prefix and suffix are None, will prepend a uuid to all cell labels.
+        suffix: str or None, optional
+            The string to append to all cell labels. If both prefix and suffix are None, will prepend a uuid to all cell labels.
         overwrite : bool, optional
             Whether to allow overwriting of output files. Default False.
         

@@ -10,6 +10,7 @@ from .optional_import import optional_import
 tqdm = optional_import('tqdm.notebook', names=['tqdm'])[0]
 geojson = optional_import('geojson')
 shapely = optional_import('shapely')
+anndata = optional_import('anndata')
 MultiLineString = optional_import('shapely.geometry', names=['MultiLineString'])[0]
 unary_union, polygonize = optional_import('shapely.ops', ['unary_union', 'polygonize'])
 make_valid = optional_import('shapely.validation', names=['make_valid'])[0]
@@ -1585,8 +1586,7 @@ class SegmentedSpotTable:
         spot_table = self.spot_table[item]
         cell_ids = self.cell_ids[item]
         cell_labels = None if self.cell_labels is None else self.cell_labels[item]
-         # cell_polygons is not converted because we cannot guarantee the polygons will stay the same after subsetting
-
+        
         subset = type(self)(
                 spot_table=spot_table,
                 cell_ids=cell_ids, 
@@ -1595,6 +1595,16 @@ class SegmentedSpotTable:
                 cid_to_cl=self._cid_to_cl,
                 seg_metadata=self.seg_metadata
         )
+        
+        # If we have cell polygons, we need to subset them as well
+        if self.cell_polygons is not None:
+            subset.cell_polygons = {cid: self.cell_polygons.get(cid) for cid in subset.unique_cell_ids}
+        
+            # If some cells have lost transcripts (i.e. cut in half), we have to warn user that polygons may not be accurate
+            if len(self.cell_indices(subset.unique_cell_ids)) != len(subset.cell_indices(subset.unique_cell_ids)):
+                import warnings
+                warnings.warn("Some cells have lost transcripts in this subtable. As such, cell polygons will not accurately describe these new shapes.\n"+\
+                            "If you need to calculate any metrics to do with density, we recommend re-calculating cell polygons using the calculate_cell_polygons() method.")
             
         return subset
 
@@ -1730,6 +1740,8 @@ class SegmentedSpotTable:
                 #     self.cell_polygons.pop(cid, None)
                 differing_polygons = False
                 for cid, idx_old, idx_new, count_old, count_new in zip(test_df.index, test_df['0_old'], test_df['0_new'], test_df['count_old'], test_df['count_new']):
+                    if cid == -1 or cid == 0:
+                        continue # We can skip background cell changes since they will not have polygons
                     if count_old != count_new or np.any(idx_old != idx_new):
                         self.cell_polygons.pop(cid, None)
                         differing_polygons = True
@@ -1939,7 +1951,6 @@ class SegmentedSpotTable:
         adata : anndata.AnnData
             An AnnData object containing the cell-by-gene data.
         """
-        import anndata
         if self.cell_labels is None:
             raise ValueError('cell_labels must be set to use cell_by_gene_anndata(). See SpotTable.generate_cell_labels()')
 
@@ -1998,6 +2009,21 @@ class SegmentedSpotTable:
                     'SIS_repo_hash': _version.get_versions()['version'],
                     }
         return adata
+
+
+    @staticmethod
+    def save_anndata(filename: str, adata: anndata.AnnData):
+        # geojson objects must be converted to strings before saving
+        for k, v in adata.uns.items():
+            if isinstance(v, geojson.feature.FeatureCollection) or isinstance(v, geojson.geometry.GeometryCollection):
+                adata.uns[k] = geojson.dumps(v)
+                
+        # tuples cannot be saved in anndata object, so convert to str
+        # this is an issue if gauss or median kernels are specified
+        adata.uns = convert_value_nested_dict(adata.uns, tuple, str)
+        
+        adata.write(filename)
+    
 
     def cell_bounds(self, cell_id: int | str):
         """Return ((xmin, xmax), (ymin, ymax)) for *cell_id*
@@ -2933,21 +2959,25 @@ class SegmentedSpotTable:
         """
         import seaborn
         import matplotlib.pyplot as plt
+        import warnings
+        
         if color in ['cell', 'cell_ids'] and palette == None:
             palette = self.cell_palette(self.cell_ids)
 
         if z_idx is not None and z_pos is not None:
             raise ValueError('Only one of *z_idx* or *z_pos* can be set')
             
-        if z_idx is not None:
-            z_pos = np.unique(self.z)[z_idx]
-            mask = self.z == z_pos
-            plt_st = self[mask]
-        elif z_pos is not None:
-            mask = self.z == z_pos
-            plt_st = self[mask]
-        else:
-            plt_st = self
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            if z_idx is not None:
+                z_pos = np.unique(self.z)[z_idx]
+                mask = self.z == z_pos
+                plt_st = self[mask]
+            elif z_pos is not None:
+                mask = self.z == z_pos
+                plt_st = self[mask]
+            else:
+                plt_st = self
 
         if ax is None:
             fig, ax = plt.subplots()
@@ -3044,7 +3074,7 @@ class SegmentedSpotTable:
             
         return SegmentedSpotTable(spot_table=spot_table, **init_kwargs)
 
-    def get_subregion(self, xlim: tuple, ylim: tuple, incl_end: bool=False, save_cell_polygons: bool=True):
+    def get_subregion(self, xlim: tuple, ylim: tuple, incl_end: bool=False):
         """Return a SegmentedSpotTable including the subset of this table inside the region xlim, ylim
         
         Parameters
@@ -3055,8 +3085,6 @@ class SegmentedSpotTable:
             The y limits of the region.
         incl_end : bool, optional
             Include all pixels of the image that overlap with the region, rather than just those inside the region.
-        save_cell_polygons : bool, optional
-            If True, save the cell polygons in the subtable.
         
         Returns
         -------
@@ -3067,8 +3095,6 @@ class SegmentedSpotTable:
         seg_subtable = self[subtable.parent_inds]
         seg_subtable.spot_table.parent_region = (xlim, ylim)
         seg_subtable.spot_table.images = subtable.images # Images must be manually copied over since they are not subsectioned with __getitem__
-        if self.cell_polygons is not None:
-            seg_subtable.cell_polygons = {cid: self.cell_polygons.get(cid) for cid in seg_subtable.unique_cell_ids} if save_cell_polygons else {}
         
         return seg_subtable
     
