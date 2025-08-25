@@ -754,3 +754,38 @@ def convert_value_nested_dict(d: dict, oldtype, newtype) -> dict:
             v = newtype(v)
         x[k] = v
     return x
+
+def get_cell_cmap(seg_spot_table, bg_color: str|None = None, remove_negatives: bool = True):
+    """Helper function specifically for plotting masks in the segmentation demos
+    
+    Parameters
+    ----------
+    seg_spot_table : sis.spot_table.SegmentedSpotTable
+        spot table to get cell ids from
+    bg_color : str or None, optional
+        Color for background cells (0 and -1). If None, no black is set. Default is None.
+    remove_negatives : bool, optional
+        By default, the SIS cell palette includes more negative values than -1.
+        These can throw off visualization, so by default they are removed. Default is True.
+        
+    Returns
+    -------
+    cell_cmap : matplotlib.colors.ListedColormap
+        cmap value to use for plotting
+    """
+    from matplotlib import colors
+    
+    # Create colormap for cell ids
+    cell_colors = seg_spot_table.cell_palette(seg_spot_table.cell_ids)
+
+    if remove_negatives:
+        # Remove the negative values in cell_palette, which can throw off visualization
+        cell_colors = {cell: color for cell, color in cell_colors.items() if cell in seg_spot_table.unique_cell_ids}
+
+    if bg_color is not None:
+        cell_colors[0] = colors.to_rgba('black')
+        cell_colors[-1] = colors.to_rgba('black')
+
+    cell_cmap = colors.ListedColormap(dict(sorted(cell_colors.items())).values())
+
+    return cell_cmap
