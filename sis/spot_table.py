@@ -10,6 +10,7 @@ from .optional_import import optional_import
 tqdm = optional_import('tqdm.notebook', names=['tqdm'])[0]
 geojson = optional_import('geojson')
 shapely = optional_import('shapely')
+anndata = optional_import('anndata')
 MultiLineString = optional_import('shapely.geometry', names=['MultiLineString'])[0]
 unary_union, polygonize = optional_import('shapely.ops', ['unary_union', 'polygonize'])
 make_valid = optional_import('shapely.validation', names=['make_valid'])[0]
@@ -20,8 +21,7 @@ from . import _version
 from sis.util import convert_value_nested_dict
 
 
-
-def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file: str|None, subregion: str|tuple|None, cell_subset_file:str|None, result_file:str|None, alpha_inv_coeff: float=1, separate_z_planes=True):
+def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file: str|None, subregion: str|tuple|None, cell_subset_file:str|None, result_file:str|None, alpha_inv_coeff: float=4/3, separate_z_planes=True):
     """Load a segmented spot table, calculate the cell polygons (possibly on a subset of cells), and save the result.
 
     Parameters
@@ -39,7 +39,7 @@ def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file: str|No
     result_file : str or None
         The file path to save the cell polygons.
     alpha_inv_coeff : float, optional
-        The coefficient for the alpha inverse calculation. Defaults to 1.
+        The coefficient for the alpha inverse calculation. Defaults to 4/3 as we found that to give good results empircally.
     separate_z_planes : bool, optional
         Whether to calculate cell polygons separately for each z-plane. Defaults to True.
     """
@@ -1586,8 +1586,7 @@ class SegmentedSpotTable:
         spot_table = self.spot_table[item]
         cell_ids = self.cell_ids[item]
         cell_labels = None if self.cell_labels is None else self.cell_labels[item]
-         # cell_polygons is not converted because we cannot guarantee the polygons will stay the same after subsetting
-
+        
         subset = type(self)(
                 spot_table=spot_table,
                 cell_ids=cell_ids, 
@@ -1596,6 +1595,16 @@ class SegmentedSpotTable:
                 cid_to_cl=self._cid_to_cl,
                 seg_metadata=self.seg_metadata
         )
+        
+        # If we have cell polygons, we need to subset them as well
+        if self.cell_polygons is not None:
+            subset.cell_polygons = {cid: self.cell_polygons.get(cid) for cid in subset.unique_cell_ids}
+        
+            # If some cells have lost transcripts (i.e. cut in half), we have to warn user that polygons may not be accurate
+            if len(self.cell_indices(subset.unique_cell_ids)) != len(subset.cell_indices(subset.unique_cell_ids)):
+                import warnings
+                warnings.warn("Some cells have lost transcripts in this subtable. As such, cell polygons will not accurately describe these new shapes.\n"+\
+                            "If you need to calculate any metrics to do with density, we recommend re-calculating cell polygons using the calculate_cell_polygons() method.")
             
         return subset
 
@@ -1731,6 +1740,8 @@ class SegmentedSpotTable:
                 #     self.cell_polygons.pop(cid, None)
                 differing_polygons = False
                 for cid, idx_old, idx_new, count_old, count_new in zip(test_df.index, test_df['0_old'], test_df['0_new'], test_df['count_old'], test_df['count_new']):
+                    if cid == -1 or cid == 0:
+                        continue # We can skip background cell changes since they will not have polygons
                     if count_old != count_new or np.any(idx_old != idx_new):
                         self.cell_polygons.pop(cid, None)
                         differing_polygons = True
@@ -1940,7 +1951,6 @@ class SegmentedSpotTable:
         adata : anndata.AnnData
             An AnnData object containing the cell-by-gene data.
         """
-        import anndata
         if self.cell_labels is None:
             raise ValueError('cell_labels must be set to use cell_by_gene_anndata(). See SpotTable.generate_cell_labels()')
 
@@ -1970,7 +1980,9 @@ class SegmentedSpotTable:
         adata.obs['cell_label'] = adata.obs_names # Also include labels in Dataframe itself
         
         # Keep track of what segmentation was used directly in the obs
-        if 'seg_opts' in self.seg_metadata:
+        if self.seg_metadata is None:
+            adata.obs['segmentation_job_id'] = 'SIS'
+        elif 'seg_opts' in self.seg_metadata:
             adata.obs['segmentation_job_id'] = f'SIS_{Path(self.seg_metadata["seg_opts"]["cellpose_model"]).name}'
         else:
             adata.obs['segmentation_job_id'] = self.seg_metadata['seg_method']
@@ -1997,6 +2009,21 @@ class SegmentedSpotTable:
                     'SIS_repo_hash': _version.get_versions()['version'],
                     }
         return adata
+
+
+    @staticmethod
+    def save_anndata(filename: str, adata: anndata.AnnData):
+        # geojson objects must be converted to strings before saving
+        for k, v in adata.uns.items():
+            if isinstance(v, geojson.feature.FeatureCollection) or isinstance(v, geojson.geometry.GeometryCollection):
+                adata.uns[k] = geojson.dumps(v)
+                
+        # tuples cannot be saved in anndata object, so convert to str
+        # this is an issue if gauss or median kernels are specified
+        adata.uns = convert_value_nested_dict(adata.uns, tuple, str)
+        
+        adata.write(filename)
+    
 
     def cell_bounds(self, cell_id: int | str):
         """Return ((xmin, xmax), (ymin, ymax)) for *cell_id*
@@ -2102,9 +2129,11 @@ class SegmentedSpotTable:
             s = (a + b + c)/2.0
 
             # Area of triangle by Heron's formula
-            area = np.sqrt(s*(s-a)*(s-b)*(s-c))
+            # we do max(s-a, 0) to avoid negative values due to floating point errors from poorly shaped triangles
+            # by triangle inequality, semiperimeter is greater than each side so this should be fine
+            area = np.sqrt(s * max(s-a, 0) * max(s-b, 0) * max(s-c, 0))
 
-            circum_r = a*b*c/(4.0*area)
+            circum_r = np.inf if area == 0 else a*b*c/(4.0*area) # avoid division by zero warning
 
             # Here's the radius filter.
             if circum_r < alpha_inv:
@@ -2119,7 +2148,7 @@ class SegmentedSpotTable:
         return tp
 
     @staticmethod
-    def calculate_optimal_polygon(xy_pos, alpha_inv, alpha_inv_coeff: float=1):
+    def calculate_optimal_polygon(xy_pos, alpha_inv, alpha_inv_coeff: float=4/3):
         """Calculate the optimal polygon for a set of points by increasing alpha_inv until a single polygon containing all points is generated
         After the alpha_inv is decided, the alpha_inv_coeff is applied to get promote a more natural cell shape
         
@@ -2131,7 +2160,8 @@ class SegmentedSpotTable:
             parameter that sets the radius filter on the Delaunay triangulation.  
             Traditionally alpha is defined as 1/radius, and here the function input is inverted for slightly more intuitive use
         alpha_inv_coeff : float, optional
-            coefficient to apply to alpha_inv to get a more natural cell shape
+            coefficient to apply to alpha_inv to get a more natural cell shape. 
+            Default is 4/3 as we found that to give good results empircally
         
         Returns
         -------
@@ -2173,7 +2203,7 @@ class SegmentedSpotTable:
             return None
 
 
-    def calculate_cell_polygons(self, alpha_inv=1.5, separate_z_planes=True, cells_to_run: np.ndarray|None=None, alpha_inv_coeff: float=1, disable_tqdm=False):
+    def calculate_cell_polygons(self, alpha_inv=1.5, separate_z_planes=True, cells_to_run: np.ndarray|None=None, alpha_inv_coeff: float=4/3, disable_tqdm=False):
         """Calculate the cell polygons for each cell id in self.cell_ids. Add these to the self.cell_polygons dictionary
         
         Parameters
@@ -2187,6 +2217,7 @@ class SegmentedSpotTable:
             If not None, only calculate polygons for these cell ids.
         alpha_inv_coeff : float, optional
             Coefficient to apply to alpha_inv to get a more natural cell shape
+            Default is 4/3 as we found that to give good results empircally
         disable_tqdm: bool
             If True, disable the progress bar.
         """
@@ -2900,7 +2931,7 @@ class SegmentedSpotTable:
         kwds['color'] = 'cell_ids'
         self.scatter_plot(*args, **kwds)
 
-    def scatter_plot(self, ax=None, x='x', y='y', color='gene_ids', alpha=0.2, size=1.5, z_idx=None, z_pos=None, palette=None):
+    def scatter_plot(self, ax=None, x='x', y='y', color='gene_ids', alpha=0.2, size=1.5, z_idx=None, z_pos=None, palette=None, show_polygons=False):
         """Plot a scatter plot of the spots in this table colored by *color*
         
         Parameters
@@ -2925,24 +2956,30 @@ class SegmentedSpotTable:
             If None and *z_pos* is None, plot all z-slices.
         palette : str or list, optional
             The palette to use for the colors.
+        show_polygons : bool, optional
+            If True, show cell polygons in the plot. If polygons are 3d, only works for individual z-planes
         """
         import seaborn
         import matplotlib.pyplot as plt
-        if color in ['cell', 'cell_ids']:
+        import warnings
+        
+        if color in ['cell', 'cell_ids'] and palette == None:
             palette = self.cell_palette(self.cell_ids)
 
         if z_idx is not None and z_pos is not None:
             raise ValueError('Only one of *z_idx* or *z_pos* can be set')
             
-        if z_idx is not None:
-            z_pos = np.unique(self.z)[z_idx]
-            mask = self.z == z_pos
-            plt_st = self[mask]
-        elif z_pos is not None:
-            mask = self.z == z_pos
-            plt_st = self[mask]
-        else:
-            plt_st = self
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            if z_idx is not None:
+                z_pos = np.unique(self.z)[z_idx]
+                mask = self.z == z_pos
+                plt_st = self[mask]
+            elif z_pos is not None:
+                mask = self.z == z_pos
+                plt_st = self[mask]
+            else:
+                plt_st = self
 
         if ax is None:
             fig, ax = plt.subplots()
@@ -2965,6 +3002,21 @@ class SegmentedSpotTable:
         ax.set_xlim(df[x].min(), df[x].max())
         ax.set_ylim(df[y].min(), df[y].max())
         
+        if show_polygons and dict in set(type(k) for k in self.cell_polygons.values()): # Check if polygons are 3D
+            if z_idx is None and z_pos is None:
+                raise ValueError('Cannot show 3D polygons without specifying a z-plane using *z_idx* or *z_pos*')
+            
+            z_pos = z_pos if z_pos is not None else np.unique(self.z)[z_idx]
+            for cid in plt_st.unique_cell_ids:
+                if self.cell_polygons.get(cid) is not None and self.cell_polygons[cid].get(float(z_pos)) is not None: # Check the polygon exists for the z-plane
+                    x,y = self.cell_polygons[cid][float(z_pos)].exterior.xy # pull out the polygon coordinates
+                    ax.plot(x,y, color=palette[cid])
+        elif show_polygons: # if polygons are 2D
+            for cid in plt_st.unique_cell_ids:
+                if self.cell_polygons.get(cid) is not None:
+                    x,y = self.cell_polygons[cid].exterior.xy # pull out the polygon coordinates
+                    ax.plot(x,y, color=palette[cid])
+
 
     @staticmethod
     def cell_palette(cells):
