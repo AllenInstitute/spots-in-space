@@ -1675,36 +1675,6 @@ class SegmentationPipeline:
                 file_path.unlink()
             self.polygon_subsets_path.rmdir()
 
-    @classmethod
-    def from_spatial_dataset(cls, sp_dataset, output_dir, subrgn, seg_method, seg_opts, polygon_opts=None, seg_hpc_opts=None, polygon_hpc_opts=None, hpc_opts=None):
-        """Alternate constructor to load from a SpatialDataset
-        
-        Parameters
-        ----------
-        sp_dataset : sis.spatial_dataset.SpatialDataset
-            The SpatialDataset to load from.
-        output_dir : Path
-            The directory to save output files to.
-        subrgn : tuple
-            The subregion for segmentation.
-        seg_method : class
-            The segmentation method class.
-        seg_opts : dict
-            The options for the segmentation method.
-        polygon_opts : dict or None, optional
-            The options for calculating cell polygons. Default None.
-        seg_hpc_opts : dict or None, optional
-            The options for running segmentation on the HPC. Default None.
-        polygon_hpc_opts : dict or None, optional
-            The options for running cell polygon calculation on the HPC. Default None.
-        hpc_opts : dict or None, optional
-            The options for running on the HPC. Default None.
-        """
-        image_path = sp_dataset.images_path
-        csv_file = sp_dataset.detected_transcripts_file
-        cache_file = sp_dataset.detected_transcripts_cache
-
-        return cls(csv_file, image_path, output_dir, cache_file, subrgn, seg_method, seg_opts, hpc_opts, polygon_opts, seg_hpc_opts, polygon_hpc_opts, hpc_opts)
 
     @classmethod
     def from_json(cls, json_file):
