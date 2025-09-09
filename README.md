@@ -1,34 +1,21 @@
 # spots-in-space
 
-[![Tests](https://github.com/berl/spots-in-space/actions/workflows/test.yml/badge.svg)](https://github.com/berl/spots-in-space/actions/workflows/test.yml)
-[![License]](https://github.com/berl/spots-in-space/blob/main/LICENSE)
+[![Tests](https://github.com/AllenIntitute/spots-in-space/actions/workflows/test.yml/badge.svg)](https://github.com/AllenIntitute/spots-in-space/actions/workflows/test.yml)
+[![License]](https://github.com/AllenIntitute/spots-in-space/LICENSE)
 
-spatial transcriptomics analysis and beyond
 
 ## Installation
 
-Install this library using `pip`:
+We recommend cloning this repo and installing via `pip`:
 ```bash
+git clone https://github.com/AllenInstitute/spots-in-space.git
 cd spots-in-space
-pip install -e .
+pip install ".[cellpose]"
 ```
-## Usage
-
-Usage instructions go here.
-
-## Development
-
-To contribute to this library, first checkout the code. Then create a new conda environment, for example to create a new environment with python 3.10:
+Should you be interested in a distribution of spots-in-space without cellpose, it can be installed as such:
 ```bash
+git clone https://github.com/AllenInstitute/spots-in-space.git
 cd spots-in-space
-conda create -n sis python=3.10
-conda activate sis
+pip install .
 ```
-Now install the dependencies and test dependencies:
-```bash
-pip install -e .
-```
-To run the tests:
-```bash
-pytest
-```
+
