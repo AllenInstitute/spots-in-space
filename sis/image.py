@@ -562,94 +562,6 @@ class StereoSeqImageFile(ImageFile):
             with rasterio.open(self.file) as src:
                 return self._standard_image_shape(src.read(index, window=win))
 
-
-class ImageTransform:
-    """Transfomation mapping between (x, y) spot coordinates and (row, col) image pixels
-    
-    Attributes
-    ----------
-    matrix : np.ndarray
-        2x3 affine transformation matrix mapping from spots to pixels
-    _inverse : np.ndarray or None
-        Cached inverse of the transformation matrix
-    """
-    def __init__(self, matrix):
-        """
-        Parameters
-        ----------
-        matrix : np.ndarray
-            2x3 affine transformation matrix mapping from spots to pixels
-        """
-        self.matrix = matrix
-        assert matrix.shape == (2, 3)
-        self._inverse = None
-
-    def map_to_pixels(self, points):
-        """Map (x, y) positions to image pixels (row, col). 
-        
-        Parameters
-        ----------
-        points : np.ndarray
-            Points to map. Must be of shape (N, 2)
-            
-        Returns
-        -------
-        numpy.ndarray
-        """
-        points = np.asarray(points)
-        assert points.ndim == 2
-        assert points.shape[1] == 2
-        return (self.matrix[:2, :2] @ points.T + self.matrix[:2, 2:]).T
-
-    @property
-    def inverse_matrix(self):
-        """Returns the inverse of the transformation matrix
-        
-        Returns
-        -------
-        np.ndarray
-        """
-        if self._inverse is None: # if we haven't stored inverse, calculate it
-            m3 = np.eye(3)
-            m3[:2] = self.matrix
-            self._inverse = np.linalg.inv(m3)[:2]
-        return self._inverse
-
-    def map_from_pixels(self, pixels):
-        """Map (row, col) image pixels to positions (x, y). 
-        
-        Parameters
-        ----------
-        pixels : np.ndarray
-            Pixels to map. Must be of shape (N, 2)
-            
-        Returns
-        -------
-        np.ndarray
-        """
-        pixels = np.asarray(pixels)
-        assert pixels.ndim == 2
-        assert pixels.shape[1] == 2
-        return (self.inverse_matrix[:2, :2] @ pixels.T + self.inverse_matrix[:2, 2:]).T
-
-    def translated(self, offset):
-        """Return a new transform that is translated by *offset* (where offset is expressed in pixels)
-        
-        Parameters
-        ----------
-        offset : np.ndarray
-            Offset to translate by. Must be of shape (2,)
-            
-        Returns
-        -------
-        ImageTransform
-            New transform that is translated by *offset*
-        """
-        m = self.matrix.copy()
-        m[:, 2] += offset
-        return ImageTransform(m)
-
-
 class XeniumImageFile(ImageFile):
     """Represents a single image stored on disk, carrying metadata about:
     - The file containing image data
@@ -853,6 +765,91 @@ class XeniumImageFile(ImageFile):
         else:
             return self.channels.index(channel) 
 
+class ImageTransform:
+    """Transfomation mapping between (x, y) spot coordinates and (row, col) image pixels
+    
+    Attributes
+    ----------
+    matrix : np.ndarray
+        2x3 affine transformation matrix mapping from spots to pixels
+    _inverse : np.ndarray or None
+        Cached inverse of the transformation matrix
+    """
+    def __init__(self, matrix):
+        """
+        Parameters
+        ----------
+        matrix : np.ndarray
+            2x3 affine transformation matrix mapping from spots to pixels
+        """
+        self.matrix = matrix
+        assert matrix.shape == (2, 3)
+        self._inverse = None
+
+    def map_to_pixels(self, points):
+        """Map (x, y) positions to image pixels (row, col). 
+        
+        Parameters
+        ----------
+        points : np.ndarray
+            Points to map. Must be of shape (N, 2)
+            
+        Returns
+        -------
+        numpy.ndarray
+        """
+        points = np.asarray(points)
+        assert points.ndim == 2
+        assert points.shape[1] == 2
+        return (self.matrix[:2, :2] @ points.T + self.matrix[:2, 2:]).T
+
+    @property
+    def inverse_matrix(self):
+        """Returns the inverse of the transformation matrix
+        
+        Returns
+        -------
+        np.ndarray
+        """
+        if self._inverse is None: # if we haven't stored inverse, calculate it
+            m3 = np.eye(3)
+            m3[:2] = self.matrix
+            self._inverse = np.linalg.inv(m3)[:2]
+        return self._inverse
+
+    def map_from_pixels(self, pixels):
+        """Map (row, col) image pixels to positions (x, y). 
+        
+        Parameters
+        ----------
+        pixels : np.ndarray
+            Pixels to map. Must be of shape (N, 2)
+            
+        Returns
+        -------
+        np.ndarray
+        """
+        pixels = np.asarray(pixels)
+        assert pixels.ndim == 2
+        assert pixels.shape[1] == 2
+        return (self.inverse_matrix[:2, :2] @ pixels.T + self.inverse_matrix[:2, 2:]).T
+
+    def translated(self, offset):
+        """Return a new transform that is translated by *offset* (where offset is expressed in pixels)
+        
+        Parameters
+        ----------
+        offset : np.ndarray
+            Offset to translate by. Must be of shape (2,)
+            
+        Returns
+        -------
+        ImageTransform
+            New transform that is translated by *offset*
+        """
+        m = self.matrix.copy()
+        m[:, 2] += offset
+        return ImageTransform(m)
 
 class ImageStack(ImageBase):
     """A stack of Image z-planes
