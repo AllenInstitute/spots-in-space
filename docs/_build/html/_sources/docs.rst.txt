@@ -1,0 +1,16 @@
+Docs
+====
+
+spot_table
+----------
+
+.. autoclass:: sis.spot_table::SpotTable
+    :members:
+    :show-inheritance:
+    :class-doc-from: class
+    :special-members: __init__
+    :member-order: bysource
+
+segmentation
+------------
+

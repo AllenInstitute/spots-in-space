@@ -1,0 +1,4 @@
+Installation
+============
+
+Use `pip install ".[cellpose]"` to install Spots in Space with Cellpose support.

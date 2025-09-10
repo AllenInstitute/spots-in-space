@@ -1,0 +1,1676 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>segmentation &mdash; Spots in Space  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="image" href="image.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Spots in Space
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spot_table.html">spot_table</a></li>
+<li class="toctree-l1"><a class="reference internal" href="image.html">image</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">segmentation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#segmentationmethod">SegmentationMethod</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#sis.segmentation.SegmentationMethod"><code class="docutils literal notranslate"><span class="pre">SegmentationMethod</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationMethod.options"><code class="docutils literal notranslate"><span class="pre">SegmentationMethod.options</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationMethod.__init__"><code class="docutils literal notranslate"><span class="pre">SegmentationMethod.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationMethod.run"><code class="docutils literal notranslate"><span class="pre">SegmentationMethod.run()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#cellposesegmentationmethod">CellposeSegmentationMethod</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#sis.segmentation.CellposeSegmentationMethod"><code class="docutils literal notranslate"><span class="pre">CellposeSegmentationMethod</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.CellposeSegmentationMethod.options"><code class="docutils literal notranslate"><span class="pre">CellposeSegmentationMethod.options</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.CellposeSegmentationMethod.__init__"><code class="docutils literal notranslate"><span class="pre">CellposeSegmentationMethod.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.CellposeSegmentationMethod.run"><code class="docutils literal notranslate"><span class="pre">CellposeSegmentationMethod.run()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.CellposeSegmentationMethod.get_total_mrna_image"><code class="docutils literal notranslate"><span class="pre">CellposeSegmentationMethod.get_total_mrna_image()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.CellposeSegmentationMethod.map_spots_to_img_px"><code class="docutils literal notranslate"><span class="pre">CellposeSegmentationMethod.map_spots_to_img_px()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.CellposeSegmentationMethod.duplistack_image"><code class="docutils literal notranslate"><span class="pre">CellposeSegmentationMethod.duplistack_image()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#segmentationresult">SegmentationResult</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#sis.segmentation.SegmentationResult"><code class="docutils literal notranslate"><span class="pre">SegmentationResult</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationResult.method"><code class="docutils literal notranslate"><span class="pre">SegmentationResult.method</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationResult.input_spot_table"><code class="docutils literal notranslate"><span class="pre">SegmentationResult.input_spot_table</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationResult.__init__"><code class="docutils literal notranslate"><span class="pre">SegmentationResult.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationResult.cell_ids"><code class="docutils literal notranslate"><span class="pre">SegmentationResult.cell_ids</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationResult.spot_table"><code class="docutils literal notranslate"><span class="pre">SegmentationResult.spot_table()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationResult.save"><code class="docutils literal notranslate"><span class="pre">SegmentationResult.save()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#cellposesegmentationresult">CellposeSegmentationResult</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#sis.segmentation.CellposeSegmentationResult"><code class="docutils literal notranslate"><span class="pre">CellposeSegmentationResult</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.CellposeSegmentationResult.method"><code class="docutils literal notranslate"><span class="pre">CellposeSegmentationResult.method</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.CellposeSegmentationResult.input_spot_table"><code class="docutils literal notranslate"><span class="pre">CellposeSegmentationResult.input_spot_table</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.CellposeSegmentationResult.cellpose_output"><code class="docutils literal notranslate"><span class="pre">CellposeSegmentationResult.cellpose_output</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.CellposeSegmentationResult.image_transform"><code class="docutils literal notranslate"><span class="pre">CellposeSegmentationResult.image_transform</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.CellposeSegmentationResult.detect_z_planes"><code class="docutils literal notranslate"><span class="pre">CellposeSegmentationResult.detect_z_planes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.CellposeSegmentationResult._cell_ids"><code class="docutils literal notranslate"><span class="pre">CellposeSegmentationResult._cell_ids</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.CellposeSegmentationResult.__init__"><code class="docutils literal notranslate"><span class="pre">CellposeSegmentationResult.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.CellposeSegmentationResult.cell_ids"><code class="docutils literal notranslate"><span class="pre">CellposeSegmentationResult.cell_ids</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.CellposeSegmentationResult.mask_image"><code class="docutils literal notranslate"><span class="pre">CellposeSegmentationResult.mask_image</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.CellposeSegmentationResult.spot_table"><code class="docutils literal notranslate"><span class="pre">CellposeSegmentationResult.spot_table()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#segmentationpipeline">SegmentationPipeline</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.image_path"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.image_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.detected_transcripts_file"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.detected_transcripts_file</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.detected_transcripts_cache"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.detected_transcripts_cache</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.output_dir"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.output_dir</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.subrgn"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.subrgn</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.seg_method"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.seg_method</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.seg_opts"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.seg_opts</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.seg_hpc_opts"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.seg_hpc_opts</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.seg_jobs"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.seg_jobs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.polygon_opts"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.polygon_opts</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.polygon_hpc_opts"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.polygon_hpc_opts</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.polygon_jobs"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.polygon_jobs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.meta_path"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.meta_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.self.regions_path"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.self.regions_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.seg_run_spec_path"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.seg_run_spec_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.polygon_run_spec_path"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.polygon_run_spec_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.tile_save_path"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.tile_save_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.cid_path"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.cid_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.seg_spot_table_path"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.seg_spot_table_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.cbg_path"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.cbg_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.polygon_subsets_path"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.polygon_subsets_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.polygon_final_path"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.polygon_final_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.__init__"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.run"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.run()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.from_json"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.from_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.get_load_func"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.get_load_func()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.get_load_args"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.get_load_args()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.set_intermediate_file_paths"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.set_intermediate_file_paths()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.update_metadata"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.update_metadata()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.save_metadata"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.save_metadata()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.load_metadata"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.load_metadata()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.load_raw_spot_table"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.load_raw_spot_table()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.tile_seg_region"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.tile_seg_region()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.save_regions"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.save_regions()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.load_regions"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.load_regions()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.merge_segmented_tiles"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.merge_segmented_tiles()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.save_cell_ids"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.save_cell_ids()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.load_cell_ids"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.load_cell_ids()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.save_seg_spot_table"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.save_seg_spot_table()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.load_seg_spot_table"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.load_seg_spot_table()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.merge_cell_polygons"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.merge_cell_polygons()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.create_cell_by_gene"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.create_cell_by_gene()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.save_cbg"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.save_cbg()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.load_cbg"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.load_cbg()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.clean_up"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.clean_up()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.get_seg_run_spec"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.get_seg_run_spec()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.get_polygon_run_spec"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.get_polygon_run_spec()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.save_run_spec"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.save_run_spec()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.load_run_spec"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.load_run_spec()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.submit_jobs"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.submit_jobs()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.track_job_progress"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.track_job_progress()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.rerun_failed_jobs"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.rerun_failed_jobs()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.find_failed_jobs"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.find_failed_jobs()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.resubmit_failed_jobs"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.resubmit_failed_jobs()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.SegmentationPipeline.update_jobs"><code class="docutils literal notranslate"><span class="pre">SegmentationPipeline.update_jobs()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#merscopesegmentationpipeline">MerscopeSegmentationPipeline</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#sis.segmentation.MerscopeSegmentationPipeline"><code class="docutils literal notranslate"><span class="pre">MerscopeSegmentationPipeline</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.MerscopeSegmentationPipeline.__init__"><code class="docutils literal notranslate"><span class="pre">MerscopeSegmentationPipeline.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.MerscopeSegmentationPipeline.get_load_func"><code class="docutils literal notranslate"><span class="pre">MerscopeSegmentationPipeline.get_load_func()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.MerscopeSegmentationPipeline.get_load_args"><code class="docutils literal notranslate"><span class="pre">MerscopeSegmentationPipeline.get_load_args()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#stereoseqsegmentationpipeline">StereoSeqSegmentationPipeline</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#sis.segmentation.StereoSeqSegmentationPipeline"><code class="docutils literal notranslate"><span class="pre">StereoSeqSegmentationPipeline</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.StereoSeqSegmentationPipeline.__init__"><code class="docutils literal notranslate"><span class="pre">StereoSeqSegmentationPipeline.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.StereoSeqSegmentationPipeline.get_load_func"><code class="docutils literal notranslate"><span class="pre">StereoSeqSegmentationPipeline.get_load_func()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.StereoSeqSegmentationPipeline.get_load_args"><code class="docutils literal notranslate"><span class="pre">StereoSeqSegmentationPipeline.get_load_args()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#xeniumsegmentationpipeline">XeniumSegmentationPipeline</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#sis.segmentation.XeniumSegmentationPipeline"><code class="docutils literal notranslate"><span class="pre">XeniumSegmentationPipeline</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.XeniumSegmentationPipeline.z_depth"><code class="docutils literal notranslate"><span class="pre">XeniumSegmentationPipeline.z_depth</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.XeniumSegmentationPipeline.cache_image"><code class="docutils literal notranslate"><span class="pre">XeniumSegmentationPipeline.cache_image</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.XeniumSegmentationPipeline.__init__"><code class="docutils literal notranslate"><span class="pre">XeniumSegmentationPipeline.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.XeniumSegmentationPipeline.get_load_func"><code class="docutils literal notranslate"><span class="pre">XeniumSegmentationPipeline.get_load_func()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.segmentation.XeniumSegmentationPipeline.get_load_args"><code class="docutils literal notranslate"><span class="pre">XeniumSegmentationPipeline.get_load_args()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Spots in Space</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">segmentation</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/segmentation.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="segmentation">
+<h1>segmentation<a class="headerlink" href="#segmentation" title="Link to this heading"></a></h1>
+<section id="segmentationmethod">
+<h2>SegmentationMethod<a class="headerlink" href="#segmentationmethod" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationMethod">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sis.segmentation.</span></span><span class="sig-name descname"><span class="pre">SegmentationMethod</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationMethod" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Base class defining segmentation methods.</p>
+<p>Subclasses should initialize with a dictionary of options, then calling
+run(spot_table) will execute the segmentation method and return a SegmentationResult.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationMethod.options">
+<span class="sig-name descname"><span class="pre">options</span></span><a class="headerlink" href="#sis.segmentation.SegmentationMethod.options" title="Link to this definition"></a></dt>
+<dd><p>The options for the segmentation method.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationMethod.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationMethod.__init__" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>options</strong> (<em>dict</em>) – The options for the segmentation method.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationMethod.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spot_table</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="spot_table.html#sis.spot_table.SpotTable" title="sis.spot_table.SpotTable"><span class="pre">SpotTable</span></a></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationMethod.run" title="Link to this definition"></a></dt>
+<dd><p>Dependent on the method, run segmentation on the spot table and return a SegmentationResult</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="cellposesegmentationmethod">
+<h2>CellposeSegmentationMethod<a class="headerlink" href="#cellposesegmentationmethod" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="sis.segmentation.CellposeSegmentationMethod">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sis.segmentation.</span></span><span class="sig-name descname"><span class="pre">CellposeSegmentationMethod</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.CellposeSegmentationMethod" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#sis.segmentation.SegmentationMethod" title="sis.segmentation.SegmentationMethod"><code class="xref py py-class docutils literal notranslate"><span class="pre">SegmentationMethod</span></code></a></p>
+<p>Implements 2D or 3D cellpose segmentation on SpotTable</p>
+<p>Will automatically segment from images attached to the SpotTable or
+generate an image from total mRNA.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.CellposeSegmentationMethod.options">
+<span class="sig-name descname"><span class="pre">options</span></span><a class="headerlink" href="#sis.segmentation.CellposeSegmentationMethod.options" title="Link to this definition"></a></dt>
+<dd><p>The options for the segmentation method. (example detailed above)</p>
+<dl>
+<dt>options = {</dt><dd><p>‘region’: ((xmin, xmax), (ymin, ymax)),  # or None for whole table</p>
+<p>‘cellpose_model’: ‘cyto2’,</p>
+<p>‘images’: { ‘nuclei’: ‘DAPI’, ‘cyto’: ‘total_mrna’ },</p>
+<p>‘px_size’: 0.108,          # um / px</p>
+<p>‘cell_dia’: 10,            # um</p>
+<p>‘z_plane_thickness’: 1.5,  # um</p>
+<p>‘cellpose_options’: { ‘gpu’: True, ‘batch_size’: 8 },</p>
+<p>‘dilate’: 0,  # um - dilate segmentation after cellpose has finished</p>
+</dd>
+</dl>
+<p>}</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.CellposeSegmentationMethod.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.CellposeSegmentationMethod.__init__" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>options</strong> (<em>dict</em>) – The options for the segmentation method. (example detailed above)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.CellposeSegmentationMethod.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spot_table</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.CellposeSegmentationMethod.run" title="Link to this definition"></a></dt>
+<dd><p>Run cellpose segmentation on a spot table and return a CellposeSegmentationResult</p>
+<p>Specifications as to the nature of the segmentation are specified in self.options (of particular note is ‘cellpose_model’ and ‘images’).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>spot_table</strong> (<a class="reference internal" href="spot_table.html#sis.spot_table.SpotTable" title="sis.spot_table.SpotTable"><em>SpotTable</em></a>) – The spot table to run segmentation on.</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If ‘detect_z_planes’ is specified in options and ‘frame’ is also specified in the options[‘images’]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.CellposeSegmentationMethod.get_total_mrna_image">
+<span class="sig-name descname"><span class="pre">get_total_mrna_image</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spot_table</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image_shape</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image_transform</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="image.html#sis.image.ImageTransform" title="sis.image.ImageTransform"><span class="pre">ImageTransform</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_planes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frames</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gauss_kernel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(1,</span> <span class="pre">3,</span> <span class="pre">3)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">median_kernel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(2,</span> <span class="pre">10,</span> <span class="pre">10)</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.CellposeSegmentationMethod.get_total_mrna_image" title="Link to this definition"></a></dt>
+<dd><p>Create a total mRNA image (histogram of spot density) from the spot table.</p>
+<p>Can be used to approximate cytosol staining for segmentation.
+Smoothing can optionally be applied.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>spot_table</strong> (<a class="reference internal" href="spot_table.html#sis.spot_table.SpotTable" title="sis.spot_table.SpotTable"><em>sis.spot_table.SpotTable</em></a>) – The spot table used to create the image.</p></li>
+<li><p><strong>image_shape</strong> (<em>tuple</em>) – The shape of the image.</p></li>
+<li><p><strong>image_transform</strong> (<a class="reference internal" href="image.html#sis.image.ImageTransform" title="sis.image.ImageTransform"><em>ImageTransform</em></a>) – The transform that relates image and spot coordinates (?).</p></li>
+<li><p><strong>n_planes</strong> (<em>int</em>) – The number of z planes in the image.</p></li>
+<li><p><strong>frames</strong> (<em>tuple</em><em> or </em><em>int</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – A tuple of the first (inclusive) and last (exclusive) indices of the frames (specific z planes) used to create the image, e.g. frames=(2,5) would create an image from z planes 2, 3, and 4.
+else, if an int is provided, that specific z plane is used.</p></li>
+<li><p><strong>gauss_kernel</strong> (<em>tuple</em><em>, </em><em>optional</em>) – Kernel used for gaussian smoothing of the image. Default (1, 3, 3).</p></li>
+<li><p><strong>median_kernel</strong> (<em>tuple</em><em>, </em><em>optional</em>) – Kernel used for median smoothing of the image. Default (2, 10, 20).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The total mRNA image.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="image.html#sis.image.Image" title="sis.image.Image">Image</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.CellposeSegmentationMethod.map_spots_to_img_px">
+<span class="sig-name descname"><span class="pre">map_spots_to_img_px</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spot_table</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="spot_table.html#sis.spot_table.SpotTable" title="sis.spot_table.SpotTable"><span class="pre">SpotTable</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">image</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="image.html#sis.image.Image" title="sis.image.Image"><span class="pre">Image</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image_transform</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="image.html#sis.image.ImageTransform" title="sis.image.ImageTransform"><span class="pre">ImageTransform</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image_shape</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">detect_z_planes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.CellposeSegmentationMethod.map_spots_to_img_px" title="Link to this definition"></a></dt>
+<dd><p>Map spot table (x, y, z) positions to image pixels (frame, row, col).</p>
+<p>Optionally, you can provide the <em>image_transform</em> and <em>image_shape</em> in place of an <em>image</em>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>spot_table</strong> (<a class="reference internal" href="spot_table.html#sis.spot_table.SpotTable" title="sis.spot_table.SpotTable"><em>SpotTable</em></a>) – The spot table to map to image pixels.</p></li>
+<li><p><strong>image</strong> (<a class="reference internal" href="image.html#sis.image.Image" title="sis.image.Image"><em>Image</em></a><em> or </em><em>None</em><em>, </em><em>optional</em>) – The image to use for mapping.</p></li>
+<li><p><strong>image_transform</strong> (<a class="reference internal" href="image.html#sis.image.ImageTransform" title="sis.image.ImageTransform"><em>ImageTransform</em></a><em> or </em><em>None</em><em>, </em><em>optional</em>) – The transform that relates image and spot coordinates.
+Can be used in conjunction with image_shape as a replacement for image.</p></li>
+<li><p><strong>image_shape</strong> (<em>tuple</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The shape of the image.
+Can be used in conjunction with image_transform as a replacement for image.</p></li>
+<li><p><strong>detect_z_planes</strong> (<em>float</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – If provided, limit the z-planes to those that contain at least <em>detect_z_planes</em> fraction of spots.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>An array of shape (n_spots, 3) containing the (frame, row, col) positions of each spot.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.CellposeSegmentationMethod.duplistack_image">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">duplistack_image</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">image</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="image.html#sis.image.Image" title="sis.image.Image"><span class="pre">Image</span></a></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.CellposeSegmentationMethod.duplistack_image" title="Link to this definition"></a></dt>
+<dd><p>This method takes an image and creates a numpy array of its data duplicated in place</p>
+<p>e.g. an image with frames 1,2,3 would become an array with frames 1,1,2,2,3,3</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>image</strong> (<a class="reference internal" href="image.html#sis.image.Image" title="sis.image.Image"><em>Image</em></a>) – The image to duplistack.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="segmentationresult">
+<h2>SegmentationResult<a class="headerlink" href="#segmentationresult" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationResult">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sis.segmentation.</span></span><span class="sig-name descname"><span class="pre">SegmentationResult</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#sis.segmentation.SegmentationMethod" title="sis.segmentation.SegmentationMethod"><span class="pre">SegmentationMethod</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_spot_table</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="spot_table.html#sis.spot_table.SpotTable" title="sis.spot_table.SpotTable"><span class="pre">SpotTable</span></a></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationResult" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Base class defining a segmentation of SpotTable data–method, options, results</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationResult.method">
+<span class="sig-name descname"><span class="pre">method</span></span><a class="headerlink" href="#sis.segmentation.SegmentationResult.method" title="Link to this definition"></a></dt>
+<dd><p>The segmentation method used.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#sis.segmentation.SegmentationMethod" title="sis.segmentation.SegmentationMethod">SegmentationMethod</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationResult.input_spot_table">
+<span class="sig-name descname"><span class="pre">input_spot_table</span></span><a class="headerlink" href="#sis.segmentation.SegmentationResult.input_spot_table" title="Link to this definition"></a></dt>
+<dd><p>The input spot table upon which segmentation was run</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="spot_table.html#sis.spot_table.SpotTable" title="sis.spot_table.SpotTable">sis.spot_table.SpotTable</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationResult.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#sis.segmentation.SegmentationMethod" title="sis.segmentation.SegmentationMethod"><span class="pre">SegmentationMethod</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_spot_table</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="spot_table.html#sis.spot_table.SpotTable" title="sis.spot_table.SpotTable"><span class="pre">SpotTable</span></a></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationResult.__init__" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>method</strong> (<a class="reference internal" href="#sis.segmentation.SegmentationMethod" title="sis.segmentation.SegmentationMethod"><em>SegmentationMethod</em></a>) – The segmentation method used.</p></li>
+<li><p><strong>input_spot_table</strong> (<a class="reference internal" href="spot_table.html#sis.spot_table.SpotTable" title="sis.spot_table.SpotTable"><em>sis.spot_table.SpotTable</em></a>) – The input spot table upon which segmentation was run</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationResult.cell_ids">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">cell_ids</span></span><a class="headerlink" href="#sis.segmentation.SegmentationResult.cell_ids" title="Link to this definition"></a></dt>
+<dd><p>Array of segmented cell IDs for each spot in the table</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationResult.spot_table">
+<span class="sig-name descname"><span class="pre">spot_table</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">min_spots</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationResult.spot_table" title="Link to this definition"></a></dt>
+<dd><p>Return a SegmentedSpotTable with cell_ids determined by the segmentation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>min_spots</strong> (<em>int</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The minimum number of spots required for a cell to be considered valid. Cells with fewer spots will be assigned a cell ID of 0.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationResult.save">
+<span class="sig-name descname"><span class="pre">save</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationResult.save" title="Link to this definition"></a></dt>
+<dd><p>Save the SegmentationResult to a pickle file.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="cellposesegmentationresult">
+<h2>CellposeSegmentationResult<a class="headerlink" href="#cellposesegmentationresult" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="sis.segmentation.CellposeSegmentationResult">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sis.segmentation.</span></span><span class="sig-name descname"><span class="pre">CellposeSegmentationResult</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#sis.segmentation.SegmentationMethod" title="sis.segmentation.SegmentationMethod"><span class="pre">SegmentationMethod</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_spot_table</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="spot_table.html#sis.spot_table.SpotTable" title="sis.spot_table.SpotTable"><span class="pre">SpotTable</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cellpose_output</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image_transform</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="image.html#sis.image.ImageTransform" title="sis.image.ImageTransform"><span class="pre">ImageTransform</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">detect_z_planes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.CellposeSegmentationResult" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#sis.segmentation.SegmentationResult" title="sis.segmentation.SegmentationResult"><code class="xref py py-class docutils literal notranslate"><span class="pre">SegmentationResult</span></code></a></p>
+<p>Class made for containing the result of running CellposeSegmentationMethod on a SpotTable</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.CellposeSegmentationResult.method">
+<span class="sig-name descname"><span class="pre">method</span></span><a class="headerlink" href="#sis.segmentation.CellposeSegmentationResult.method" title="Link to this definition"></a></dt>
+<dd><p>The segmentation method used.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#sis.segmentation.SegmentationMethod" title="sis.segmentation.SegmentationMethod">SegmentationMethod</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.CellposeSegmentationResult.input_spot_table">
+<span class="sig-name descname"><span class="pre">input_spot_table</span></span><a class="headerlink" href="#sis.segmentation.CellposeSegmentationResult.input_spot_table" title="Link to this definition"></a></dt>
+<dd><p>The input spot table upon which segmentation was run</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="spot_table.html#sis.spot_table.SpotTable" title="sis.spot_table.SpotTable">sis.spot_table.SpotTable</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.CellposeSegmentationResult.cellpose_output">
+<span class="sig-name descname"><span class="pre">cellpose_output</span></span><a class="headerlink" href="#sis.segmentation.CellposeSegmentationResult.cellpose_output" title="Link to this definition"></a></dt>
+<dd><dl class="simple">
+<dt>The output of cellpose segmentation. Contains</dt><dd><ul class="simple">
+<li><p>‘masks’</p></li>
+<li><p>‘flows’</p></li>
+<li><p>‘styles’</p></li>
+<li><p>‘diams’ (if non-custom model).</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.CellposeSegmentationResult.image_transform">
+<span class="sig-name descname"><span class="pre">image_transform</span></span><a class="headerlink" href="#sis.segmentation.CellposeSegmentationResult.image_transform" title="Link to this definition"></a></dt>
+<dd><p>The transform that relates image and spot coordinates.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="image.html#sis.image.ImageTransform" title="sis.image.ImageTransform">sis.image.ImageTransform</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.CellposeSegmentationResult.detect_z_planes">
+<span class="sig-name descname"><span class="pre">detect_z_planes</span></span><a class="headerlink" href="#sis.segmentation.CellposeSegmentationResult.detect_z_planes" title="Link to this definition"></a></dt>
+<dd><p>If float limit the z-planes to those that contain at least <em>detect_z_planes</em> fraction of spots.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float or None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.CellposeSegmentationResult._cell_ids">
+<span class="sig-name descname"><span class="pre">_cell_ids</span></span><a class="headerlink" href="#sis.segmentation.CellposeSegmentationResult._cell_ids" title="Link to this definition"></a></dt>
+<dd><p>The cell IDs assigned to each spot in the table, or None if not yet computed.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray or None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.CellposeSegmentationResult.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#sis.segmentation.SegmentationMethod" title="sis.segmentation.SegmentationMethod"><span class="pre">SegmentationMethod</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_spot_table</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="spot_table.html#sis.spot_table.SpotTable" title="sis.spot_table.SpotTable"><span class="pre">SpotTable</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cellpose_output</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image_transform</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="image.html#sis.image.ImageTransform" title="sis.image.ImageTransform"><span class="pre">ImageTransform</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">detect_z_planes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.CellposeSegmentationResult.__init__" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>method</strong> (<a class="reference internal" href="#sis.segmentation.SegmentationMethod" title="sis.segmentation.SegmentationMethod"><em>sis.segmentation.SegmentationMethod</em></a>) – The segmentation method used.</p></li>
+<li><p><strong>input_spot_table</strong> (<a class="reference internal" href="spot_table.html#sis.spot_table.SpotTable" title="sis.spot_table.SpotTable"><em>sis.spot_table.SpotTable</em></a>) – The input spot table upon which segmentation was run</p></li>
+<li><p><strong>cellpose_output</strong> (<em>dict</em>) – The output of cellpose segmentation. Contains ‘masks’, ‘flows’, ‘styles’, and ‘diams’ (if non-custom model).</p></li>
+<li><p><strong>image_transform</strong> (<a class="reference internal" href="image.html#sis.image.ImageTransform" title="sis.image.ImageTransform"><em>sis.image.ImageTransform</em></a>) – The transform that relates image and spot coordinates.</p></li>
+<li><p><strong>detect_z_planes</strong> (<em>float</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – If provided, limit the z-planes to those that contain at least <em>detect_z_planes</em> fraction of spots.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="sis.segmentation.CellposeSegmentationResult.cell_ids">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">cell_ids</span></span><a class="headerlink" href="#sis.segmentation.CellposeSegmentationResult.cell_ids" title="Link to this definition"></a></dt>
+<dd><p>Create an array of segmented cell IDs for each spot in the table from the mask image</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="sis.segmentation.CellposeSegmentationResult.mask_image">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">mask_image</span></span><a class="headerlink" href="#sis.segmentation.CellposeSegmentationResult.mask_image" title="Link to this definition"></a></dt>
+<dd><p>Return Image instance containing mask data and pixel transform</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="image.html#sis.image.Image" title="sis.image.Image">sis.image.Image</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.CellposeSegmentationResult.spot_table">
+<span class="sig-name descname"><span class="pre">spot_table</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">min_spots</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.CellposeSegmentationResult.spot_table" title="Link to this definition"></a></dt>
+<dd><p>Return a SegmentedSpotTable with cell_ids determined by the segmentation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>min_spots</strong> (<em>int</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The minimum number of spots required for a cell to be considered valid.
+Cells with fewer spots will be assigned a cell ID of 0.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="segmentationpipeline">
+<h2>SegmentationPipeline<a class="headerlink" href="#segmentationpipeline" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sis.segmentation.</span></span><span class="sig-name descname"><span class="pre">SegmentationPipeline</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt_cache</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subrgn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seg_method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#sis.segmentation.SegmentationMethod" title="sis.segmentation.SegmentationMethod"><span class="pre">SegmentationMethod</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">seg_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygon_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seg_hpc_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygon_hpc_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hpc_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Base class for running segmentation on a whole section (or subregion).
+When the class is initialized, it creates the segmentation output directory
+and sets paths for intermediate files. Each step has defined input and
+output files. Steps can be run individually by calling their respective
+methods or in a defined sequence by calling the run() method.</p>
+<p class="rubric">Notes</p>
+<p>Currently there is an assumption that the attributes set upon initialization
+are not changed by the user. If you change them, be warned that the
+metadata dictionary and spot table subregion may become outdated if the
+appropriate methods are not called afterward.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.image_path">
+<span class="sig-name descname"><span class="pre">image_path</span></span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.image_path" title="Link to this definition"></a></dt>
+<dd><p>Path to image/directory containing images to be segmented.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Path or str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.detected_transcripts_file">
+<span class="sig-name descname"><span class="pre">detected_transcripts_file</span></span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.detected_transcripts_file" title="Link to this definition"></a></dt>
+<dd><p>Path to transcipts file</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Path or str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.detected_transcripts_cache">
+<span class="sig-name descname"><span class="pre">detected_transcripts_cache</span></span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.detected_transcripts_cache" title="Link to this definition"></a></dt>
+<dd><p>Path to a npz detected transcripts file. Used for faster loading.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Path or str or None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.output_dir">
+<span class="sig-name descname"><span class="pre">output_dir</span></span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.output_dir" title="Link to this definition"></a></dt>
+<dd><p>Path to the directory where all results will be saved.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Path</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.subrgn">
+<span class="sig-name descname"><span class="pre">subrgn</span></span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.subrgn" title="Link to this definition"></a></dt>
+<dd><p>The subregion to segment. A string (e.g. ‘DAPI’) indicates segmentation
+of the full region bounded by the associated image channel. To segment a
+smaller region, set to a tuple corresponding to a bounding box.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str or tuple</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.seg_method">
+<span class="sig-name descname"><span class="pre">seg_method</span></span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.seg_method" title="Link to this definition"></a></dt>
+<dd><p>The segmentation method to use. Must be found in sis.segmentation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#sis.segmentation.SegmentationMethod" title="sis.segmentation.SegmentationMethod">sis.segmentation.SegmentationMethod</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.seg_opts">
+<span class="sig-name descname"><span class="pre">seg_opts</span></span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.seg_opts" title="Link to this definition"></a></dt>
+<dd><p>The argmuents to pass to the segmentation method.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.seg_hpc_opts">
+<span class="sig-name descname"><span class="pre">seg_hpc_opts</span></span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.seg_hpc_opts" title="Link to this definition"></a></dt>
+<dd><p>Options to use for segmenting tiles on an hpc</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.seg_jobs">
+<span class="sig-name descname"><span class="pre">seg_jobs</span></span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.seg_jobs" title="Link to this definition"></a></dt>
+<dd><p>Contains information on the jobs used to run tiled segmentation on the hpc.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>sis.hpc.SlurmJobArray or None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.polygon_opts">
+<span class="sig-name descname"><span class="pre">polygon_opts</span></span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.polygon_opts" title="Link to this definition"></a></dt>
+<dd><p>Options to pass to sis.spot_table.run_cell_polygon_calculation()</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.polygon_hpc_opts">
+<span class="sig-name descname"><span class="pre">polygon_hpc_opts</span></span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.polygon_hpc_opts" title="Link to this definition"></a></dt>
+<dd><p>Options to use for calculating polygons on an hpc</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.polygon_jobs">
+<span class="sig-name descname"><span class="pre">polygon_jobs</span></span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.polygon_jobs" title="Link to this definition"></a></dt>
+<dd><p>Contains information on the jobs used to run polygon calculations on the hpc.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>sis.hpc.SlurmJobArray or None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.meta_path">
+<span class="sig-name descname"><span class="pre">meta_path</span></span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.meta_path" title="Link to this definition"></a></dt>
+<dd><p>Path to file containing initial parameters and settings.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Path</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.self.regions_path">
+<span class="sig-prename descclassname"><span class="pre">self.</span></span><span class="sig-name descname"><span class="pre">regions_path</span></span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.self.regions_path" title="Link to this definition"></a></dt>
+<dd><p>Path to file containing tile boundary information</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Path</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.seg_run_spec_path">
+<span class="sig-name descname"><span class="pre">seg_run_spec_path</span></span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.seg_run_spec_path" title="Link to this definition"></a></dt>
+<dd><p>Path to file containing segmentation run specifications</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Path</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.polygon_run_spec_path">
+<span class="sig-name descname"><span class="pre">polygon_run_spec_path</span></span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.polygon_run_spec_path" title="Link to this definition"></a></dt>
+<dd><p>Path to file containing polygon run specifications</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Path</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.tile_save_path">
+<span class="sig-name descname"><span class="pre">tile_save_path</span></span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.tile_save_path" title="Link to this definition"></a></dt>
+<dd><p>Path to directory where segmentation tile intermediate results are saved</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Path</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.cid_path">
+<span class="sig-name descname"><span class="pre">cid_path</span></span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.cid_path" title="Link to this definition"></a></dt>
+<dd><p>Path to file containing cell IDs for each spot in the segmentation</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Path</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.seg_spot_table_path">
+<span class="sig-name descname"><span class="pre">seg_spot_table_path</span></span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.seg_spot_table_path" title="Link to this definition"></a></dt>
+<dd><p>Path to final segmented spot table file (npz format)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Path</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.cbg_path">
+<span class="sig-name descname"><span class="pre">cbg_path</span></span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.cbg_path" title="Link to this definition"></a></dt>
+<dd><p>Path to final cell-by-gene table file (h5ad format)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Path</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.polygon_subsets_path">
+<span class="sig-name descname"><span class="pre">polygon_subsets_path</span></span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.polygon_subsets_path" title="Link to this definition"></a></dt>
+<dd><p>Path to directory where cell polygon intermediate results are saved</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Path</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.polygon_final_path">
+<span class="sig-name descname"><span class="pre">polygon_final_path</span></span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.polygon_final_path" title="Link to this definition"></a></dt>
+<dd><p>Path to final cell polygon file (geojson or other format specified in polygon_opts)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Path</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt_cache</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subrgn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seg_method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#sis.segmentation.SegmentationMethod" title="sis.segmentation.SegmentationMethod"><span class="pre">SegmentationMethod</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">seg_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygon_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seg_hpc_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygon_hpc_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hpc_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.__init__" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dt_file</strong> (<em>str</em><em> or </em><em>Path</em>) – Path to the detected transcripts file.</p></li>
+<li><p><strong>image_path</strong> (<em>str</em><em> or </em><em>Path</em>) – Path to the images.</p></li>
+<li><p><strong>output_dir</strong> (<em>str</em><em> or </em><em>Path</em>) – Where to save output files.</p></li>
+<li><p><strong>dt_cache</strong> (<em>str</em><em> or </em><em>Path</em><em> or </em><em>None</em>) – Path to the detected transcripts cache file. Used for faster loading.</p></li>
+<li><p><strong>subrgn</strong> (<em>str</em><em> or </em><em>tuple</em>) – The subregion to segment. Set to a string, e.g. ‘DAPI’, to segment the
+full region bounded by the associated image channel. To segment a
+smaller region, set to a tuple corresponding to a bounding box.</p></li>
+<li><p><strong>seg_method</strong> (<a class="reference internal" href="#sis.segmentation.SegmentationMethod" title="sis.segmentation.SegmentationMethod"><em>SegmentationMethod</em></a>) – The segmentation method to use. Must be found in sis.segmentation.</p></li>
+<li><p><strong>seg_opts</strong> (<em>dict</em>) – Options to pass to seg_method.</p></li>
+<li><p><strong>polygon_opts</strong> (<em>dict</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Options to pass to for cell polygon generation. Currently supports save_file_extension, alpha_inv_coeff, and separate z-planes.
+Default is None, which sets save_file_extension to ‘geojson’, alpha_inv_coeff to 4/3, and separate_z_planes to True</p></li>
+<li><p><strong>seg_hpc_opts</strong> (<em>dict</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Options to use for segmenting tiles on the hpc. Default is None</p></li>
+<li><p><strong>polygon_hpc_opts</strong> (<em>dict</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Options to use for calculating cell polygons on the hpc. Default is None</p></li>
+<li><p><strong>hpc_opts</strong> (<em>dict</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Options to use for both segmenting tiles and calculating cell polygons on the hpc (can be used in place of submitting both seg_hpc_opts and polygon_hpc_opts).
+Default is None</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If neither seg_hpc_opts nor hpc_opts are provided, or if neither polygon_hpc_opts nor hpc_opts are provided.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x_format</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_dtype</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'uint16'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">additional_obs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overwrite</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clean_up</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'all_ints'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">200</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_transcripts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rerun</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.run" title="Link to this definition"></a></dt>
+<dd><p>Run all steps to perform tiled segmentation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x_format</strong> (<em>str</em>) – Desired format for the cell by gene anndata X. Options: ‘dense’ or
+‘sparse’.</p></li>
+<li><p><strong>x_dtype</strong> (<em>str</em><em>, </em><em>optional</em>) – The data type of the matrix.</p></li>
+<li><p><strong>additional_obs</strong> (<em>dict</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Additional columns to add to the anndata.obs DataFrame.
+Keys are column names and values are arrays of the same length as the number of cells.</p></li>
+<li><p><strong>prefix</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The string to prepend to all cell labels. If both prefix and suffix are None, will prepend a uuid to all cell labels.</p></li>
+<li><p><strong>suffix</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The string to append to all cell labels. If both prefix and suffix are None, will prepend a uuid to all cell labels.</p></li>
+<li><p><strong>overwrite</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to allow overwriting of output files. Default False.</p></li>
+<li><p><strong>clean_up</strong> (<em>str</em><em> or </em><em>bool</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Whether or not to clean up intermediate files after segmentation
+Accepts: ‘all_ints’, ‘seg_ints’, ‘polygon_ints’, ‘none’, True, False, None
+Default: cleans up all intermediate files.</p></li>
+<li><p><strong>tile_size</strong> (<em>int</em><em>, </em><em>optional</em>) – The maximum size of tiles to segment. Default 200. Increasing this
+parameter may also require increasing time and/or memory limits in
+seg_hpc_opts.</p></li>
+<li><p><strong>min_transcripts</strong> (<em>int</em><em>, </em><em>optional</em>) – Minimum number of transcripts in a tile to be considered for segmentation. Default 0.</p></li>
+<li><p><strong>rerun</strong> (<em>bool</em><em>, </em><em>optional</em>) – If enabled, SegmentationPipeline will attempt to automatically rerun jobs that failed
+If job failed due to memory constaints, memory limit in will be doubled
+If job failed due to time constaints, time limit in will be doubled</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>The segmented spot table.</p></li>
+<li><p>The cell by gene table.</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple[<a class="reference internal" href="spot_table.html#sis.spot_table.SegmentedSpotTable" title="sis.spot_table.SegmentedSpotTable">sis.spot_table.SegmentedSpotTable</a>, anndata.AnnData]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.from_json">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">json_file</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.from_json" title="Link to this definition"></a></dt>
+<dd><p>Alternate constructor to load a SegmentationPipeline from a json file</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>json_file</strong> (<em>Path</em>) – The path to the json file.</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>NotImplementedError</strong> – If the segmentation method specified in the json file does not exist</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.get_load_func">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_load_func</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.get_load_func" title="Link to this definition"></a></dt>
+<dd><p>Get the function to load a spot table.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.get_load_args">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_load_args</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.get_load_args" title="Link to this definition"></a></dt>
+<dd><p>Get args to pass to loading function (e.g. when submitting jobs to hpc).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.set_intermediate_file_paths">
+<span class="sig-name descname"><span class="pre">set_intermediate_file_paths</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.set_intermediate_file_paths" title="Link to this definition"></a></dt>
+<dd><p>Define locations within the output directory to save intermediate and output files.
+If you add a step to this pipeline that generates a file, specify its
+path here.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.update_metadata">
+<span class="sig-name descname"><span class="pre">update_metadata</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.update_metadata" title="Link to this definition"></a></dt>
+<dd><p>Update the metadata dictionary of segmentation input parameters.</p>
+<p>It is recommended to call this method whenever a function changes one of the
+SegmentationPipeline attributes set upon intialization.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.save_metadata">
+<span class="sig-name descname"><span class="pre">save_metadata</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">overwrite</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.save_metadata" title="Link to this definition"></a></dt>
+<dd><p>Save SegmentationPipeline metadata to the meta_path attribute (a json file in the output directory).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>overwrite</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to overwrite the current metadata file.</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>FileExistsError</strong> – If the metadata file already exists and overwrite is False.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.load_metadata">
+<span class="sig-name descname"><span class="pre">load_metadata</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.load_metadata" title="Link to this definition"></a></dt>
+<dd><p>Load the current SegmentationPipeline metadata json from the meta_path attribute into a dictionary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>SegmentationPipeline attributes and their values as stored in the metadata file.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.load_raw_spot_table">
+<span class="sig-name descname"><span class="pre">load_raw_spot_table</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.load_raw_spot_table" title="Link to this definition"></a></dt>
+<dd><p>Load the raw spot table [self.get_load_func(), self.get_load_args()],
+crop it by subregion [self.subrgn],
+and set as an attribute. [self.raw_spot_table]</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.tile_seg_region">
+<span class="sig-name descname"><span class="pre">tile_seg_region</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">overwrite</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_tile_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">200</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overlap</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">30</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_transcripts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.tile_seg_region" title="Link to this definition"></a></dt>
+<dd><p>Split the attached SpotTable into rectangular subregions (tiles).
+Also saves the subregion coordinates into a json file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>overwrite</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to overwrite the regions json file (if it exists).</p></li>
+<li><p><strong>max_tile_size</strong> (<em>int</em><em>, </em><em>optional</em>) – Maximum width and height of the tiles in microns. Default 200.</p></li>
+<li><p><strong>overlap</strong> (<em>int</em><em>, </em><em>optional</em>) – Amount of overlap between tiles in microns. Default 30.</p></li>
+<li><p><strong>min_transcripts</strong> (<em>int</em><em>, </em><em>optional</em>) – Minimum number of transcripts in a tile to be considered for segmentation. Default 0.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><p><strong>(tiles, regions)</strong> –</p>
+<ul class="simple">
+<li><p>The grid of overlapping tiles.</p></li>
+<li><p>Subregion coordinates for each tile.</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple[list[<a class="reference internal" href="spot_table.html#sis.spot_table.SpotTable" title="sis.spot_table.SpotTable">SpotTable</a>], list[tuple]]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.save_regions">
+<span class="sig-name descname"><span class="pre">save_regions</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">regions</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overwrite</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.save_regions" title="Link to this definition"></a></dt>
+<dd><p>Save the segmentation tile subregion coordinates into the regions_path attribute.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>regions</strong> (<em>list</em>) – The list of subregion coordinates for every tile.</p></li>
+<li><p><strong>overwrite</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to overwrite the regions json file if it exists in the output directory.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>FileExistsError</strong> – If the regions file already exists and overwrite is False.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.load_regions">
+<span class="sig-name descname"><span class="pre">load_regions</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.load_regions" title="Link to this definition"></a></dt>
+<dd><p>Load the subregion coordinates from the output directory.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>regions</strong> – The subregion coordinates for every tile.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>list</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.merge_segmented_tiles">
+<span class="sig-name descname"><span class="pre">merge_segmented_tiles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">run_spec</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tiles</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="spot_table.html#sis.spot_table.SegmentedSpotTable" title="sis.spot_table.SegmentedSpotTable"><span class="pre">SegmentedSpotTable</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">detect_z_planes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overwrite</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.merge_segmented_tiles" title="Link to this definition"></a></dt>
+<dd><p>Merge segmented tiles to generate and save the array of cell_ids.
+A new SegmentedSpotTable is created from the raw SpotTable and
+updated with cell ids in place.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>run_spec</strong> (<em>dict</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Specifications to run tiled segmentation on the HPC.
+If not provided, will attempt to load from the standard location on disk.</p></li>
+<li><p><strong>tiles</strong> (<em>list</em><em> of </em><a class="reference internal" href="spot_table.html#sis.spot_table.SegmentedSpotTable" title="sis.spot_table.SegmentedSpotTable"><em>sis.spot_table.SegmentedSpotTable</em></a><em> or </em><em>None</em><em>, </em><em>optional</em>) – The individual tiles that were segmented.
+If not provided, will be generated from spot_table and run_spec.</p></li>
+<li><p><strong>detect_z_planes</strong> (<em>float</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – If provided, limit the z-planes to those that contain at least <em>detect_z_planes</em> fraction of spots.
+Should be the same as the value used in the segmentation method.</p></li>
+<li><p><strong>overwrite</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to overwrite the cell ids file.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><p><strong>(cell_ids, merge_results, skipped)</strong> –</p>
+<ul class="simple">
+<li><p>The array of cell_ids corresponding to each spot.</p></li>
+<li><p>Information about merge conflicts collected during tile merging.</p></li>
+<li><p>Indices of tiles skipped during segmentation.</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple[numpy.ndarray, list[dict], list[int]]</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>RuntimeError</strong> – If no tiles generated output files, indicating an issue with the segmentation process.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.save_cell_ids">
+<span class="sig-name descname"><span class="pre">save_cell_ids</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cell_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overwrite</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.save_cell_ids" title="Link to this definition"></a></dt>
+<dd><p>Save array of cell_ids to the cid_path attribute.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cell_ids</strong> (<em>np.ndarray</em>) – The array of cell IDs.</p></li>
+<li><p><strong>overwrite</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to enable overwriting of the cell ids file. Default False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>FileExistsError</strong> – If the cell ids file already exists and overwrite is False.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.load_cell_ids">
+<span class="sig-name descname"><span class="pre">load_cell_ids</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.load_cell_ids" title="Link to this definition"></a></dt>
+<dd><p>Load array of cell_ids from the cid_path attribute</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.save_seg_spot_table">
+<span class="sig-name descname"><span class="pre">save_seg_spot_table</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">overwrite</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.save_seg_spot_table" title="Link to this definition"></a></dt>
+<dd><p>Save the segmented spot table to the seg_spot_table_path attribute.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>overwrite</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to enable overwriting of the segmented spot table file. Default False.</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>FileExistsError</strong> – If the segmented spot table file already exists and overwrite is False.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.load_seg_spot_table">
+<span class="sig-name descname"><span class="pre">load_seg_spot_table</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">allow_pickle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.load_seg_spot_table" title="Link to this definition"></a></dt>
+<dd><p>Load the segmented spot table from the seg_spot_table_path attribute.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>allow_pickle</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to allow loading pickled object arrays stored in npy files.
+Must be enabled to load dictionaries and cell polygons.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.merge_cell_polygons">
+<span class="sig-name descname"><span class="pre">merge_cell_polygons</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">run_spec</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overwrite</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.merge_cell_polygons" title="Link to this definition"></a></dt>
+<dd><p>Add cell polygons calculated across subsets of cells to the attached spot table in place.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>run_spec</strong> (<em>dict</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The run specification for calculating polygons on the HPC.
+If not provided, will attempt to load from the standard location on disk.</p></li>
+<li><p><strong>overwrite</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to overwrite the polygon run spec if it exists in the output directory. Default False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><p><strong>(dict, list)</strong> –</p>
+<ul class="simple">
+<li><p>The cell polygons after merging.</p></li>
+<li><p>Indices of cell polygons that were skipped.</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple[dict, list[int]]</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>RuntimeError</strong> – If all no polygon output files were generated, indicating an issue with the process.</p></li>
+<li><p><strong>FileExistsError</strong> – If the polygons file already exists and overwrite is False.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.create_cell_by_gene">
+<span class="sig-name descname"><span class="pre">create_cell_by_gene</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x_format</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_dtype</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'uint16'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">additional_obs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overwrite</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.create_cell_by_gene" title="Link to this definition"></a></dt>
+<dd><p>Create and save a cell by gene AnnData object from the attached spot table.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x_format</strong> (<em>str</em>) – Desired format for the cell by gene anndata X. Options: ‘dense’ or
+‘sparse’.</p></li>
+<li><p><strong>x_dtype</strong> (<em>str</em><em>, </em><em>optional</em>) – The data type of the matrix.</p></li>
+<li><p><strong>additional_obs</strong> (<em>dict</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Additional columns to add to the anndata.obs DataFrame.
+Keys are column names and values are arrays of the same length as the number of cells.</p></li>
+<li><p><strong>prefix</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The string to prepend to all cell labels. If both prefix and suffix are None, will prepend a uuid to all cell labels.</p></li>
+<li><p><strong>suffix</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The string to append to all cell labels. If both prefix and suffix are None, will prepend a uuid to all cell labels.</p></li>
+<li><p><strong>overwrite</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to allow overwriting of output files. Default False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>cell_by_gene</strong> – The cell by gene table.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>anndata.AnnData</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.save_cbg">
+<span class="sig-name descname"><span class="pre">save_cbg</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cell_by_gene</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">AnnData</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overwrite</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.save_cbg" title="Link to this definition"></a></dt>
+<dd><p>Save the cell by gene anndata object to the cbg_path attribute.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cell_by_gene</strong> (<em>anndata.AnnData</em>) – The cell by gene anndata object.</p></li>
+<li><p><strong>overwrite</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to enable overwriting of the cell by gene file. Default False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>FileExistsError</strong> – If the cell by gene file already exists and overwrite is False.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.load_cbg">
+<span class="sig-name descname"><span class="pre">load_cbg</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.load_cbg" title="Link to this definition"></a></dt>
+<dd><p>Load the cell by gene anndata object from the cbg_path attribute</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.clean_up">
+<span class="sig-name descname"><span class="pre">clean_up</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'all_ints'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.clean_up" title="Link to this definition"></a></dt>
+<dd><p>Clean up intermediate files after segmentation and polygon generation is complete.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>mode</strong> (<em>str</em><em>, </em><em>optional</em>) – Can be ‘all_ints’, ‘seg_ints’, ‘polygon_ints’, or ‘none’ depending on desired clean up. Defaults to ‘all_ints’.</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If an invalid clean up mode is specified. (i.e. not ‘all_ints’, ‘seg_ints’, ‘polygon_ints’, or ‘none’).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.get_seg_run_spec">
+<span class="sig-name descname"><span class="pre">get_seg_run_spec</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">regions</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overwrite</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">result_files</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.get_seg_run_spec" title="Link to this definition"></a></dt>
+<dd><p>Create a run specification for segmenting tiles on the HPC.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>regions</strong> (<em>list</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The list of subregion coorindates for every tile. If not provided,
+will attempt to load subregion coordinates from disk.</p></li>
+<li><p><strong>overwrite</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to overwrite the run_spec file if it exists in the output directory.</p></li>
+<li><p><strong>result_files</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to save the spot table tiles as individual pickle files. Default True.
+Recommended to set to False if wanting to save disk space.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The segmentation run specifications.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.get_polygon_run_spec">
+<span class="sig-name descname"><span class="pre">get_polygon_run_spec</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">overwrite</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.get_polygon_run_spec" title="Link to this definition"></a></dt>
+<dd><p>Generates a run spec for running cell polygon jobs on the HPC.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>overwrite</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to overwrite the run spec if it exists. Default False.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The polygon run specifications.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>FileExistsError</strong> – If the polygon subset file already exists and overwrite is False.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.save_run_spec">
+<span class="sig-name descname"><span class="pre">save_run_spec</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">run_spec</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">run_spec_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overwrite</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.save_run_spec" title="Link to this definition"></a></dt>
+<dd><p>Save run specifications for a job on the HPC as a pkl file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>run_spec</strong> (<em>dict</em>) – The run specifications.</p></li>
+<li><p><strong>run_spec_path</strong> (<em>Path</em>) – The path to the run spec.</p></li>
+<li><p><strong>overwrite</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to enable overwriting of the run spec. Default False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>FileExistsError</strong> – If the run spec file already exists and overwrite is False.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.load_run_spec">
+<span class="sig-name descname"><span class="pre">load_run_spec</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">run_spec_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.load_run_spec" title="Link to this definition"></a></dt>
+<dd><p>Load run specifications for a job on the HPC.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>run_spec_path</strong> (<em>Path</em><em> or </em><em>str</em>) – File path to the run spec.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The run specifications</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.submit_jobs">
+<span class="sig-name descname"><span class="pre">submit_jobs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">job_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">run_spec</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overwrite</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.submit_jobs" title="Link to this definition"></a></dt>
+<dd><p>Submit array jobs to a SLURM managed HPC.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>job_type</strong> (<em>str</em>) – The type of jobs to submit. Set to ‘segmentation’ to run tiled segmentation or ‘cell_polygons’ to calculate cell polygons.</p></li>
+<li><p><strong>run_spec</strong> (<em>dict</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The specifications to run the jobs on the HPC. If not provided, will attempt to load from the standard location on disk.</p></li>
+<li><p><strong>overwrite</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to overwrite result files. Default False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Object representing submitted HPC jobs.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>sis.hpc.SlurmJobArray</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If an invalid job type is specified. (i.e. not ‘segmentation’ or ‘cell_polygons’).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.track_job_progress">
+<span class="sig-name descname"><span class="pre">track_job_progress</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">jobs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">SlurmJobArray</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.track_job_progress" title="Link to this definition"></a></dt>
+<dd><p>Track progress of submitted hpc jobs and display with tqdm until all jobs have ended.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>jobs</strong> (<em>sis.hpc.SlurmJobArray</em>) – Submitted slurm jobs to track.</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>RuntimeError</strong> – If none of the jobs completed properly, indicating a ubiquitous issue that must be resolved.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.rerun_failed_jobs">
+<span class="sig-name descname"><span class="pre">rerun_failed_jobs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">job_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jobs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">SlurmJobArray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">run_spec</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mem</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_attempts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">5</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.rerun_failed_jobs" title="Link to this definition"></a></dt>
+<dd><p>This function takes jobs and the run_spec that submitted them and resubmits any failed jobs.
+It continues to resubmit until all jobs are completed properly or the maximum number of attempts is reached</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>job_type</strong> (<em>str</em>) – The type of jobs to rerun. Set to ‘segmentation’ to run tiled segmentation or ‘cell_polygons’ to calculate cell polygons.</p></li>
+<li><p><strong>jobs</strong> (<em>sis.hpc.SlurmJobArray</em>) – A SlurmJobArray instance containing jobs to check for failures</p></li>
+<li><p><strong>run_spec</strong> (<em>dict</em>) – The run_spec that was used to submit the jobs previously</p></li>
+<li><p><strong>mem</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The amount of memory that should be allocated to the job reruns
+If the amount is less than the amount used to submit the failed job or left unspecified, it defaults to doubling the previous run’s memory</p></li>
+<li><p><strong>time</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The length of time that should be allocated to the job reruns
+If the amount is less than the amount used to submit the failed job or left unspecified, it defaults to doubling the previous run’s time</p></li>
+<li><p><strong>max_attempts</strong> (<em>int</em><em>, </em><em>optional</em>) – The maximum number of times to attempt to rerun the failed jobs. Default 5</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>jobs</strong> – The inputted SlurmJobArray with the completed rerun jobs inserted</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>SlurmJobArray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.find_failed_jobs">
+<span class="sig-name descname"><span class="pre">find_failed_jobs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">jobs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">SlurmJobArray</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.find_failed_jobs" title="Link to this definition"></a></dt>
+<dd><p>This function takes a sis.hpc.SlurmJobArray and identifies which jobs—-if any–failed and how they failed</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>jobs</strong> (<em>sis.hpc.SlurmJobArray</em>) – A SlurmJobArray instance containing jobs to check for failures</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>(None, None)</strong> (<em>tuple[None, None]</em>) – Indicates that all jobs completed successfully.</p></li>
+<li><p><strong>(to_rerun, failure_types)</strong> (<em>tuple[list[int], dict]</em>) – If some jobs failed, returns a tuple containing:
+- A list of the indices of the failed jobs in the inputted SlurmJobArray
+- A dictionary with keys as types of failues and bools representing if that failure occured in the inputted SlurmJobArray</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>ValueError</strong> – If the job state is not one of OUT_OF_MEMORY, TIMEOUT, or CANCELLED.
+    This indicates that the job failed for an unknown reason and cannot be automatically rerun.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.resubmit_failed_jobs">
+<span class="sig-name descname"><span class="pre">resubmit_failed_jobs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">job_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">indices_to_rerun</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">failure_types</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">run_spec</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mem</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.resubmit_failed_jobs" title="Link to this definition"></a></dt>
+<dd><p>This function resubmits failed jobs.</p>
+<p>It requires a list of indices to rerun, a dictionary of reasons the jobs failed, and the run_spec originally used to submit the jobs</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>job_type</strong> (<em>str</em>) – The type of jobs to resubmit. Set to ‘segmentation’ to run tiled segmentation or ‘cell_polygons’ to calculate cell polygons.</p></li>
+<li><p><strong>indices_to_rerun</strong> (<em>list</em><em>[</em><em>int</em><em>]</em>) – A list of the indices of the failed jobs</p></li>
+<li><p><strong>failure_types</strong> (<em>dict</em>) – A dictionary with keys as types of failues and bools representing if that failure occured failed jobs</p></li>
+<li><p><strong>run_spec</strong> (<em>dict</em>) – The run_spec that was used to submit the jobs previously</p></li>
+<li><p><strong>mem</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The amount of memory that should be allocated to the job reruns
+If the amount is less than the amount used to submit the failed job or left unspecified, it defaults to doubling the previous run’s memory</p></li>
+<li><p><strong>time</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The length of time that should be allocated to the job reruns
+If the amount is less than the amount used to submit the failed job or left unspecified, it defaults to doubling the previous run’s time</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A sis.hpc.SlurmJobArray containing all the resubmitted jobs</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>sis.hpc.SlurmJobArray</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If the job type is not one of ‘segmentation’ or ‘cell_polygons’.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.SegmentationPipeline.update_jobs">
+<span class="sig-name descname"><span class="pre">update_jobs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">jobs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">indices_to_replace</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">new_jobs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.SegmentationPipeline.update_jobs" title="Link to this definition"></a></dt>
+<dd><p>Replace jobs in a SlurmJobArray with new jobs.</p>
+<p>This function takes a sis.hpc.SlurmJobArray, a list of indices to replace, and a secondary sis.hpc.SlurmJobArray
+It then replaces the jobs in the original array with the new ones, creating a franken-SlurmJobArray
+This goes against the general expected behavior of sis.hpc.SlurmJobArray but doesn’t break any functionality used in keeping track of job status.
+It may cause inconsistencies in SlurmJobArray.args, SlurmJobArray.sbatch_output, SlurmJobArray.job_file, SlurmJobArray.host, or SlurmJobArray.job_id
+These inconsistencies will be limited to the SlurmJobArray class, if the user looks at indivual SlurmJobs in SlurmJobArray.jobs, they will all have correct information</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>jobs</strong> (<em>sis.hpc.SlurmJobArray</em>) – A SlurmJobArray instance containing jobs replace with new ones</p></li>
+<li><p><strong>indices_to_rerun</strong> (<em>list</em><em>[</em><em>int</em><em>]</em>) – A list of the indices of to replace</p></li>
+<li><p><strong>new_jobs</strong> (<em>sis.hpc.SlurmJobArray</em>) – A SlurmJobArray containing the jobs which will replace those in ‘jobs’</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>jobs</strong> – The updated SlurmJobArray</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>sis.hpc.SlurmJobArray</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="merscopesegmentationpipeline">
+<h2>MerscopeSegmentationPipeline<a class="headerlink" href="#merscopesegmentationpipeline" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="sis.segmentation.MerscopeSegmentationPipeline">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sis.segmentation.</span></span><span class="sig-name descname"><span class="pre">MerscopeSegmentationPipeline</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt_cache</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subrgn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seg_method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#sis.segmentation.SegmentationMethod" title="sis.segmentation.SegmentationMethod"><span class="pre">SegmentationMethod</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">seg_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygon_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seg_hpc_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygon_hpc_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hpc_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.MerscopeSegmentationPipeline" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#sis.segmentation.SegmentationPipeline" title="sis.segmentation.SegmentationPipeline"><code class="xref py py-class docutils literal notranslate"><span class="pre">SegmentationPipeline</span></code></a></p>
+<p>Class for running segmentation on Merscope data.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">See</span> <span class="pre">sis.segmentation.SegmentationPipeline</span> <span class="pre">for</span> <span class="pre">inherited</span> <span class="pre">attributes.</span></span></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.MerscopeSegmentationPipeline.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt_cache</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subrgn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seg_method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#sis.segmentation.SegmentationMethod" title="sis.segmentation.SegmentationMethod"><span class="pre">SegmentationMethod</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">seg_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygon_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seg_hpc_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygon_hpc_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hpc_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.MerscopeSegmentationPipeline.__init__" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dt_file</strong> (<em>str</em><em> or </em><em>Path</em>) – Path to the detected transcripts file.</p></li>
+<li><p><strong>image_path</strong> (<em>str</em><em> or </em><em>Path</em>) – Path to the images.</p></li>
+<li><p><strong>output_dir</strong> (<em>str</em><em> or </em><em>Path</em>) – Where to save output files.</p></li>
+<li><p><strong>dt_cache</strong> (<em>str</em><em> or </em><em>Path</em><em> or </em><em>None</em>) – Path to the detected transcripts cache file. Used for faster loading.</p></li>
+<li><p><strong>subrgn</strong> (<em>str</em><em> or </em><em>tuple</em>) – The subregion to segment. Set to a string, e.g. ‘DAPI’, to segment the
+full region bounded by the associated image channel. To segment a
+smaller region, set to a tuple corresponding to a bounding box.</p></li>
+<li><p><strong>seg_method</strong> (<a class="reference internal" href="#sis.segmentation.SegmentationMethod" title="sis.segmentation.SegmentationMethod"><em>SegmentationMethod</em></a>) – The segmentation method to use. Must be found in sis.segmentation.</p></li>
+<li><p><strong>seg_opts</strong> (<em>dict</em>) – Options to pass to seg_method.</p></li>
+<li><p><strong>polygon_opts</strong> (<em>dict</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Options to pass to for cell polygon generation. Currently supports save_file_extension and alpha_inv_coeff.
+Default is None, which sets save_file_extension to ‘geojson’ and alpha_inv_coeff to 4/3.</p></li>
+<li><p><strong>seg_hpc_opts</strong> (<em>dict</em><em>, </em><em>None</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Options to use for segmenting tiles on the hpc. Default is None</p></li>
+<li><p><strong>polygon_hpc_opts</strong> (<em>dict</em><em>, </em><em>None</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Options to use for calculating cell polygons on the hpc. Default is None</p></li>
+<li><p><strong>hpc_opts</strong> (<em>dict</em><em>, </em><em>None</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Options to use for both segmenting tiles and calculating cell polygons on the hpc (can be used in place of submitting both seg_hpc_opts and polygon_hpc_opts).
+Default is None</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.MerscopeSegmentationPipeline.get_load_func">
+<span class="sig-name descname"><span class="pre">get_load_func</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.MerscopeSegmentationPipeline.get_load_func" title="Link to this definition"></a></dt>
+<dd><p>Returns sis.SpotTable.load_merscope</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.MerscopeSegmentationPipeline.get_load_args">
+<span class="sig-name descname"><span class="pre">get_load_args</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.MerscopeSegmentationPipeline.get_load_args" title="Link to this definition"></a></dt>
+<dd><p>Get args to pass to sis.SpotTable.load_merscope</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="stereoseqsegmentationpipeline">
+<h2>StereoSeqSegmentationPipeline<a class="headerlink" href="#stereoseqsegmentationpipeline" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="sis.segmentation.StereoSeqSegmentationPipeline">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sis.segmentation.</span></span><span class="sig-name descname"><span class="pre">StereoSeqSegmentationPipeline</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt_cache</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subrgn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seg_method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#sis.segmentation.SegmentationMethod" title="sis.segmentation.SegmentationMethod"><span class="pre">SegmentationMethod</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">seg_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygon_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seg_hpc_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygon_hpc_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hpc_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.StereoSeqSegmentationPipeline" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#sis.segmentation.SegmentationPipeline" title="sis.segmentation.SegmentationPipeline"><code class="xref py py-class docutils literal notranslate"><span class="pre">SegmentationPipeline</span></code></a></p>
+<p>Class for running segmentation on StereoSeq data.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">See</span> <span class="pre">sis.segmentation.SegmentationPipeline</span> <span class="pre">for</span> <span class="pre">inherited</span> <span class="pre">attributes.</span></span></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.StereoSeqSegmentationPipeline.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt_cache</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subrgn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seg_method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#sis.segmentation.SegmentationMethod" title="sis.segmentation.SegmentationMethod"><span class="pre">SegmentationMethod</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">seg_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygon_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seg_hpc_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygon_hpc_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hpc_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.StereoSeqSegmentationPipeline.__init__" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dt_file</strong> (<em>str</em><em> or </em><em>Path</em>) – Path to the detected transcripts file.</p></li>
+<li><p><strong>image_path</strong> (<em>str</em><em> or </em><em>Path</em>) – Path to the images.</p></li>
+<li><p><strong>output_dir</strong> (<em>str</em><em> or </em><em>Path</em>) – Where to save output files.</p></li>
+<li><p><strong>dt_cache</strong> (<em>str</em><em> or </em><em>Path</em><em> or </em><em>None</em>) – Path to the detected transcripts cache file. Used for faster loading.</p></li>
+<li><p><strong>subrgn</strong> (<em>str</em><em> or </em><em>tuple</em>) – The subregion to segment. Set to a string, e.g. ‘DAPI’, to segment the
+full region bounded by the associated image channel. To segment a
+smaller region, set to a tuple corresponding to a bounding box.</p></li>
+<li><p><strong>seg_method</strong> (<a class="reference internal" href="#sis.segmentation.SegmentationMethod" title="sis.segmentation.SegmentationMethod"><em>SegmentationMethod</em></a>) – The segmentation method to use. Must be found in sis.segmentation.</p></li>
+<li><p><strong>seg_opts</strong> (<em>dict</em>) – Options to pass to seg_method.</p></li>
+<li><p><strong>polygon_opts</strong> (<em>dict</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Options to pass to for cell polygon generation. Currently supports save_file_extension and alpha_inv_coeff.
+Default is None, which sets save_file_extension to ‘geojson’ and alpha_inv_coeff to 4/3.</p></li>
+<li><p><strong>seg_hpc_opts</strong> (<em>dict</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Options to use for segmenting tiles on the hpc. Default is None</p></li>
+<li><p><strong>polygon_hpc_opts</strong> (<em>dict</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Options to use for calculating cell polygons on the hpc. Default is None</p></li>
+<li><p><strong>hpc_opts</strong> (<em>dict</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Options to use for both segmenting tiles and calculating cell polygons on the hpc (can be used in place of submitting both seg_hpc_opts and polygon_hpc_opts).
+Default is None</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.StereoSeqSegmentationPipeline.get_load_func">
+<span class="sig-name descname"><span class="pre">get_load_func</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.StereoSeqSegmentationPipeline.get_load_func" title="Link to this definition"></a></dt>
+<dd><p>Returns sis.SpotTable.load_stereoseq.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.StereoSeqSegmentationPipeline.get_load_args">
+<span class="sig-name descname"><span class="pre">get_load_args</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.StereoSeqSegmentationPipeline.get_load_args" title="Link to this definition"></a></dt>
+<dd><p>Get args to pass to sis.SpotTable.load_stereoseq.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="xeniumsegmentationpipeline">
+<h2>XeniumSegmentationPipeline<a class="headerlink" href="#xeniumsegmentationpipeline" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="sis.segmentation.XeniumSegmentationPipeline">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sis.segmentation.</span></span><span class="sig-name descname"><span class="pre">XeniumSegmentationPipeline</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt_cache</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subrgn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seg_method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#sis.segmentation.SegmentationMethod" title="sis.segmentation.SegmentationMethod"><span class="pre">SegmentationMethod</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">seg_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygon_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seg_hpc_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygon_hpc_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hpc_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cache_image</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.XeniumSegmentationPipeline" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#sis.segmentation.SegmentationPipeline" title="sis.segmentation.SegmentationPipeline"><code class="xref py py-class docutils literal notranslate"><span class="pre">SegmentationPipeline</span></code></a></p>
+<p>Class for running segmentation on Xenium data.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">See</span> <span class="pre">sis.segmentation.SegmentationPipeline</span> <span class="pre">for</span> <span class="pre">inherited</span> <span class="pre">attributes.</span></span></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.XeniumSegmentationPipeline.z_depth">
+<span class="sig-name descname"><span class="pre">z_depth</span></span><a class="headerlink" href="#sis.segmentation.XeniumSegmentationPipeline.z_depth" title="Link to this definition"></a></dt>
+<dd><p>The depth of each z-plane. Used to assign z-locations to image planes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.segmentation.XeniumSegmentationPipeline.cache_image">
+<span class="sig-name descname"><span class="pre">cache_image</span></span><a class="headerlink" href="#sis.segmentation.XeniumSegmentationPipeline.cache_image" title="Link to this definition"></a></dt>
+<dd><p>Whether to cache images after retrieval. Default True.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.XeniumSegmentationPipeline.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt_cache</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subrgn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seg_method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#sis.segmentation.SegmentationMethod" title="sis.segmentation.SegmentationMethod"><span class="pre">SegmentationMethod</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">seg_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygon_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seg_hpc_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygon_hpc_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hpc_opts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cache_image</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.XeniumSegmentationPipeline.__init__" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dt_file</strong> (<em>str</em><em> or </em><em>Path</em>) – Path to the detected transcripts file.</p></li>
+<li><p><strong>image_path</strong> (<em>str</em><em> or </em><em>Path</em>) – Path to the images.</p></li>
+<li><p><strong>output_dir</strong> (<em>str</em><em> or </em><em>Path</em>) – Where to save output files.</p></li>
+<li><p><strong>dt_cache</strong> (<em>str</em><em> or </em><em>Path</em><em> or </em><em>None</em>) – Path to the detected transcripts cache file. Used for faster loading.</p></li>
+<li><p><strong>subrgn</strong> (<em>str</em><em> or </em><em>tuple</em>) – The subregion to segment. Set to a string, e.g. ‘DAPI’, to segment the
+full region bounded by the associated image channel. To segment a
+smaller region, set to a tuple corresponding to a bounding box.</p></li>
+<li><p><strong>seg_method</strong> (<a class="reference internal" href="#sis.segmentation.SegmentationMethod" title="sis.segmentation.SegmentationMethod"><em>SegmentationMethod</em></a>) – The segmentation method to use. Must be found in sis.segmentation.</p></li>
+<li><p><strong>seg_opts</strong> (<em>dict</em>) – Options to pass to seg_method.</p></li>
+<li><p><strong>polygon_opts</strong> (<em>dict</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Options to pass to for cell polygon generation. Currently supports save_file_extension and alpha_inv_coeff.
+Default is None, which sets save_file_extension to ‘geojson’ and alpha_inv_coeff to 4/3.</p></li>
+<li><p><strong>seg_hpc_opts</strong> (<em>dict</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Options to use for segmenting tiles on the hpc. Default is None</p></li>
+<li><p><strong>polygon_hpc_opts</strong> (<em>dict</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Options to use for calculating cell polygons on the hpc. Default is None</p></li>
+<li><p><strong>hpc_opts</strong> (<em>dict</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Options to use for both segmenting tiles and calculating cell polygons on the hpc (can be used in place of submitting both seg_hpc_opts and polygon_hpc_opts).
+Default is None</p></li>
+<li><p><strong>cache_image</strong> (<em>bool</em><em>, </em><em>optional</em>) – Xenium images are large and not memory mapped and thus we may want to keep them in memory or not.
+The trade off is speed vs memory.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If ‘z_plane_thickness’ is not provided in seg_opts. This is required to match z coordinates to image planes.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.XeniumSegmentationPipeline.get_load_func">
+<span class="sig-name descname"><span class="pre">get_load_func</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.XeniumSegmentationPipeline.get_load_func" title="Link to this definition"></a></dt>
+<dd><p>Returns sis.SpotTable.load_xenium</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.segmentation.XeniumSegmentationPipeline.get_load_args">
+<span class="sig-name descname"><span class="pre">get_load_args</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.segmentation.XeniumSegmentationPipeline.get_load_args" title="Link to this definition"></a></dt>
+<dd><p>Get args to pass to sis.SpotTable.load_xenium</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="image.html" class="btn btn-neutral float-left" title="image" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Jacob Quon, Madeleine Hewitt, Luke Campagnola, Brian Long, Stephanie Seeman.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

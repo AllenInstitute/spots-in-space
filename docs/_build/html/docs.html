@@ -1,0 +1,1054 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Docs &mdash; Spots in Space  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Usage" href="usage.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Spots in Space
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Docs</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#spot-table">spot_table</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#sis.spot_table.SpotTable"><code class="docutils literal notranslate"><span class="pre">SpotTable</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.pos"><code class="docutils literal notranslate"><span class="pre">SpotTable.pos</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.parent_table"><code class="docutils literal notranslate"><span class="pre">SpotTable.parent_table</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.parent_inds"><code class="docutils literal notranslate"><span class="pre">SpotTable.parent_inds</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.parent_region"><code class="docutils literal notranslate"><span class="pre">SpotTable.parent_region</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.gene_ids"><code class="docutils literal notranslate"><span class="pre">SpotTable.gene_ids</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.gene_id_to_name"><code class="docutils literal notranslate"><span class="pre">SpotTable.gene_id_to_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.gene_name_to_id"><code class="docutils literal notranslate"><span class="pre">SpotTable.gene_name_to_id</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable._gene_names"><code class="docutils literal notranslate"><span class="pre">SpotTable._gene_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.images"><code class="docutils literal notranslate"><span class="pre">SpotTable.images</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.__init__"><code class="docutils literal notranslate"><span class="pre">SpotTable.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.dataframe"><code class="docutils literal notranslate"><span class="pre">SpotTable.dataframe()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.gene_names"><code class="docutils literal notranslate"><span class="pre">SpotTable.gene_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.x"><code class="docutils literal notranslate"><span class="pre">SpotTable.x</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.y"><code class="docutils literal notranslate"><span class="pre">SpotTable.y</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.z"><code class="docutils literal notranslate"><span class="pre">SpotTable.z</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.map_gene_names_to_ids"><code class="docutils literal notranslate"><span class="pre">SpotTable.map_gene_names_to_ids()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.map_gene_ids_to_names"><code class="docutils literal notranslate"><span class="pre">SpotTable.map_gene_ids_to_names()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.bounds"><code class="docutils literal notranslate"><span class="pre">SpotTable.bounds()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.get_subregion"><code class="docutils literal notranslate"><span class="pre">SpotTable.get_subregion()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.get_genes"><code class="docutils literal notranslate"><span class="pre">SpotTable.get_genes()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.detect_z_planes"><code class="docutils literal notranslate"><span class="pre">SpotTable.detect_z_planes()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.z_plane_mask"><code class="docutils literal notranslate"><span class="pre">SpotTable.z_plane_mask()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.save_csv"><code class="docutils literal notranslate"><span class="pre">SpotTable.save_csv()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.save_json"><code class="docutils literal notranslate"><span class="pre">SpotTable.save_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.load_json"><code class="docutils literal notranslate"><span class="pre">SpotTable.load_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.load_pickle"><code class="docutils literal notranslate"><span class="pre">SpotTable.load_pickle()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.read_merscope_csv"><code class="docutils literal notranslate"><span class="pre">SpotTable.read_merscope_csv()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.load_merscope"><code class="docutils literal notranslate"><span class="pre">SpotTable.load_merscope()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.read_stereoseq_gem"><code class="docutils literal notranslate"><span class="pre">SpotTable.read_stereoseq_gem()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.load_stereoseq"><code class="docutils literal notranslate"><span class="pre">SpotTable.load_stereoseq()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.read_xenium_transcripts"><code class="docutils literal notranslate"><span class="pre">SpotTable.read_xenium_transcripts()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.load_xenium"><code class="docutils literal notranslate"><span class="pre">SpotTable.load_xenium()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.save_npz"><code class="docutils literal notranslate"><span class="pre">SpotTable.save_npz()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.load_npz"><code class="docutils literal notranslate"><span class="pre">SpotTable.load_npz()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.gene_indices"><code class="docutils literal notranslate"><span class="pre">SpotTable.gene_indices()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.map_indices_to_parent"><code class="docutils literal notranslate"><span class="pre">SpotTable.map_indices_to_parent()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.map_indices_from_parent"><code class="docutils literal notranslate"><span class="pre">SpotTable.map_indices_from_parent()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.map_mask_to_parent"><code class="docutils literal notranslate"><span class="pre">SpotTable.map_mask_to_parent()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.copy"><code class="docutils literal notranslate"><span class="pre">SpotTable.copy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.split_tiles"><code class="docutils literal notranslate"><span class="pre">SpotTable.split_tiles()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.grid_tiles"><code class="docutils literal notranslate"><span class="pre">SpotTable.grid_tiles()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.plot_rect"><code class="docutils literal notranslate"><span class="pre">SpotTable.plot_rect()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.scatter_plot"><code class="docutils literal notranslate"><span class="pre">SpotTable.scatter_plot()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.binned_expression_counts"><code class="docutils literal notranslate"><span class="pre">SpotTable.binned_expression_counts()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.reduced_expression_map"><code class="docutils literal notranslate"><span class="pre">SpotTable.reduced_expression_map()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.show_binned_heatmap"><code class="docutils literal notranslate"><span class="pre">SpotTable.show_binned_heatmap()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.add_image"><code class="docutils literal notranslate"><span class="pre">SpotTable.add_image()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.get_image"><code class="docutils literal notranslate"><span class="pre">SpotTable.get_image()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.show_image"><code class="docutils literal notranslate"><span class="pre">SpotTable.show_image()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#segmentation">segmentation</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Spots in Space</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Docs</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/docs.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="docs">
+<h1>Docs<a class="headerlink" href="#docs" title="Link to this heading"></a></h1>
+<section id="spot-table">
+<h2>spot_table<a class="headerlink" href="#spot-table" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sis.spot_table.</span></span><span class="sig-name descname"><span class="pre">SpotTable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gene_names</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">None</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gene_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">None</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gene_id_to_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">None</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parent_table</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">None</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="#sis.spot_table.SpotTable" title="sis.spot_table.SpotTable"><span class="pre">SpotTable</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parent_inds</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">None</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parent_region</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">None</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">tuple</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">images</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">None</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">ImageBase</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ImageBase</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Represents a spatial transcriptomics spot table.</p>
+<p>This class represents a spatial transcriptomics spot table, which contains information about the position of each detected transcript, the associated gene, and other optional attributes. It can be used to manipulate and analyze spatial transcriptomics data.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.pos">
+<span class="sig-name descname"><span class="pre">pos</span></span><a class="headerlink" href="#sis.spot_table.SpotTable.pos" title="Link to this definition"></a></dt>
+<dd><p>Array of shape (N, 3) giving the position of each detected transcript.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.parent_table">
+<span class="sig-name descname"><span class="pre">parent_table</span></span><a class="headerlink" href="#sis.spot_table.SpotTable.parent_table" title="Link to this definition"></a></dt>
+<dd><p>Indicates that this table is a subset of a parent SpotTable.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#sis.spot_table.SpotTable" title="sis.spot_table.SpotTable">SpotTable</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.parent_inds">
+<span class="sig-name descname"><span class="pre">parent_inds</span></span><a class="headerlink" href="#sis.spot_table.SpotTable.parent_inds" title="Link to this definition"></a></dt>
+<dd><p>Indices used to select the subset of spots in this table from the parent spots.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.parent_region">
+<span class="sig-name descname"><span class="pre">parent_region</span></span><a class="headerlink" href="#sis.spot_table.SpotTable.parent_region" title="Link to this definition"></a></dt>
+<dd><p>X,Y boundaries ((xmin, xmax), (ymin, ymax)) used to select this table from the parent table.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.gene_ids">
+<span class="sig-name descname"><span class="pre">gene_ids</span></span><a class="headerlink" href="#sis.spot_table.SpotTable.gene_ids" title="Link to this definition"></a></dt>
+<dd><p>Array of shape (N,) describing the gene detected in each transcript, as an index into <em>gene_id_to_name</em>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.gene_id_to_name">
+<span class="sig-name descname"><span class="pre">gene_id_to_name</span></span><a class="headerlink" href="#sis.spot_table.SpotTable.gene_id_to_name" title="Link to this definition"></a></dt>
+<dd><p>Array mapping from values in <em>gene_ids</em> to string names.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.gene_name_to_id">
+<span class="sig-name descname"><span class="pre">gene_name_to_id</span></span><a class="headerlink" href="#sis.spot_table.SpotTable.gene_name_to_id" title="Link to this definition"></a></dt>
+<dd><p>Dictionary mapping from gene names to gene IDs.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable._gene_names">
+<span class="sig-name descname"><span class="pre">_gene_names</span></span><a class="headerlink" href="#sis.spot_table.SpotTable._gene_names" title="Link to this definition"></a></dt>
+<dd><p>Cached array of gene names corresponding to the gene IDs in the SpotTable.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.images">
+<span class="sig-name descname"><span class="pre">images</span></span><a class="headerlink" href="#sis.spot_table.SpotTable.images" title="Link to this definition"></a></dt>
+<dd><p>Image(s) associated with the data (e.g. nuclei stain).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list[ImageBase]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gene_names</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">None</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gene_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">None</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gene_id_to_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">None</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parent_table</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">None</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="#sis.spot_table.SpotTable" title="sis.spot_table.SpotTable"><span class="pre">SpotTable</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parent_inds</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">None</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parent_region</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">None</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">tuple</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">images</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">None</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">ImageBase</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ImageBase</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.__init__" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>pos</strong> (<em>numpy.ndarray</em>) – Array of shape (N, 3) giving the position of each detected transcript.</p></li>
+<li><p><strong>gene_names</strong> (<em>numpy.ndarray</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Array of shape (N,) giving the name of the gene detected in each transcript. Must specify either <em>gene_names</em> or <em>gene_ids</em>, not both.</p></li>
+<li><p><strong>gene_ids</strong> (<em>numpy.ndarray</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Array of shape (N,) describing the gene detected in each transcript, as an index into <em>gene_id_to_name</em>. Must specify either <em>gene_names</em> or <em>gene_ids</em>, not both.</p></li>
+<li><p><strong>gene_id_to_name</strong> (<em>numpy.ndarray</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Array mapping from values in <em>gene_ids</em> to string names.</p></li>
+<li><p><strong>parent_table</strong> (<a class="reference internal" href="#sis.spot_table.SpotTable" title="sis.spot_table.SpotTable"><em>SpotTable</em></a><em> or </em><em>None</em><em>, </em><em>optional</em>) – Indicates that this table is a subset of a parent SpotTable.</p></li>
+<li><p><strong>parent_inds</strong> (<em>numpy.ndarray</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Indices used to select the subset of spots in this table from the parent spots.</p></li>
+<li><p><strong>parent_region</strong> (<em>tuple</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – X,Y boundaries ((xmin, xmax), (ymin, ymax)) used to select this table from the parent table.</p></li>
+<li><p><strong>images</strong> (<em>list</em><em>[</em><em>ImageBase</em><em>] or </em><em>ImageBase</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Image(s) associated with the data (e.g. nuclei stain).</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.dataframe">
+<span class="sig-name descname"><span class="pre">dataframe</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cols</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">['x',</span> <span class="pre">'y',</span> <span class="pre">'z',</span> <span class="pre">'gene_ids']</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.dataframe" title="Link to this definition"></a></dt>
+<dd><p>Return a dataframe containing the specified columns.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>cols</strong> (<em>List</em><em>[</em><em>str</em><em>]</em><em>, </em><em>optional</em>) – The columns to include in the dataframe. Default is [‘x’, ‘y’, ‘z’, ‘gene_ids’].
+Additional available columns: ‘gene_names’.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>pandas.DataFrame</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.gene_names">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">gene_names</span></span><a class="headerlink" href="#sis.spot_table.SpotTable.gene_names" title="Link to this definition"></a></dt>
+<dd><p>Return an array of gene names corresponding to the gene IDs in the SpotTable.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>self._gene_names</strong></p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.x">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">x</span></span><a class="headerlink" href="#sis.spot_table.SpotTable.x" title="Link to this definition"></a></dt>
+<dd><p>Return the x-coordinates of the spots in the SpotTable.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array of x-coordinates of the spots in the SpotTable (self.pos[:, 0])</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.y">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">y</span></span><a class="headerlink" href="#sis.spot_table.SpotTable.y" title="Link to this definition"></a></dt>
+<dd><p>Return the y-coordinates of the spots in the SpotTable.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><ul class="simple">
+<li><p><em>None</em> – If no y-coordinates are available, returns None.</p></li>
+<li><p><em>numpy.ndarray</em> – Array of y-coordinates of the spots in the SpotTable (self.pos[:, 1])</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.z">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">z</span></span><a class="headerlink" href="#sis.spot_table.SpotTable.z" title="Link to this definition"></a></dt>
+<dd><p>Return the z-coordinates of the spots in the SpotTable.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><ul class="simple">
+<li><p><em>None</em> – If no z-coordinates are available, returns None.</p></li>
+<li><p><em>numpy.ndarray</em> – Array of z-coordinates of the spots in the SpotTable (self.pos[:, 2])</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.map_gene_names_to_ids">
+<span class="sig-name descname"><span class="pre">map_gene_names_to_ids</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">names</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.map_gene_names_to_ids" title="Link to this definition"></a></dt>
+<dd><p>Map gene names to gene IDs.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>names</strong> (<em>array</em>) – Array of gene names to be mapped to gene IDs.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>out</strong> – Array of gene IDs corresponding to the input gene names.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>array</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.map_gene_ids_to_names">
+<span class="sig-name descname"><span class="pre">map_gene_ids_to_names</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ids</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.map_gene_ids_to_names" title="Link to this definition"></a></dt>
+<dd><p>Map gene IDs to gene names.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>ids</strong> (<em>array</em>) – Array of gene IDs to be mapped to gene names.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>out</strong> – Array of gene names corresponding to the input gene IDs.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>array</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.bounds">
+<span class="sig-name descname"><span class="pre">bounds</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.bounds" title="Link to this definition"></a></dt>
+<dd><p>Return ((xmin, xmax), (ymin, ymax)) giving the boundaries of data included in this table.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A tuple containing two tuples: (xmin, xmax) and (ymin, ymax) representing the boundaries of the data included in this table.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>tuple</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.get_subregion">
+<span class="sig-name descname"><span class="pre">get_subregion</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xlim</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ylim</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">incl_end</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.get_subregion" title="Link to this definition"></a></dt>
+<dd><p>Return a SpotTable including the subset of this table inside the region xlim, ylim.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>xlim</strong> (<em>tuple</em>) – X-axis boundaries (xmin, xmax) of the region.</p></li>
+<li><p><strong>ylim</strong> (<em>tuple</em>) – Y-axis boundaries (ymin, ymax) of the region.</p></li>
+<li><p><strong>incl_end</strong> (<em>bool</em><em>, </em><em>optional</em>) – Flag indicating whether to include all pixels of the image that overlap with the region,
+rather than just those inside the region (i.e. ceil vs floor). Default is False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>sub</strong> – A new SpotTable object containing the subset of spots and image inside the specified region.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#sis.spot_table.SpotTable" title="sis.spot_table.SpotTable">SpotTable</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.get_genes">
+<span class="sig-name descname"><span class="pre">get_genes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gene_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gene_ids</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.get_genes" title="Link to this definition"></a></dt>
+<dd><p>Return a subtable containing only the genes specified by either gene_names or gene_ids.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>gene_names</strong> (<em>array</em><em> or </em><em>None</em>) – Array of gene names to include in the subtable.</p></li>
+<li><p><strong>gene_ids</strong> (<em>array</em><em> or </em><em>None</em>) – Array of gene IDs to include in the subtable.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A new SpotTable object containing only the specified genes.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#sis.spot_table.SpotTable" title="sis.spot_table.SpotTable">SpotTable</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.detect_z_planes">
+<span class="sig-name descname"><span class="pre">detect_z_planes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">float_cut</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.detect_z_planes" title="Link to this definition"></a></dt>
+<dd><p>Return a tuple containing the minimum and maximum z-planes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>float_cut</strong> (<em>float</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – If specified, only include z-planes that contain at least this fraction of spots.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A tuple containing the minimum and maximum z-planes. The minimum z-plane is inclusive, while the maximum z-plane is exclusive.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.z_plane_mask">
+<span class="sig-name descname"><span class="pre">z_plane_mask</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">z_planes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.z_plane_mask" title="Link to this definition"></a></dt>
+<dd><p>Return a mask of the SpotTable containing only spots in the specified z_planes
+Z-planes are specified as a tuple [min, max) to align with the output of detect_z_planes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>z_planes</strong> (<em>tuple</em>) – contains the min (inclusive) and max (exclusive) z_planes to keep</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>mask</strong> – A boolean mask indicating which spots are in the specified z-planes.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.save_csv">
+<span class="sig-name descname"><span class="pre">save_csv</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">columns</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.save_csv" title="Link to this definition"></a></dt>
+<dd><p>Save a CSV file with columns x, y, z, gene_id, [gene_name, cell_id].</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>file_name</strong> (<em>str</em>) – The name of the CSV file to be saved.</p></li>
+<li><p><strong>columns</strong> (<em>list</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – A list of column names to be included in the CSV file.
+If not provided, the default columns [‘x’, ‘y’, ‘z’, ‘gene_id’] will be used.
+If cell IDs are available, the ‘cell_id’ column will also be included.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>The cell ID column is only present if cell IDs are available.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.save_json">
+<span class="sig-name descname"><span class="pre">save_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">json_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.save_json" title="Link to this definition"></a></dt>
+<dd><p>Save the parent region and parent indices to a JSON file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>json_file</strong> (<em>str</em>) – The path to the JSON file.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.load_json">
+<span class="sig-name descname"><span class="pre">load_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">json_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.load_json" title="Link to this definition"></a></dt>
+<dd><p>Return a subset of this table as described by a json file (previously saved with save_json)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>json_file</strong> (<em>str</em>) – The path to the JSON file.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.load_pickle">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">load_pickle</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.load_pickle" title="Link to this definition"></a></dt>
+<dd><p>Return a new SpotTable loaded a SpotTable pickle stored on disk</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>file_name</strong> (<em>str</em>) – The path to the pickle file.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.read_merscope_csv">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">read_merscope_csv</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">csv_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cols_to_use</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">('x',</span> <span class="pre">'y',</span> <span class="pre">'z',</span> <span class="pre">'gene')</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_rows</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.read_merscope_csv" title="Link to this definition"></a></dt>
+<dd><p>Helper function to read a MERSCOPE csv file.
+Intended to reduce duplicated code between SpotTable.load_merscope()
+and SegmentedSpotTable.load_merscope().</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>csv_file</strong> (<em>str</em>) – Path to the MERSCOPE CSV file.</p></li>
+<li><p><strong>cols_to_use</strong> (<em>tuple</em>) – Columns to use from the CSV file.</p></li>
+<li><p><strong>max_rows</strong> (<em>int</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Maximum number of rows to read from the CSV file.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><p><strong>(raw_data, pos, gene_names)</strong> –</p>
+<ul class="simple">
+<li><p>Raw data read from the CSV file.</p></li>
+<li><p>Positions of the spots.</p></li>
+<li><p>Gene names corresponding to the spots.</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.load_merscope">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">load_merscope</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">csv_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cache_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_rows</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.load_merscope" title="Link to this definition"></a></dt>
+<dd><p>Load MERSCOPE data from a detected transcripts CSV file. This is the
+preferred method for resegmentation. If you want the original MERSCOPE
+segmentation, use SegmentedSpotTable.load_merscope.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>csv_file</strong> (<em>str</em>) – Path to the detected transcripts file.</p></li>
+<li><p><strong>cache_file</strong> (<em>str</em><em> or </em><em>None</em>) – Path to the detected transcripts cache file, which is an npz file
+representing the raw SpotTable (without cell_ids). If passed, will
+create a cache file if one does not already exists.</p></li>
+<li><p><strong>image_path</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Path to directory containing a MERSCOPE image stack.</p></li>
+<li><p><strong>max_rows</strong> (<em>int</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Maximum number of rows to load from the CSV file.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>SpotTable with data loaded from inputs</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#sis.spot_table.SpotTable" title="sis.spot_table.SpotTable">sis.spot_table.SpotTable</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.read_stereoseq_gem">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">read_stereoseq_gem</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gem_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gem_cols</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_col</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skiprows</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_rows</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.read_stereoseq_gem" title="Link to this definition"></a></dt>
+<dd><p>Helper function to read raw data from a StereoSeq dataset.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>gem_file</strong> (<em>str</em>) – Path to the GEM file.</p></li>
+<li><p><strong>gem_cols</strong> (<em>dict</em><em> or </em><em>tuple</em>) – Dictionary or tuple specifying the columns to use from the GEM file.</p></li>
+<li><p><strong>cell_col</strong> (<em>int</em><em> or </em><em>None</em>) – Column index for cell IDs. If None, cell IDs are not included.</p></li>
+<li><p><strong>skiprows</strong> (<em>int</em><em> or </em><em>None</em>) – Number of rows to skip at the beginning of the GEM file.</p></li>
+<li><p><strong>max_rows</strong> (<em>int</em><em> or </em><em>None</em>) – Maximum number of rows to read from the GEM file.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>(pos, gene_ids, gene_id_to_name, cell_ids)</strong> (<em>tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray]</em>) –</p>
+<ul>
+<li><p>Array of shape (N, 2) giving the position of each detected transcript.</p></li>
+<li><p>Array of shape (N,) describing the gene detected in each transcript, as an index into <em>gene_id_to_name</em>.</p></li>
+<li><p>Array mapping from values in <em>gene_ids</em> to string names.</p></li>
+<li><p>Array of shape (N,) giving the cell ID for each detected transcript. Only included if <em>cell_col</em> is not None.</p></li>
+</ul>
+</li>
+<li><p><strong>(pos, gene_ids, gene_id_to_name)</strong> (<em>tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray]</em>) –</p>
+<ul>
+<li><p>Array of shape (N, 2) giving the position of each detected transcript.</p></li>
+<li><p>Array of shape (N,) describing the gene detected in each transcript, as an index into <em>gene_id_to_name</em>.</p></li>
+<li><p>Array mapping from values in <em>gene_ids</em> to string names.</p></li>
+</ul>
+</li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.load_stereoseq">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">load_stereoseq</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gem_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cache_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gem_cols</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">tuple</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">(('gene',</span> <span class="pre">0),</span> <span class="pre">('x',</span> <span class="pre">1),</span> <span class="pre">('y',</span> <span class="pre">2),</span> <span class="pre">('MIDcounts',</span> <span class="pre">3))</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_col</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skiprows</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_rows</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image_channel</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.load_stereoseq" title="Link to this definition"></a></dt>
+<dd><p>Load StereoSeq data from gem file. This can be slow so optionally cache the result to a .npz file.
+1/19/2023: New StereoSeq data has cell_ids, add optional cell_cols to add to SpotTable. Also has a flag
+for whether the spot was in the main cell or the extended cell (in_cell)
+1/3/2024: new cellbin.gem doesn’t have <cite>in_cell</cite>, let’s not worry about it and just specify the column
+that the cell ID is in</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>gem_file</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Path to the GEM file.</p></li>
+<li><p><strong>cache_file</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Path to the detected transcripts cache file, which is an npz file
+representing the raw SpotTable (without cell_ids). If passed, will
+create a cache file if one does not already exists.</p></li>
+<li><p><strong>gem_cols</strong> (<em>dict</em><em> or </em><em>tuple</em><em>, </em><em>optional</em>) – Dictionary or tuple specifying the columns to use from the GEM file.</p></li>
+<li><p><strong>cell_col</strong> (<em>int</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Column index for cell IDs. If None, cell IDs are not included.</p></li>
+<li><p><strong>skiprows</strong> (<em>int</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Number of rows to skip at the beginning of the GEM file.</p></li>
+<li><p><strong>max_rows</strong> (<em>int</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Maximum number of rows to read from the GEM file.</p></li>
+<li><p><strong>image_file</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Path to the image file. If None, no image is loaded.</p></li>
+<li><p><strong>image_channel</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Channel name for the image. If None, no channel is specified.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>SpotTable with data loaded from inputs.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#sis.spot_table.SpotTable" title="sis.spot_table.SpotTable">sis.spot_table.SpotTable</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.read_xenium_transcripts">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">read_xenium_transcripts</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">transcript_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_rows</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">z_depth</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">3.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.read_xenium_transcripts" title="Link to this definition"></a></dt>
+<dd><p>Helper function to read a Xenium transcripts file. (currently supports only csv and parquet)
+Intended to reduce duplicated code between SpotTable.load_xenium()
+and SegmentedSpotTable.load_xenium().</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>transcript_file</strong> (<em>str</em>) – Path to the detected transcripts file.</p></li>
+<li><p><strong>max_rows</strong> (<em>int</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Maximum number of rows to read from the CSV file.</p></li>
+<li><p><strong>z_depth</strong> (<em>float</em><em>, </em><em>optional</em>) – Depth (in um) of a imaging layer i.e. z-plane
+Used to bin z-positiions into discrete planes</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><p><strong>(pos, gene_names)</strong> –</p>
+<ul class="simple">
+<li><p>Array of shape (N, 3) giving the position of each detected transcript.</p></li>
+<li><p>Array of shape (N,) giving the name of the gene detected in each transcript.</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple[numpy.ndarray, numpy.ndarray]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.load_xenium">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">load_xenium</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">transcript_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cache_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_rows</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">z_depth</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">3.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pyramid_level</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cache_image</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.load_xenium" title="Link to this definition"></a></dt>
+<dd><dl class="simple">
+<dt>Load Xenium data from a detected transcripts CSV file.</dt><dd><p>This is the preferred method for resegmentation. If you want the original Xenium
+segmentation, use SegmentedSpotTable.load_xenium.
+CSV reading is slow, so optionally cache the result to a .npz file.</p>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>transcript_file</strong> (<em>str</em>) – Path to the detected transcripts file.</p></li>
+<li><p><strong>cache_file</strong> (<em>str</em><em>, </em><em>optional</em>) – Path to the detected transcripts cache file, which is an npz file
+representing the raw SpotTable (without cell_ids). If passed, will
+create a cache file if one does not already exists.</p></li>
+<li><p><strong>image_path</strong> (<em>str</em><em>, </em><em>optional</em>) – Path to directory containing a Xenium image stack.</p></li>
+<li><p><strong>max_rows</strong> (<em>int</em><em>, </em><em>optional</em>) – Maximum number of rows to load from the CSV file.</p></li>
+<li><p><strong>z_depth</strong> (<em>float</em><em>, </em><em>optional</em>) – Depth (in um) of a imaging layer i.e. z-plane
+Used to bin z-positiions into discrete planes</p></li>
+<li><p><strong>pyramid_level</strong> (<em>int</em><em>, </em><em>optional</em>) – Xenium images can have multiple resolutions stored in an image pyramid.
+This parameter specifies which level of the pyramid to load.
+If None, we default to highest resolution</p></li>
+<li><p><strong>cache_image</strong> (<em>bool</em><em>, </em><em>optional</em>) – Xenium images are large and not memory mapped and thus we may want to keep them in memory or not.
+The trade off is speed vs memory.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>SpotTable with data loaded from inputs.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#sis.spot_table.SpotTable" title="sis.spot_table.SpotTable">sis.spot_table.SpotTable</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.save_npz">
+<span class="sig-name descname"><span class="pre">save_npz</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">npz_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.save_npz" title="Link to this definition"></a></dt>
+<dd><p>Save this SpotTable as an NPZ file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>npz_file</strong> (<em>str</em>) – Path to the NPZ file.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.load_npz">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">load_npz</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">npz_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">images</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">None</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">ImageBase</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ImageBase</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.load_npz" title="Link to this definition"></a></dt>
+<dd><p>Load from an NPZ file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>npz_file</strong> (<em>str</em>) – Path to the npz file.</p></li>
+<li><p><strong>images</strong> (<em>ImageBase</em><em> or </em><em>list</em><em>[</em><em>ImageBase</em><em>] or </em><em>None</em><em>, </em><em>optional</em>) – Image(s) to attach to the SpotTable. Must be loaded separately
+since these cannot be stored in the NPZ file.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Spot table loaded from compressed NPZ file</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#sis.spot_table.SpotTable" title="sis.spot_table.SpotTable">sis.spot_table.SpotTable</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.gene_indices">
+<span class="sig-name descname"><span class="pre">gene_indices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gene_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gene_ids</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.gene_indices" title="Link to this definition"></a></dt>
+<dd><p>Return an array of indices where the detected transcript is in either gene_names or gene_ids</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>gene_names</strong> (<em>array</em><em> or </em><em>None</em>) – Array of gene names to retrieve indices for. Specify either this or gene_ids.</p></li>
+<li><p><strong>gene_ids</strong> (<em>array</em><em> or </em><em>None</em>) – Array of gene IDs to retrieve indices for.  Specify either this or gene_names.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>inds</strong> – Array of indices where the detected transcript is in either gene_names or gene_ids.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.map_indices_to_parent">
+<span class="sig-name descname"><span class="pre">map_indices_to_parent</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inds</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.map_indices_to_parent" title="Link to this definition"></a></dt>
+<dd><p>Given an array of indices in this SpotTable, return a new array of indices that
+select the same spots in the parent SpotTable.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>inds</strong> (<em>np.ndarray</em>) – Array of indices in SpotTable to be mapped to parent SpotTable.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Array of indices into the parent SpotTable.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.map_indices_from_parent">
+<span class="sig-name descname"><span class="pre">map_indices_from_parent</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inds</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.map_indices_from_parent" title="Link to this definition"></a></dt>
+<dd><p>Given an array of indices into the parent SpotTable, return a new array of indices that
+select the same spots in this SpotTable.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>inds</strong> (<em>np.ndarray</em>) – Array of indices in the parent SpotTable to be mapped to this SpotTable</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Array of indices into this SpotTable.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.map_mask_to_parent">
+<span class="sig-name descname"><span class="pre">map_mask_to_parent</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mask</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.map_mask_to_parent" title="Link to this definition"></a></dt>
+<dd><p>Given a boolean mask that selects spots from this SpotTable, return a new boolean mask
+that selects the same spots from the parent SpotTable.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>mask</strong> (<em>np.ndarray</em>) – Boolean mask that selects spots from this SpotTable to be mapped to the parent SpotTable.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Boolean mask that selects the same spots from the parent SpotTable.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.copy">
+<span class="sig-name descname"><span class="pre">copy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">deep</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwds</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.copy" title="Link to this definition"></a></dt>
+<dd><p>Return a copy of self, optionally with some attributes replaced.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>deep</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, make a deep copy of the SpotTable.</p></li>
+<li><p><strong>**kwds</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>Any</em><em>]</em><em>, </em><em>optional</em>) – Attributes to replace in the copied SpotTable.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A new SpotTable object with the same attributes as self, but with some attributes replaced.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#sis.spot_table.SpotTable" title="sis.spot_table.SpotTable">sis.spot_table.SpotTable</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.split_tiles">
+<span class="sig-name descname"><span class="pre">split_tiles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">max_spots_per_tile</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_tile_width</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overlap</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">30</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">incl_end</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_transcripts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.split_tiles" title="Link to this definition"></a></dt>
+<dd><p>Return a list of SpotTables that tile this one.</p>
+<p>This table will be split into rows of equal height, and each row will be split into
+columns with roughly the same number of spots (less than <em>max_spots_per_tile</em>).</p>
+<p>see also: grid_tiles</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>max_spots_per_tile</strong> (<em>int</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Maximum number of spots to include in each tile.</p></li>
+<li><p><strong>target_tile_width</strong> (<em>float</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Automatically select max_spots_per_tile to get an approximate tile width</p></li>
+<li><p><strong>overlap</strong> (<em>float</em><em>, </em><em>optional</em>) – Distance to overlap tiles</p></li>
+<li><p><strong>incl_end</strong> (<em>bool</em><em>, </em><em>optional</em>) – Include all pixels of the image that overlap with the region, rather than just those inside the region.</p></li>
+<li><p><strong>min_transcripts</strong> (<em>int</em><em>, </em><em>optional</em>) – Minimum number of transcripts in a tile to be returned</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>filter_tiles</strong> – A list of SpotTables that tile this one.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list[SpotTables]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.grid_tiles">
+<span class="sig-name descname"><span class="pre">grid_tiles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">max_tile_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overlap</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">30</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">incl_end</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_transcripts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.grid_tiles" title="Link to this definition"></a></dt>
+<dd><p>Return a grid of overlapping tiles with equal size, where the width and height
+must be less than max_tile_size.</p>
+<p>See also: split_tiles</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>max_tile_size</strong> (<em>int</em>) – Maximum width and height of each tile.</p></li>
+<li><p><strong>overlap</strong> (<em>float</em><em>, </em><em>optional</em>) – Distance to overlap tiles</p></li>
+<li><p><strong>incl_end</strong> (<em>bool</em><em>, </em><em>optional</em>) – Include all pixels of the image that overlap with the region, rather than just those inside the region.</p></li>
+<li><p><strong>min_transcripts</strong> (<em>int</em><em>, </em><em>optional</em>) – Minimum number of transcripts in a tile to be returned</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>filter_tiles</strong> – A list of SpotTables that tile this one.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list[SpotTables]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.plot_rect">
+<span class="sig-name descname"><span class="pre">plot_rect</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">color</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.plot_rect" title="Link to this definition"></a></dt>
+<dd><p>Plot the bounding region of this table as a rectangle.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ax</strong> (<em>matplotlib.axes.Axes</em>) – The axes to plot the rectangle on.</p></li>
+<li><p><strong>color</strong> (<em>str</em>) – The color of the rectangle.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>rect</strong> – The rectangle object that was added to the axes.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>matplotlib.patches.Rectangle</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.scatter_plot">
+<span class="sig-name descname"><span class="pre">scatter_plot</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'x'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'y'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">color</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'gene_ids'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">z_idx</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">z_pos</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">palette</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.scatter_plot" title="Link to this definition"></a></dt>
+<dd><p>Plot a scatter plot of the spots in this table.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ax</strong> (<em>matplotlib.axes.Axes</em><em>, </em><em>optional</em>) – The axes to plot the scatter plot on.</p></li>
+<li><p><strong>x</strong> (<em>str</em><em>, </em><em>optional</em>) – The attribute to use for the x-axis.</p></li>
+<li><p><strong>y</strong> (<em>str</em><em>, </em><em>optional</em>) – The attribute to use for the y-axis.</p></li>
+<li><p><strong>color</strong> (<em>str</em><em>, </em><em>optional</em>) – The attribute to use for the color.</p></li>
+<li><p><strong>alpha</strong> (<em>float</em><em>, </em><em>optional</em>) – The alpha value for the points.</p></li>
+<li><p><strong>size</strong> (<em>float</em><em>, </em><em>optional</em>) – The size of the points.</p></li>
+<li><p><strong>z_idx</strong> (<em>int</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Index of the z-plane to plot in the sorted list of z-planes in the SpotTable.
+If None and <em>z_pos</em> is None, plot all z-slices.</p></li>
+<li><p><strong>z_pos</strong> (<em>int</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Coordinates of the z-plane to plot.
+If None and <em>z_pos</em> is None, plot all z-slices.</p></li>
+<li><p><strong>palette</strong> (<em>str</em><em> or </em><em>list</em><em>, </em><em>optional</em>) – The palette to use for the colors.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.binned_expression_counts">
+<span class="sig-name descname"><span class="pre">binned_expression_counts</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">binsize</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.binned_expression_counts" title="Link to this definition"></a></dt>
+<dd><p>Return an array of spatially binned gene expression counts with shape (n_x_bins, n_y_bins, n_genes)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>binsize</strong> (<em>float</em>) – Size of each bin in um.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.reduced_expression_map">
+<span class="sig-name descname"><span class="pre">reduced_expression_map</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">binsize</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">umap_args=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ax=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">umap_ax=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">norm=&lt;ufunc</span> <span class="pre">'log1p'&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.reduced_expression_map" title="Link to this definition"></a></dt>
+<dd><p>Show a UMAP of the binned expression counts.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>binsize</strong> (<em>float</em>) – Size of each bin in um.</p></li>
+<li><p><strong>umap_args</strong> (<em>dict</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Arguments to pass to UMAP.</p></li>
+<li><p><strong>ax</strong> (<em>matplotlib.axes.Axes</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The axes to plot the UMAP on.</p></li>
+<li><p><strong>umap_ax</strong> (<em>matplotlib.axes.Axes</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The axes to plot the UMAP on.</p></li>
+<li><p><strong>norm</strong> (<em>callable</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Function to normalize the expression counts.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A tuple containing the binned expression counts, the x and y bins, and the UMAP coordinates.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.show_binned_heatmap">
+<span class="sig-name descname"><span class="pre">show_binned_heatmap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">300</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bin_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.show_binned_heatmap" title="Link to this definition"></a></dt>
+<dd><p>Show an image of binned spot positions.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ax</strong> (<em>matplotlib.axes.Axes</em>) – The axes to plot the heatmap on.</p></li>
+<li><p><strong>image_size</strong> (<em>int</em><em>, </em><em>optional</em>) – Height/width of the image in pixels.</p></li>
+<li><p><strong>bin_size</strong> (<em>int</em><em>, </em><em>optional</em>) – Size of each bin in um. Alternative to image_size.</p></li>
+<li><p><strong>log</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to take the log of the binned counts.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.add_image">
+<span class="sig-name descname"><span class="pre">add_image</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">image</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.add_image" title="Link to this definition"></a></dt>
+<dd><p>Attach an image to this dataset</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>image</strong> (<em>ImageBase</em>) – The image to attach.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.get_image">
+<span class="sig-name descname"><span class="pre">get_image</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frames</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.get_image" title="Link to this definition"></a></dt>
+<dd><p>Return the image with the given name or channel name</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The name of the image to return.</p></li>
+<li><p><strong>channel</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The channel name of the image to return.</p></li>
+<li><p><strong>frames</strong> (<em>tuple</em><em> or </em><em>int</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – A tuple of the first (inclusive) and last (exclusive) indices of the frames (specific z planes) used to create the image, e.g. frames=(2,5) would create an image from z planes 2, 3, and 4.
+else, if an int is provided, that specific z plane is used.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>selected_img</strong> – The image with the given name or channel name.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ImageBase</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable.show_image">
+<span class="sig-name descname"><span class="pre">show_image</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frames</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable.show_image" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ax</strong> (<em>matplotlib.axes.Axes</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The axes to plot the image on. If None, a new figure is created.</p></li>
+<li><p><strong>name</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The name of the image to return.</p></li>
+<li><p><strong>channel</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The channel name of the image to return.</p></li>
+<li><p><strong>frames</strong> (<em>tuple</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – A tuple of the first (inclusive) and last (exclusive) indices of the frames (specific z planes) used to create the image, e.g. frames=(2,5) would create an image from z planes 2, 3, and 4.
+else, if an int is provided, that specific z plane is used.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="segmentation">
+<h2>segmentation<a class="headerlink" href="#segmentation" title="Link to this heading"></a></h2>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="usage.html" class="btn btn-neutral float-left" title="Usage" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Jacob Quon, Madeleine Hewitt, Luke Campagnola, Brian Long, Stephanie Seeman.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
