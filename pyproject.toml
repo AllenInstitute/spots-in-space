@@ -10,7 +10,7 @@ name = "spots-in-space"
 version = "0.1"
 description = "spatial transcriptomics analysis and beyond"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [{name = "Allen Institute Spatial Analysis Working Group"}]
 license-files = ["LICENSE"]
 dependencies = [
