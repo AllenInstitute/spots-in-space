@@ -782,10 +782,11 @@ def get_cell_cmap(seg_spot_table, bg_color: str|None = None, remove_negatives: b
         # Remove the negative values in cell_palette, which can throw off visualization
         cell_colors = {cell: color for cell, color in cell_colors.items() if cell in seg_spot_table.unique_cell_ids}
 
-    if bg_color is not None:
+    if bg_color is None:
         cell_colors[0] = colors.to_rgba('black')
-        cell_colors[-1] = colors.to_rgba('black')
-
+    else:
+        cell_colors[0] = colors.to_rgba(bg_color)
+        
     cell_cmap = colors.ListedColormap(dict(sorted(cell_colors.items())).values())
 
     return cell_cmap
