@@ -1,8 +1,10 @@
 from .spot_table import SpotTable,SegmentedSpotTable
-from .expression_dataset import ExpressionDataset
 from .image import Image, ImageStack
-from .celltype_mapping import *
-from .spatial_dataset import *
 from .util import *
 from . import _version
+from . import hpc
+from . import segmentation
+from . import spot_table
+from . import image
+from . import util
 __version__ = _version.get_versions()['version']
