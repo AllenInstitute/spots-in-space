@@ -762,12 +762,16 @@ If the image has multiple channels, then the name of the channel to return must 
 <dt class="sig sig-object py" id="sis.image.XeniumImageFile">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sis.image.</span></span><span class="sig-name descname"><span class="pre">XeniumImageFile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#sis.image.ImageTransform" title="sis.image.ImageTransform"><span class="pre">ImageTransform</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">axes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pyramid_level</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cache_image</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.XeniumImageFile" title="Link to this definition"></a></dt>
 <dd><p>Bases: <a class="reference internal" href="#sis.image.ImageFile" title="sis.image.ImageFile"><code class="xref py py-class docutils literal notranslate"><span class="pre">ImageFile</span></code></a></p>
-<p>Represents a single image stored on disk, carrying metadata about:
-- The file containing image data
-- The transform that maps from pixel coordinates to spot table coordinates
-- Which axes are which
-- What is represented by each channel
-Image data are lazy-loaded so that we can handle subregions without loading the entire image</p>
+<dl class="simple">
+<dt>Represents a single image stored on disk, carrying metadata about:</dt><dd><ul class="simple">
+<li><p>The file containing image data</p></li>
+<li><p>The transform that maps from pixel coordinates to spot table coordinates</p></li>
+<li><p>Which axes are which</p></li>
+<li><p>What is represented by each channel</p></li>
+</ul>
+</dd>
+</dl>
+<p>Image data are lazy-loaded so that we can handle subregions without loading the entire image</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="sis.image.XeniumImageFile.file">
 <span class="sig-name descname"><span class="pre">file</span></span><a class="headerlink" href="#sis.image.XeniumImageFile.file" title="Link to this definition"></a></dt>

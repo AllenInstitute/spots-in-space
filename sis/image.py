@@ -564,10 +564,10 @@ class StereoSeqImageFile(ImageFile):
 
 class XeniumImageFile(ImageFile):
     """Represents a single image stored on disk, carrying metadata about:
-    - The file containing image data
-    - The transform that maps from pixel coordinates to spot table coordinates
-    - Which axes are which
-    - What is represented by each channel
+        - The file containing image data
+        - The transform that maps from pixel coordinates to spot table coordinates
+        - Which axes are which
+        - What is represented by each channel
     Image data are lazy-loaded so that we can handle subregions without loading the entire image
     
     Attributes
