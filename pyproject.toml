@@ -41,10 +41,10 @@ requires = ["setuptools>=42", "versioneer-518"]
 build-backend = "setuptools.build_meta"
 
 [project.urls]
-Homepage = "https://github.com/berl/spots-in-space"
-Changelog = "https://github.com/berl/spots-in-space/releases"
-Issues = "https://github.com/berl/spots-in-space/issues"
-CI = "https://github.com/berl/spots-in-space/actions"
+Homepage = "https://github.com/AllenInstitute/spots-in-space"
+Changelog = "https://github.com/AllenInstitute/spots-in-space/releases"
+Issues = "https://github.com/AllenInstitute/spots-in-space/issues"
+CI = "https://github.com/AllenInstitute/spots-in-space/actions"
 
 
 [project.optional-dependencies]
