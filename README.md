@@ -5,12 +5,12 @@
 [![Tests](https://github.com/AllenIntitute/spots-in-space/actions/workflows/test.yml/badge.svg)](https://github.com/AllenIntitute/spots-in-space/actions/workflows/test.yml)
 
 
-A python based scalable pipeline to apply the **Cellpose** segmentation algorithm to large, imaging-based spatial transcriptomics datasets. This tool provides wrapper functions to tile large images, distribute the segmentation jobs on a SLURM cluster, and stitch the results back together. We also provide the option to create an mRNA density image from the spot table as a label for the cytosolic regions.
+A Python based scalable pipeline to apply the **Cellpose** segmentation algorithm to large, imaging-based spatial transcriptomics datasets. This tool provides wrapper functions to tile large images, distribute the segmentation jobs on a SLURM cluster, and stitch the results back together. We also provide the option to create an mRNA density image from the spot table as a label for the cytosolic regions.
 
 
 ## ✨ Features
 * **Tiling & Stitching:** Automatically splits large images into tiles for processing and reassembles the final segmentation masks.
-* **mRNA Density Imagw:** Generates mRNA density image from spot table. 
+* **mRNA Density Image:** Generates mRNA density image from spot table. 
 * **SLURM Integration:** Distributes segmentation tasks across cluster nodes for high-throughput processing.
 * **Comprehensive Outputs:** Generates standard cell-by-gene tables, metadata files, and cell outlines in GeoJSON format.
 * **Built-in Visualization:** Includes plotting functions to easily visualize cell boundaries overlaid on the original image data.
