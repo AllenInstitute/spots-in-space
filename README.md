@@ -2,10 +2,7 @@
 
 # Spots-In-Space 
 
-[![Tests](https://github.com/AllenIntitute/spots-in-space/actions/workflows/test.yml/badge.svg)](https://github.com/AllenIntitute/spots-in-space/actions/workflows/test.yml)
-
-
-A Python based scalable pipeline to apply the **Cellpose** segmentation algorithm to large, imaging-based spatial transcriptomics datasets. This tool provides wrapper functions to tile large images, distribute the segmentation jobs on a SLURM cluster, and stitch the results back together. We also provide the option to create an mRNA density image from the spot table as a label for the cytosolic regions.
+A Python based scalable pipeline to apply the **Cellpose** segmentation algorithm to large, subcellular resolution spatial transcriptomics datasets. This tool provides wrapper functions to tile large images, distribute the segmentation jobs on a SLURM cluster, and stitch the results back together. We also provide the option to create an mRNA density image from the spot table as a label for the cytosolic regions.
 
 
 ## ✨ Features
@@ -16,6 +13,12 @@ A Python based scalable pipeline to apply the **Cellpose** segmentation algorith
 * **Built-in Visualization:** Includes plotting functions to easily visualize cell boundaries overlaid on the original image data.
 
 ## Installation
+
+Create a conda environment in which to install spots-in-space:
+```bash
+conda create -n sis python=3.10
+conda activate sis
+```
 
 We recommend cloning this repo and installing via `pip`:
 ```bash
