@@ -175,7 +175,7 @@ def _polygons(features, transformations, z_plane=None):
     # Find out if z-planes are in the geojson
     z_planes_present = "z_plane" in features['features'][0]
 
-    if "properties" in features['features'][0]:
+    if "properties" not in features['features'][0]:
         if z_planes_present:
             # format the features
             format_features = [{"geometry": feature["geometry"],
