@@ -511,5 +511,3 @@ def sis_xenium(
         tables = {"cell_by_gene": _cell_by_gene(adata)}
 
     return SpatialData(images=images, points=points, shapes=shapes, tables=tables)
-
-

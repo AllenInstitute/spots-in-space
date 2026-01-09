@@ -18,7 +18,7 @@ make_valid = optional_import('shapely.validation', names=['make_valid'])[0]
 from .image import ImageBase, ImageFile, ImageStack, ImageTransform, XeniumImageFile, StereoSeqImageFile
 from . import util
 from . import _version
-from sis.util import convert_value_nested_dict
+from .util import convert_value_nested_dict, parse_polygon_geodataframe
 
 
 def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file: str|None, subregion: str|tuple|None, cell_subset_file:str|None, result_file:str|None, alpha_inv_coeff: float=4/3, separate_z_planes=True):
@@ -1484,6 +1484,92 @@ class SpotTable:
             else, if an int is provided, that specific z plane is used.
         """
         self.get_image(name=name, channel=channel, frames=frames).show(ax=ax)
+        
+    @classmethod
+    def load_merscope_spatialdata(cls, sd_file: str|Path|None=None, sd_object: spatialdata.SpatialData|None=None, image_names: list[str]|None=None, points_name: str|None=None):
+        import spatialdata as sd # Import in function so we don't throw error if spatialdata is not installed and this function is not used
+        import warnings
+
+        if (sd_file is None) == (sd_object is None):
+            raise ValueError('One and only one of sd_file and sd_object should be defined')
+        if sd_file is not None:
+            sd_object = sd.read_zarr(sd_file)
+
+        if points_name is None:
+            if len(sd_object.points.keys()) > 1:
+                import warnings
+                warnings.warn('Points name was left unspecified and there are multiple Points elements. Loading to the first listed by default')
+            points_name = list(sd_object.points.keys())[0]
+        
+        # Read in the images
+        images = ImageStack.load_spatialdata_stacks(sd_object, image_names=image_names, points_name=points_name)
+        
+        # Read in the transcripts
+        # 'global_x', 'global_y', and 'global_z' are already renamed to 'x', 'y', and 'z' by spatialdata_io's merscope() function
+        pos = sd_object[points_name][['x', 'y', 'z']].to_dask_array().compute()
+        
+        max_gene_len = max(map(len, sd_object[list(sd_object.points.keys())[0]]['gene']))
+        with warnings.catch_warnings(): # Dask array throws an error about converting from dataframe
+            warnings.simplefilter("ignore")
+            gene_names = sd_object[list(sd_object.points.keys())[0]]['gene'].to_dask_array().compute().astype(f'U{max_gene_len}')
+
+        return cls(pos=pos, gene_names=gene_names, images=images)
+
+    @classmethod
+    def load_xenium_spatialdata(cls, sd_file: str|Path|None=None, sd_object: spatialdata.SpatialData|None=None, morphology_path: str|Path|None=None, z_depth: float=3.0, image_name: str='morphology', points_name: str|None=None, gene_col: str='feature_name'):
+        import warnings
+        import spatialdata as sd # Import in function so we don't throw error if spatialdata is not installed and this function is not used
+        from spatialdata.transformations import get_transformation, Identity
+        from .image import SpatialDataImage, ImageTransform
+        
+        if (sd_file is None) == (sd_object is None):
+            raise ValueError('One and exactly one of sd_file and sd_object should be defined')
+        if sd_file is not None:
+            sd_object = sd.read_zarr(sd_file)
+
+        if points_name is None:
+            if len(sd_object.points.keys()) > 1:
+                warnings.warn('Points name was left unspecified and there are multiple Points elements. Loading to the first listed by default')
+            points_name = list(sd_object.points.keys())[0]
+        
+        # Read in images
+        if morphology_path is not None:
+            import dask.array as da
+            from dask_image.imread import imread
+            from spatialdata.transformations.transformations import Identity
+            from spatialdata.models import Image3DModel
+            morphology_image = da.expand_dims(imread(morphology_path), axis=0).rechunk((1, 1, 4096, 4096))
+            sd_object[image_name] = Image3DModel.parse(morphology_image,
+                                                    dims=('c', 'z', 'y', 'x'),
+                                                    transformations={"global": Identity()},
+                                                    c_coords=None,
+                                                    scale_factors=None, # We don't want scale factors as they scale the z axis as well. Alternative could be messing with multiscale_spatial_image.to_multiscale
+                                                    )
+
+        channels = ['DAPI']
+        if not isinstance(get_transformation(sd_object[image_name]), Identity):
+            raise ValueError('We only support images with Identity transformation')
+        transform = ImageTransform.load_spatialdata_transformation(get_transformation(sd_object[points_name]))
+        image = SpatialDataImage(sd_object[image_name],
+                                transform,
+                                ['frame', 'row', 'col', 'channel'],
+                                channels,
+                                image_name)
+        
+        # Read in the transcripts
+        # 'x_location', 'y_location', and 'z_location' are already renamed to 'x', 'y', and 'z' by spatialdata_io's xenium() funcytion
+        pos = sd_object[list(sd_object.points.keys())[0]][['x', 'y', 'z']].to_dask_array().compute()
+        
+        # Xenium z-values are continuous. For image operations, we bin float z locations to integers
+        z_bins = np.arange(0, np.max(pos[:, 2]) + z_depth, z_depth) 
+        pos[:, 2] = (np.digitize(pos[:,2], z_bins) - 1).astype(int)
+        
+        max_gene_len = max(map(len, sd_object[list(sd_object.points.keys())[0]][gene_col]))
+        with warnings.catch_warnings(): # Dask array throws an error about converting from dataframe
+            warnings.simplefilter("ignore")
+            gene_names = sd_object[list(sd_object.points.keys())[0]][gene_col].to_dask_array().compute().astype(f'U{max_gene_len}')
+
+        return cls(pos=pos, gene_names=gene_names, images=image)
 
 
 class SegmentedSpotTable:
@@ -2805,24 +2891,35 @@ class SegmentedSpotTable:
             cell_ids = pandas.read_parquet(transcript_file, columns=['cell_id']).values
 
         cell_ids = np.squeeze(cell_ids).astype(str) # Sometimes xenium ids are read in as bytes so just convert them now
-        cell_labels = cell_ids.copy()
-
-        # Xenium cell_id column is string, but SegmentedSpotTable needs ints, so convert
-        unique_ids = list(np.unique(cell_ids))
-        bg_id = 'UNASSIGNED'
-        assert bg_id in unique_ids  # if this changes with Xenium version, may need more options
-        unique_ids.remove(bg_id) # Remove background cell id so it won't be assigned to a random number
-
-        cid_to_ints_mapping = dict(zip(unique_ids, np.arange(1, len(unique_ids)+1)))
-        cid_to_ints_mapping[bg_id] = -1 # Set background to -1 to be more in line with later expectations
-        cell_ids = [cid_to_ints_mapping[cid] for cid in cell_ids]
-        cell_ids = np.array(cell_ids)
+        cell_ids, cell_labels = cls._default_cell_ids(cell_ids, bg_ids=set(['UNASSIGNED']))
 
         spottable = cls(spot_table=raw_spot_table, cell_ids=cell_ids, seg_metadata={'seg_method': 'Xenium'})
 
         spottable.cell_labels = cell_labels
         
         return spottable
+    
+    @classmethod
+    def _default_cell_ids(cls, cell_ids, bg_ids=set(['UNASSIGNED', '-1'])):
+        cell_ids = cell_ids.astype(str) # Convert to string b/c eventual labels will be strings
+        cell_labels = cell_ids.copy()
+
+        # Xenium cell_id column is string, but SegmentedSpotTable needs ints, so convert
+        unique_ids = list(np.unique(cell_ids))
+
+        # only want to deal with the background IDs actually present
+        bg_ids = list(bg_ids & set(unique_ids)) 
+        assert len(bg_ids) > 0
+        for bg_id in bg_ids:
+            unique_ids.remove(bg_id) # Remove background cell id so it won't be assigned to a random number
+
+        cid_to_ints_mapping = dict(zip(unique_ids, np.arange(1, len(unique_ids)+1)))
+        for bg_id in bg_ids:
+            cid_to_ints_mapping[bg_id] = -1 # Set background to -1 to be more in line with later expectations
+        cell_ids = [cid_to_ints_mapping[cid] for cid in cell_ids]
+        cell_ids = np.array(cell_ids)
+        
+        return cell_ids, cell_labels
 
     @classmethod
     def load_stereoseq(cls, gem_file: str|None=None, cache_file: str|None=None, gem_cols: dict|tuple=(('gene', 0), ('x', 1), ('y', 2), ('MIDcounts', 3)), 
@@ -3181,4 +3278,97 @@ class SegmentedSpotTable:
         cell_by_gene.uns = convert_value_nested_dict(cell_by_gene.uns, tuple, str)
         
         cell_by_gene.write(output_file)
+    
+    @classmethod
+    def load_merscope_spatialdata(cls, sd_file: str|Path|None=None, sd_object: spatialdata.SpatialData|None=None, image_names: str|None=None, points_name: str|None=None, shapes_name: str|None=None, cell_id_col: str|None=None, seg_method: str|None=None, use_original_cell_ids: bool=False):
+        import warnings
+        import spatialdata as sd
+
+        if (sd_file is None) == (sd_object is None):
+            raise ValueError('One and only one of sd_file and sd_object should be defined')
+        if sd_file is not None:
+            sd_object = sd.read_zarr(sd_file)
+
+        if points_name is None:
+            if len(sd_object.points.keys()) > 1:
+                warnings.warn('Points name was left unspecified and there are multiple Points elements. Loading to the first listed by default')
+            points_name = list(sd_object.points.keys())[0]
+
+        raw_spot_table = SpotTable.load_merscope_spatialdata(sd_object=sd_object, image_names=image_names, points_name=points_name)
+
+        if cell_id_col is None:
+            cell_id_col = 'cell_id'
+        
+        cell_ids = sd_object[points_name][cell_id_col].compute().values
+        if use_original_cell_ids: 
+            # Must ensure that cell_ids can be ints
+            try: 
+                cell_ids = cell_ids.astype(int)
+                cell_labels = None
+            except ValueError as e:
+                raise ValueError('Cannot use original cell ids as cell ids must be ints. Please set use_original_cell_ids=True')
+        else:
+            # If we aren't using the original cell ids, we will still put them into cell_labels to preserve them
+            # We also generate new cell ids between [1, num_cells]
+            cell_ids, cell_labels = cls._default_cell_ids(cell_ids, bg_ids=set(['UNASSIGNED']))
+
+        # Allow the user to specify a segmentation method
+        spot_table = cls(spot_table=raw_spot_table, cell_ids=cell_ids, seg_metadata={'seg_method': seg_method} if seg_method is not None else None)
+        spot_table.cell_labels = cell_labels
+        
+        if len(sd_object.shapes) > 0:
+            if shapes_name is None:
+                if len(sd_object.points.keys()) > 1:
+                    warnings.warn('Shapes name was left unspecified and there are multiple Shapes elements. Loading to the first listed by default')
+                shapes_name = list(sd_object.shapes.keys())[0]
+            spot_table.cell_polygons = parse_polygon_geodataframe(sd_object[shapes_name], spot_table) 
+        
+        return spot_table
+    
+    @classmethod
+    def load_xenium_spatialdata(cls, sd_file: str|Path|None=None, sd_object: spatialdata.SpatialData|None=None, morphology_path: str|Path|None=None, z_depth: float=3.0, image_name: str='morphology', points_name: str|None=None, shapes_name: str|None=None, cell_id_col: str|None=None, gene_col: str|None='feature_name', seg_method: str|None=None, use_original_cell_ids: bool=False):
+        import spatialdata as sd
+        import warnings
+
+        if (sd_file is None) == (sd_object is None):
+            raise ValueError('One and only one of sd_file and sd_object should be defined')
+        if sd_file is not None:
+            sd_object = sd.read_zarr(sd_file)
+
+        if points_name is None:
+            if len(sd_object.points.keys()) > 1:
+                warnings.warn('Points name was left unspecified and there are multiple Points elements. Loading to the first listed by default')
+            points_name = list(sd_object.points.keys())[0]
+
+        raw_spot_table = SpotTable.load_xenium_spatialdata(sd_object=sd_object, morphology_path=morphology_path, z_depth=z_depth, image_name=image_name, points_name=points_name, gene_col=gene_col)
+        
+        if cell_id_col is None:
+            cell_id_col = 'cell_id' if 'cell_id' in sd_object[points_name].columns else 'cell_ids'
+        
+        cell_ids = sd_object[points_name][cell_id_col].compute().values
+        if use_original_cell_ids: 
+            # Must ensure that cell_ids can be ints
+            try: 
+                cell_ids = cell_ids.astype(int)
+                cell_labels = None
+            except ValueError as e:
+                raise ValueError('Cannot use original cell ids as cell ids must be ints. Please set use_original_cell_ids=True')
+        else:
+            # If we aren't using the original cell ids, we will still put them into cell_labels to preserve them
+            # We also generate new cell ids between [1, num_cells]
+            cell_ids, cell_labels = cls._default_cell_ids(cell_ids, bg_ids=set(['UNASSIGNED']))
+        
+        # Allow the user to specify a segmentation method
+        spot_table = cls(spot_table=raw_spot_table, cell_ids=cell_ids, seg_metadata={'seg_method': seg_method} if seg_method is not None else None)
+        spot_table.cell_labels = cell_labels
+        
+        if len(sd_object.shapes) > 0:
+            if shapes_name is None:
+                if len(sd_object.points.keys()) > 1:
+                    warnings.warn('Shapes name was left unspecified and there are multiple Shapes elements. Loading to the first listed by default')
+                shapes_name = list(sd_object.shapes.keys())[0]
+            spot_table.cell_polygons = parse_polygon_geodataframe(sd_object[shapes_name], spot_table)
+        
+        return spot_table
+    
     

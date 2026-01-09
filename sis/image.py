@@ -649,6 +649,21 @@ class ImageTransform:
         m[:, 2] += offset
         return ImageTransform(m)
 
+    @classmethod
+    def load_spatialdata_transformation(cls, transformation):
+        from spatialdata.transformations import Affine
+        
+        if not isinstance(transformation, Affine):
+            transformation = transformation.to_affine(input_axes=('x', 'y'), output_axes=('x', 'y'))
+        
+        if transformation.input_axes == ('x', 'y'):
+            um_to_px = transformation.matrix[:2] # We only use the first 2 rows
+        elif transformation.input_axes == ('x', 'y', 'z'):
+            um_to_px = transformation.matrix[1:3][:, [0, 1, 3]] # cutting out the z row/column
+        else:
+            raise ValueError('Unsupported transformation axes')
+        um_to_px = um_to_px[::-1] # swizzle first and second rows so we map from (x, y) to (row,col) instead of (col,row) since images take (row, col) as coordinates
+        return cls(um_to_px)
 
 class XeniumImageFile(ImageFile):
     """Represents a single image stored on disk, carrying metadata about:
@@ -924,6 +939,40 @@ class ImageStack(ImageBase):
 
         return stacks
 
+    @classmethod
+    def load_spatialdata_stacks(cls, sd_object, image_names=None, points_name=None):
+        import spatialdata as sd
+        from spatialdata.transformations import get_transformation, Identity
+        
+        if image_names is None: # By default we stack all images
+            image_names = list(sd_object.images.keys())
+            
+        if points_name is None:
+            if len(sd_object.points.keys()) > 1:
+                import warnings
+                warnings.warn('Points name was left unspecified and there are multiple Points elements. Defaulting to the first listed for creating the transformation')
+            points_name = list(sd_object.points.keys())[0]
+            
+        z_inds = sorted([int(image_name.split('_z')[-1]) for image_name in image_names])
+        if list(set(z_inds)) != z_inds:
+            raise ValueError('Duplicate z-layer in images')
+        name_dict = {int(image_name.split('_z')[-1]): image_name for image_name in image_names}
+
+        images = []
+        for z in z_inds:
+            image_name = name_dict[z]
+            channels = list(sd.get_pyramid_levels(sd_object[image_name], n=0).c.to_numpy())
+            if not isinstance(get_transformation(sd_object[image_name]), Identity):
+                raise ValueError('We only support images with Identity transformation')
+            transform = ImageTransform.load_spatialdata_transformation(get_transformation(sd_object[points_name]))
+            images.append(SpatialDataImage(sd.get_pyramid_levels(sd_object[image_name], n=0),
+                                           transform,
+                                           ['frame', 'row', 'col', 'channel'],
+                                           channels,
+                                           None))
+            
+        return images
+
     @property
     def shape(self):
         """Return 4D shape (frames, rows, columns, channels)
@@ -1165,3 +1214,74 @@ class ImageView(ImageBase):
         cols = (cols[0] + colstart, cols[1] + colstart)
         return self.image.get_sub_data(frames, rows, cols, channel=channel)
 
+
+class SpatialDataImage(ImageBase):
+    def __init__(self, data, transform, axes, channels, name):
+        super().__init__()
+        self._data = data
+        self.transform = transform
+        self.axes = axes
+        self.channels = channels
+        self.name = name
+
+    @property
+    def shape(self):
+        """
+        This should swizzle the order of the axes so that it is in the standard image format in SIS (frames, rows, columns, channels) (z, y, x, c)
+        """
+        if self._data.ndim > 4 or self._data.ndim < 2:
+            raise ValueError('Unsupported shape')
+        axes_dict = dict(zip(self._data.dims, self._data.shape))
+        return (axes_dict.get('z', 1), axes_dict.get('y', 1), axes_dict.get('x', 1), axes_dict.get('c', 1))
+
+    def _standard_image_shape(self, img_data):
+        if self._data.ndim > 4 or self._data.ndim < 2:
+            raise ValueError('Unsupported shape')
+
+        # Certain versions of img_data will not have z
+        if 'z' not in img_data.dims:
+            img_data = img_data.expand_dims('z')
+
+        # if 'c' doesn't exist we don't add it because SIS supports 1 channel images with 3 dimensional shape
+        if 'c' in img_data.dims:
+            return img_data.transpose('z', 'y', 'x', 'c') # Standard 4D SIS order
+        else:
+            return img_data.transpose('z', 'y', 'x') # Standard 3D SIS order
+    
+    def get_data(self, channel=None):
+        if channel and self._data.ndim > 2: # If the data has a channel
+            index = self._get_channel_index(channel)
+            return self._standard_image_shape(self._data)[..., index].to_numpy() 
+            
+        return self._standard_image_shape(self._data).to_numpy()
+
+    def get_sub_data(self, frames: tuple|None, rows: tuple, cols: tuple, channel: str|None=None):
+        # We repeat some of the above code to keep object as xarray longer. This improves speed
+        # If user specified channel or if only one channel, we will return (frames, rows, columns) shaped array
+        # There may be a case where a channel is specified without a dimension in the underlying data
+        # Then we want to make sure we don't accidentally index it. It will still output 3dimensional array b/c of _standard_image_shape
+        if frames is None and self.shape[0] == 1:
+            frames = (0, 1)
+        elif frames is None and self.shape[0] > 1:
+            raise ValueError('frames must be defined if image has more than one frame')
+        
+        if (channel or len(self.channels) == 1) and 'c' in self._standard_image_shape(self._data).dims: 
+            index = self._get_channel_index(channel)
+            return self._standard_image_shape(self._data)[frames[0]:frames[1], rows[0]:rows[1], cols[0]:cols[1], index].to_numpy()
+        # Return without indexing channel. Can be (frames, rows, columns) or (frames, rows, columns, channels)
+        return self._standard_image_shape(self._data)[frames[0]:frames[1], rows[0]:rows[1], cols[0]:cols[1]].to_numpy()
+
+    def _get_channel_index(self, channel):
+        """Return the index of the given channel in the underlying data array
+        
+        Parameters
+        ----------
+        channel : str or None
+            Name of channel to return data from
+        """
+        if channel is not None:
+            return self.channels.index(channel)
+        else:
+            # If there is more than one channel force user to specify, otherwise just return the one channel
+            assert self.shape[3] == 1, "Must specify channel to return"
+            return 0

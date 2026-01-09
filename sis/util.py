@@ -790,3 +790,33 @@ def get_cell_cmap(seg_spot_table, bg_color: str|None = None, remove_negatives: b
     cell_cmap = colors.ListedColormap(dict(sorted(cell_colors.items())).values())
 
     return cell_cmap
+
+def parse_polygon_geodataframe(gdf, spot_table, cell_id_col='id', z_plane_col='z_plane'):
+    # the 'z_plane' and 'id' column names are used in SIS generated dataframes
+    if cell_id_col in gdf.columns: # If the the cell ids are not set 
+        gdf = gdf.set_index(cell_id_col)
+
+    # Need to distinguish cell_labels and cell_ids
+    try:
+        gdf.index = gdf.index.astype(int)
+        id_type = int
+    except:
+        id_type = str
+        
+    if z_plane_col not in gdf.columns:
+        geom_dict = gdf['geometry'].to_dict()
+        
+        result = {spot_table.convert_cell_id(cid) if id_type == str else cid: geom_dict.get(spot_table.convert_cell_id(cid) if id_type == str else cid, None) for cid in tqdm(spot_table.unique_cell_ids)}
+    else:
+        result = {}
+        # we loop over the dataframe not a dictionary beceause the cell ids are not unique
+        for cid, z_plane, polygon in zip(gdf.index, gdf[z_plane_col], gdf['geometry']):
+            if z_plane is None:
+                result[cid] = None
+            else:
+                result.setdefault(int(cid), {})[float(z_plane)] = polygon
+    # We add None values for cells without polygons to be consistent with SIS logic
+    for cid in spot_table.unique_cell_ids:
+        if cid not in result:
+            result[cid] = None
+    return result
