@@ -822,7 +822,7 @@ class SpotTable:
         z_bins = np.arange(0, np.max(pos[:, 2]) + z_depth, z_depth) 
         pos[:, 2] = (np.digitize(pos[:,2], z_bins) - 1).astype(int)
 
-        gene_names = spot_dataframe.loc[:,"feature_name"].values
+        gene_names = spot_dataframe.loc[:,"feature_name"].values.astype(str) # ensure string type. sometimes genes load as bstrings
 
         return pos, gene_names
     
