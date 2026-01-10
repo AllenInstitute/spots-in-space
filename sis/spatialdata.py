@@ -175,19 +175,17 @@ def _polygons(features, transformations, z_plane=None):
     # Find out if z-planes are in the geojson
     z_planes_present = "z_plane" in features['features'][0]
 
-    if "properties" not in features['features'][0]:
-        if z_planes_present:
-            # format the features
-            format_features = [{"geometry": feature["geometry"],
-                                "properties": {"id": feature["id"], "z_plane": feature["z_plane"]},
-                            } for feature in features["features"]]
-        else:
-            # format the features
-            format_features = [{"geometry": feature["geometry"],
-                                "properties": {"id": feature["id"]},
-                            } for feature in features["features"]]
-        
-        features = geojson.FeatureCollection(format_features)
+    # In previous versions of SIS, we had z_plane in the feature directly, not in properties. So we are maintaining backwards compatibility here.
+    if 'z_plane' in features['features'][0]:
+        features = geojson.FeatureCollection([{"geometry": feature["geometry"],
+                                               "id": feature["id"],
+                                               "properties": {'z_plane': feature['z_plane'], **feature['properties']},
+                                              } for feature in features["features"]])
+
+    # id must be in properties for geopandas from_features to read it
+    features = geojson.FeatureCollection([{"geometry": feature["geometry"],
+                                           "properties": {"id": feature["id"], **feature['properties']},
+                                          } for feature in features['features']])
     
     # Generate geopandas df
     geo_df = gpd.GeoDataFrame.from_features(features)
@@ -198,7 +196,7 @@ def _polygons(features, transformations, z_plane=None):
         if z_plane != -1: # -1 means we take all z-planes
             # Select a layer or take the union across all layers
             if z_plane is None:
-                geo_df = geo_df.dissolve(by="id")
+                geo_df = geo_df.dissolve(by="id").reset_index()
             else:
                 if not isinstance(z_plane, list):
                     z_plane = [z_plane]

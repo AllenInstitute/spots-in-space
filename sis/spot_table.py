@@ -2435,16 +2435,22 @@ class SegmentedSpotTable:
                 # Polygon for cell and 3D polygons for spot table
                 for z_plane, polygon in self.cell_polygons[cid].items():
                     # Each z-plane is a separate feature
-                    all_polygons.append(geojson.Feature(geometry=polygon, id=self.convert_cell_id(cid) if use_cell_labels else str(cid), z_plane=str(z_plane)))
+                    all_polygons.append(geojson.Feature(geometry=polygon,
+                                                        id=self.convert_cell_id(cid) if use_cell_labels else str(cid),
+                                                        properties={'z_plane': str(z_plane)}))
             elif self.cell_polygons[cid] and not bool_3d_poly:
                 # Polygon for cell and 2D polygons for spot table
-                all_polygons.append(geojson.Feature(geometry=self.cell_polygons[cid], id=self.convert_cell_id(cid) if use_cell_labels else str(cid)))
+                all_polygons.append(geojson.Feature(geometry=self.cell_polygons[cid],
+                                                    id=self.convert_cell_id(cid) if use_cell_labels else str(cid)))
             elif self.cell_polygons[cid] is None and bool_3d_poly:
                 # No polygon for cell and 3D polygons for spot table
-                all_polygons.append(geojson.Feature(geometry=None, id=self.convert_cell_id(cid) if use_cell_labels else str(cid), z_plane=None))
+                all_polygons.append(geojson.Feature(geometry=None,
+                                                    id=self.convert_cell_id(cid) if use_cell_labels else str(cid),
+                                                    properties={'z_plane': None}))
             else:
                 # No polygon for cell and 2D polygons for spot table
-                all_polygons.append(geojson.Feature(geometry=None, id=self.convert_cell_id(cid) if use_cell_labels else str(cid)))
+                all_polygons.append(geojson.Feature(geometry=None,
+                                                    id=self.convert_cell_id(cid) if use_cell_labels else str(cid)))
 
         return geojson.FeatureCollection(all_polygons)
     
