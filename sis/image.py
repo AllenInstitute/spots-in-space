@@ -1185,6 +1185,11 @@ class ImageView(ImageBase):
         np.ndarray
             Subregion of image data
         """
+        if channel is None and self.view_channels is not None: # If the user doesn't specify a channel but we have view_channels, then we will just pull from those
+            assert len(self.view_channels) == 1, "Must specify channel to return" # across all images, get_data only supports returning one channel
+            channel = self.view_channels[0]
+        if channel is not None and self.view_channels is not None:
+            assert channel in self.view_channels, "Requested channel not in view channels"
         return self.image.get_sub_data(self.view_frames, self.view_rows, self.view_cols, channel=channel)
 
     def get_sub_data(self, frames, rows, cols, channel=None):
@@ -1212,6 +1217,11 @@ class ImageView(ImageBase):
         frames = (frames[0] + framestart, frames[1] + framestart)
         rows = (rows[0] + rowstart, rows[1] + rowstart)
         cols = (cols[0] + colstart, cols[1] + colstart)
+        if channel is None and self.view_channels is not None: # If the user doesn't specify a channel but we have view_channels, then we will just pull from those
+            assert len(self.view_channels) == 1, "Must specify channel to return" # across all images, get_data only supports returning one channel
+            channel = self.view_channels[0]
+        if channel is not None and self.view_channels is not None:
+            assert channel in self.view_channels, "Requested channel not in view channels"
         return self.image.get_sub_data(frames, rows, cols, channel=channel)
 
 
