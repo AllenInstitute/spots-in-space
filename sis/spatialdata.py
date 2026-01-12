@@ -265,7 +265,7 @@ def _cell_by_gene(
     return TableModel.parse(adata)
 
 
-def sis_merscope(
+def merscope_to_spatialdata(
     images_dir: str | Path,
     sis_dir: str | Path | None = None,
     spot_table: SpotTable | None = None,
@@ -382,7 +382,7 @@ def sis_merscope(
     return SpatialData(images=images, points=points, shapes=shapes, tables=tables)
 
 
-def sis_xenium(
+def xenium_to_spatialdata(
     xenium_dir: str | Path,
     sis_dir: str | Path | None = None,
     spot_table: SpotTable | None = None,
