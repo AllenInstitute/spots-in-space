@@ -971,7 +971,7 @@ class ImageStack(ImageBase):
                                            channels,
                                            None))
             
-        return images
+        return cls(images)
 
     @property
     def shape(self):

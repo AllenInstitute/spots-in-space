@@ -806,7 +806,7 @@ def parse_polygon_geodataframe(gdf, spot_table, cell_id_col='id', z_plane_col='z
     if z_plane_col not in gdf.columns:
         geom_dict = gdf['geometry'].to_dict()
         
-        result = {spot_table.convert_cell_id(cid) if id_type == str else cid: geom_dict.get(spot_table.convert_cell_id(cid) if id_type == str else cid, None) for cid in tqdm(spot_table.unique_cell_ids)}
+        result = {spot_table.convert_cell_id(cid) if id_type == str else cid: geom_dict.get(spot_table.convert_cell_id(cid) if id_type == str else cid, None) for cid in spot_table.unique_cell_ids}
     else:
         result = {}
         # we loop over the dataframe not a dictionary beceause the cell ids are not unique
