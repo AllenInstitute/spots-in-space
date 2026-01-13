@@ -811,6 +811,7 @@ def parse_polygon_geodataframe(gdf, spot_table, cell_id_col='id', z_plane_col='z
         result = {}
         # we loop over the dataframe not a dictionary beceause the cell ids are not unique
         for cid, z_plane, polygon in zip(gdf.index, gdf[z_plane_col], gdf['geometry']):
+            cid = spot_table.convert_cell_id(cid) if id_type == str else cid
             if z_plane is None:
                 result[cid] = None
             else:
