@@ -800,13 +800,16 @@ def parse_polygon_geodataframe(gdf, spot_table, cell_id_col='id', z_plane_col='z
     try:
         gdf.index = gdf.index.astype(int)
         id_type = int
-    except:
+    except ValueError:
         id_type = str
         
     if z_plane_col not in gdf.columns:
         geom_dict = gdf['geometry'].to_dict()
         
-        result = {spot_table.convert_cell_id(cid) if id_type == str else cid: geom_dict.get(spot_table.convert_cell_id(cid) if id_type == str else cid, None) for cid in spot_table.unique_cell_ids}
+        # loop over the cells in the spot table and add their polygons a SIS polygon dict
+        # cell ids are converted to the appropriate type to query the geometry dict
+        # if the value doesn't exist in the geometry dict, we set it to None
+        result = {cid: geom_dict.get(spot_table.convert_cell_id(cid) if id_type == str else cid, None) for cid in spot_table.unique_cell_ids}
     else:
         result = {}
         # we loop over the dataframe not a dictionary beceause the cell ids are not unique

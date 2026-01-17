@@ -814,7 +814,7 @@ class SpotTable:
                 raise ValueError('max_rows is not supported for parquet files as pandas does not allow partial reading')
             spot_dataframe = pandas.read_parquet(transcript_file, engine='pyarrow')
         else:
-            raise ValueError(f"Unsupported file type for transcript_file: {transcript_file}")
+            raise ValueError(f"Unsupported file type for transcript_file: {transcript_file}. Must be .csv, .csv.gz, or .parquet")
 
         pos= spot_dataframe.loc[:,["x_location","y_location","z_location"]].values
         
@@ -3302,34 +3302,7 @@ class SegmentedSpotTable:
 
         raw_spot_table = SpotTable.load_merscope_spatialdata(sd_object=sd_object, image_names=image_names, points_name=points_name)
 
-        if cell_id_col is None:
-            cell_id_col = 'cell_id'
-        
-        cell_ids = sd_object[points_name][cell_id_col].compute().values
-        if use_original_cell_ids: 
-            # Must ensure that cell_ids can be ints
-            try: 
-                cell_ids = cell_ids.astype(int)
-                cell_labels = None
-            except ValueError as e:
-                raise ValueError('Cannot use original cell ids as cell ids must be ints. Please set use_original_cell_ids=True')
-        else:
-            # If we aren't using the original cell ids, we will still put them into cell_labels to preserve them
-            # We also generate new cell ids between [1, num_cells]
-            cell_ids, cell_labels = cls._default_cell_ids(cell_ids, bg_ids=set(['UNASSIGNED']))
-
-        # Allow the user to specify a segmentation method
-        spot_table = cls(spot_table=raw_spot_table, cell_ids=cell_ids, seg_metadata={'seg_method': seg_method} if seg_method is not None else None)
-        spot_table.cell_labels = cell_labels
-        
-        if len(sd_object.shapes) > 0:
-            if shapes_name is None:
-                if len(sd_object.points.keys()) > 1:
-                    warnings.warn('Shapes name was left unspecified and there are multiple Shapes elements. Loading to the first listed by default')
-                shapes_name = list(sd_object.shapes.keys())[0]
-            spot_table.cell_polygons = parse_polygon_geodataframe(sd_object[shapes_name], spot_table) 
-        
-        return spot_table
+        return cls._load_spatialdata_cids_polygons(raw_spot_table, sd_object, points_name, shapes_name, cell_id_col, seg_method, use_original_cell_ids, set(['-1']))
     
     @classmethod
     def load_xenium_spatialdata(cls, sd_file: str|Path|None=None, sd_object: spatialdata.SpatialData|None=None, morphology_path: str|Path|None=None, z_depth: float=3.0, image_name: str='morphology', points_name: str|None=None, shapes_name: str|None=None, cell_id_col: str|None=None, gene_col: str|None='feature_name', seg_method: str|None=None, use_original_cell_ids: bool=False):
@@ -3348,6 +3321,12 @@ class SegmentedSpotTable:
 
         raw_spot_table = SpotTable.load_xenium_spatialdata(sd_object=sd_object, morphology_path=morphology_path, z_depth=z_depth, image_name=image_name, points_name=points_name, gene_col=gene_col)
         
+        return cls._load_spatialdata_cids_polygons(raw_spot_table, sd_object, points_name, shapes_name, cell_id_col, seg_method, use_original_cell_ids, set(['UNASSIGNED']))
+    
+    @classmethod
+    def _load_spatialdata_cids_polygons(cls, raw_spot_table, sd_object, points_name, shapes_name, cell_id_col, seg_method, use_original_cell_ids, bg_ids):
+        import warnings
+        
         if cell_id_col is None:
             cell_id_col = 'cell_id' if 'cell_id' in sd_object[points_name].columns else 'cell_ids'
         
@@ -3362,8 +3341,8 @@ class SegmentedSpotTable:
         else:
             # If we aren't using the original cell ids, we will still put them into cell_labels to preserve them
             # We also generate new cell ids between [1, num_cells]
-            cell_ids, cell_labels = cls._default_cell_ids(cell_ids, bg_ids=set(['UNASSIGNED']))
-        
+            cell_ids, cell_labels = cls._default_cell_ids(cell_ids, bg_ids=bg_ids)
+
         # Allow the user to specify a segmentation method
         spot_table = cls(spot_table=raw_spot_table, cell_ids=cell_ids, seg_metadata={'seg_method': seg_method} if seg_method is not None else None)
         spot_table.cell_labels = cell_labels
@@ -3374,7 +3353,5 @@ class SegmentedSpotTable:
                     warnings.warn('Shapes name was left unspecified and there are multiple Shapes elements. Loading to the first listed by default')
                 shapes_name = list(sd_object.shapes.keys())[0]
             spot_table.cell_polygons = parse_polygon_geodataframe(sd_object[shapes_name], spot_table)
-        
+            
         return spot_table
-    
-    

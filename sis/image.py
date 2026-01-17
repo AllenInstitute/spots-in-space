@@ -661,7 +661,7 @@ class ImageTransform:
         elif transformation.input_axes == ('x', 'y', 'z'):
             um_to_px = transformation.matrix[1:3][:, [0, 1, 3]] # cutting out the z row/column
         else:
-            raise ValueError('Unsupported transformation axes')
+            raise ValueError('Unsupported transformation axes. Must be (x,y) or (x,y,z)')
         um_to_px = um_to_px[::-1] # swizzle first and second rows so we map from (x, y) to (row,col) instead of (col,row) since images take (row, col) as coordinates
         return cls(um_to_px)
 
@@ -1240,13 +1240,13 @@ class SpatialDataImage(ImageBase):
         This should swizzle the order of the axes so that it is in the standard image format in SIS (frames, rows, columns, channels) (z, y, x, c)
         """
         if self._data.ndim > 4 or self._data.ndim < 2:
-            raise ValueError('Unsupported shape')
+            raise ValueError('Unsupported shape. ndim must be between 2 and 4')
         axes_dict = dict(zip(self._data.dims, self._data.shape))
         return (axes_dict.get('z', 1), axes_dict.get('y', 1), axes_dict.get('x', 1), axes_dict.get('c', 1))
 
     def _standard_image_shape(self, img_data):
         if self._data.ndim > 4 or self._data.ndim < 2:
-            raise ValueError('Unsupported shape')
+            raise ValueError('Unsupported shape. ndim must be between 2 and 4')
 
         # Certain versions of img_data will not have z
         if 'z' not in img_data.dims:

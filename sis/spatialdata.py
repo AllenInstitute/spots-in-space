@@ -172,6 +172,8 @@ def _polygons(features, transformations, z_plane=None):
     geo_df : GeoDataFrame
         geopandas dataframe of polygons to add to SpatailData object.
     """
+    import warnings
+    
     # Find out if z-planes are in the geojson
     z_planes_present = "z_plane" in features['features'][0]
 
@@ -203,9 +205,15 @@ def _polygons(features, transformations, z_plane=None):
                 geo_df = geo_df[geo_df["z_plane"].isin(z_plane)]
 
     # Remove empty or non-valid geometries
+    valid_mask = (geo_df["geometry"].is_valid) & (~geo_df["geometry"].is_empty)
+    if 100 * np.count_nonzero(valid_mask) / len(geo_df) > 5:
+        warnings.warn(f"{np.count_nonzero(valid_mask)} ({100 * np.count_nonzero(valid_mask) / len(geo_df):.1f}% of total) invalid or empty geometries found and removed.")
     geo_df = geo_df[(geo_df["geometry"].is_valid) & (~geo_df["geometry"].is_empty)]
 
     # Combine Multipolygons by taking their convex hull. This might make for larger areas, but this usually represents a minority of cells.
+    multi_mask = [type(x) is MultiPolygon for x in geo_df["geometry"]]
+    if 100 * np.count_nonzero(multi_mask) / len(geo_df) > 5:
+        warnings.warn(f"{np.count_nonzero(multi_mask)} ({100 * np.count_nonzero(multi_mask) / len(geo_df):.1f}% of total) multipolygons found. These will be converted to single polygons by taking their convex hulls.")
     geo_df.loc[:, "geometry"] = geo_df["geometry"].apply(
         lambda x: x.convex_hull if type(x) is MultiPolygon else x
     )
