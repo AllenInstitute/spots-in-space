@@ -730,7 +730,7 @@ class XeniumImageFile(ImageFile):
         self.cache_image = cache_image
 
     @classmethod
-    def load(cls, xenium_image_file, pyramid_level=None, cache_image=True, name=None):
+    def load(cls, xenium_image_file, pyramid_level=0, cache_image=True, name=None):
         """Read standard Xenium image mosaic tiff file, returning list of XeniumImageFiles
         
         Parameters
@@ -753,36 +753,33 @@ class XeniumImageFile(ImageFile):
         """
         import xml.etree.ElementTree as ET
 
-        tiff_image_file = tifffile.TiffFile(xenium_image_file)
-
-        # this file should have OME metadata:
-        metadata_root = ET.fromstring(tiff_image_file.ome_metadata)
         # extract the pixel size 
-        for child in metadata_root:
-            if "Image" in child.tag:
-                for cc in child:
-                    if "Pixels" in cc.tag:
-                        um_per_pixel_x = float(cc.attrib["PhysicalSizeX"])
-                        um_per_pixel_y = float(cc.attrib["PhysicalSizeY"])
+        with tifffile.TiffFile(xenium_image_file) as tiff_image_file:
+            # this file should have OME metadata:
+            root = ET.fromstring(tiff_image_file.ome_metadata)
+        pixels = cls._find_by_localname(root, "Pixels")
+        um_per_pixel_x, um_per_pixel_y = float(pixels.attrib["PhysicalSizeX"]), float(pixels.attrib["PhysicalSizeY"])
+
         # and turn this into a transformation matrix
-        affine_matrix = np.eye(3)[:2,:]
+        affine_matrix = np.eye(3)
         affine_matrix[0,0] = um_per_pixel_x
         affine_matrix[1,1] = um_per_pixel_y
-        m3 = np.eye(3)
-        m3[:2] = affine_matrix
-        um_to_pixel_matrix =  np.linalg.inv(m3)[:2]
+        um_to_pixel_matrix =  np.linalg.inv(affine_matrix)[:2]
         
         # swizzle first and second rows so we map from (x, y) to (row,col) instead of (col,row)
         # since images take (row, col) as coordinates
         transform = ImageTransform(um_to_pixel_matrix[::-1])
 
-        if pyramid_level is None:
-            pyramid_level = 0 # Default pyramid level to highest resolution
-
         return XeniumImageFile(file=xenium_image_file, transform=transform, axes=['frame', 'row', 'col', 'channel'],
                                 channels=['DAPI'], name=name,
                                 pyramid_level=pyramid_level, cache_image=cache_image)
         
+    @classmethod
+    def _find_by_localname(root, localname):
+        for elem in root.iter():
+            if elem.tag.split('}')[-1] == localname:
+                return elem
+        return None
 
     @property
     def shape(self):
@@ -796,11 +793,12 @@ class XeniumImageFile(ImageFile):
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
                 with tifffile.TiffFile(self.file) as tcontext:
-                    self._shape = (tcontext.series[0].shape[0], tcontext.series[0].shape[1], tcontext.series[0].shape[2], 1)
+                    import xml.etree.ElementTree as ET
+                    pixels = XeniumImageFile.find_by_localname(ET.fromstring(tcontext.ome_metadata), 'Pixels')
+                    self._shape = (int(pixels.attrib['SizeZ']), int(pixels.attrib['SizeY']), int(pixels.attrib['SizeX']), int(pixels.attrib['SizeC']))
         return self._shape
 
-
-    def get_data(self, pyramid_level=None):
+    def get_data(self, channel=None, pyramid_level=None):
         """Return array of image data.
         
         Parameters
@@ -816,7 +814,7 @@ class XeniumImageFile(ImageFile):
         """
         if pyramid_level is None:
             pyramid_level = self.pyramid_level
-            
+                        
         if isinstance( self.whole_image_array, type(None)): # if it's not cached, we have to read
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
