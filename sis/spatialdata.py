@@ -26,6 +26,21 @@ from spatialdata.models import Image2DModel, Image3DModel, ShapesModel, PointsMo
 from .spot_table import SpotTable
 
 
+def _is_supported_transformation(transformation: BaseTransformation):
+    # We support Identity, scale, and translation transformations
+    # We do not support rotation or shear at this time.
+    # We keep all SIS computations in transcript coordinate space. Thus, when an image is not rotationally aligned we don't have an easy way to subset its pixels for plotting
+    # This is a solvable problem, but out of scope for now.
+    if isinstance(transformation, Identity):
+        return True
+    
+    # For an affine transformation, we check if it is only scaling and translation
+    # Given an affine 2D transform, checking that the off-diagonal values = 0 is sufficient to confirm it consists only of axis-aligned scaling and translation.
+    if transformation.matrix[0,1] == 0 and transformation.matrix[1,0] == 0:
+        return True
+    
+    return False
+
 def _images(
     images_dir: str | Path,
     stainings: str | list[str] = "DAPI",

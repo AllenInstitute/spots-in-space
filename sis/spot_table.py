@@ -19,6 +19,7 @@ from .image import ImageBase, ImageFile, ImageStack, ImageTransform, XeniumImage
 from . import util
 from . import _version
 from .util import convert_value_nested_dict, parse_polygon_geodataframe
+from .spatialdata import _is_supported_transformation
 
 
 def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file: str|None, subregion: str|tuple|None, cell_subset_file:str|None, result_file:str|None, alpha_inv_coeff: float=4/3, separate_z_planes=True):
@@ -1547,8 +1548,8 @@ class SpotTable:
                                                     )
 
         channels = ['DAPI']
-        if not isinstance(get_transformation(sd_object[image_name]), Identity):
-            raise ValueError('We only support images with Identity transformation')
+        if not _is_supported_transformation(get_transformation(sd_object[image_name])):
+            raise ValueError('We do not support rotation or shear transformations')
         transform = ImageTransform.load_spatialdata_transformation(get_transformation(sd_object[points_name]))
         image = SpatialDataImage(sd_object[image_name],
                                 transform,

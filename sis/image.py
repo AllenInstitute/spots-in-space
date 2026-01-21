@@ -3,6 +3,7 @@ import warnings
 import os, glob, re
 import numpy as np
 from .optional_import import optional_import
+from .spatialdata import _is_supported_transformation
 rasterio = optional_import('rasterio')
 tifffile = optional_import('tifffile')
 
@@ -940,7 +941,7 @@ class ImageStack(ImageBase):
     @classmethod
     def load_spatialdata_stacks(cls, sd_object, image_names=None, points_name=None):
         import spatialdata as sd
-        from spatialdata.transformations import get_transformation, Identity
+        from spatialdata.transformations import get_transformation
         
         if image_names is None: # By default we stack all images
             image_names = list(sd_object.images.keys())
@@ -960,8 +961,8 @@ class ImageStack(ImageBase):
         for z in z_inds:
             image_name = name_dict[z]
             channels = list(sd.get_pyramid_levels(sd_object[image_name], n=0).c.to_numpy())
-            if not isinstance(get_transformation(sd_object[image_name]), Identity):
-                raise ValueError('We only support images with Identity transformation')
+            if not _is_supported_transformation(get_transformation(sd_object[image_name])):
+                raise ValueError('We do not support rotation or shear transformations')
             transform = ImageTransform.load_spatialdata_transformation(get_transformation(sd_object[points_name]))
             images.append(SpatialDataImage(sd.get_pyramid_levels(sd_object[image_name], n=0),
                                            transform,
