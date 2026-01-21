@@ -97,21 +97,21 @@ def _images_merscope(images_dir: str | Path,
     if not isinstance(images_dir, Path):
         images_dir = Path(images_dir)
 
+    # Set a few default values
     if "chunks" not in image_models_kwargs:
         if isinstance(image_models_kwargs, MappingProxyType):
             image_models_kwargs = {}
         image_models_kwargs["chunks"] = (1, 4096, 4096)
-
     if "scale_factors" not in image_models_kwargs:
         if isinstance(image_models_kwargs, MappingProxyType):
             image_models_kwargs = {}
         image_models_kwargs["scale_factors"] = [2, 2, 2, 2]
 
-    images = {}
-
     if isinstance(z_layers, int):
+        # if just one z-layer is provided, make it a list
         z_layers = [z_layers]
     elif z_layers is None:
+        # if no z-layers are provided, lets use them all. Read the directory to find them
         image_files = glob.glob(images_dir / 'mosaic_*_z*.tif')
         z_layers = set()
         for file in image_files:
@@ -121,24 +121,22 @@ def _images_merscope(images_dir: str | Path,
             z_layers.add(int(m.groups()[1]))
         z_layers = sorted(list(z_layers))
         
+    # spatialdata specific variables
+    images = {}
     reader = _get_reader(None)
-
     dataset_id = f"{images_dir.parent.parent.name}_{images_dir.parent.name}"
     
     if aggregate_z:
-        im = concat(
-            [
-                reader(images_dir,
-                       [stainings] if isinstance(stainings, str) else stainings or [],
-                       z_layer,
-                       image_models_kwargs,
-                       **imread_kwargs,
-                )["scale0"].ds.to_dataarray()
-                for z_layer in z_layers
-            ],
-            dim="z",
-        )
+        # Read all the z-layers
+        im = concat([reader(images_dir,
+                            [stainings] if isinstance(stainings, str) else stainings or [],
+                            z_layer,
+                            image_models_kwargs,
+                            **imread_kwargs)["scale0"].ds.to_dataarray()
+                     for z_layer in z_layers],
+                    dim="z")
 
+        # Aggregate the z-layers
         if callable(aggregate_z):
             im = im.reduce(aggregate_z, **agg_kwargs, dim="z")
         elif aggregate_z == "max":
@@ -150,11 +148,14 @@ def _images_merscope(images_dir: str | Path,
                 f"{aggregate_z} not implemented. Try writing as callable function."
             )
         im = im.squeeze()
+        
+        # load the aggregated image into an Image2DModel
         parsed_image = Image2DModel.parse(im if "c" in im.dims else im.expand_dims("c", axis=0),
                                           c_coords=stainings,
                                           rgb=None,
                                           **image_models_kwargs)
         
+        # Create the name for the image
         label = aggregate_z if isinstance(aggregate_z, str) else aggregate_z.__name__
         images[f"{dataset_id}_{label}_z_layers"] = parsed_image
     else:
@@ -208,12 +209,13 @@ def _images_xenium(xenium_dir: str | Path,
     if not isinstance(xenium_dir, Path):
         xenium_dir = Path(xenium_dir)
     
+    # Define some default values
     if "chunks" not in image_models_kwargs:
         if isinstance(image_models_kwargs, MappingProxyType):
             image_models_kwargs = {}
         image_models_kwargs["chunks"] = (1, 1, 4096, 4096)
     
-    images = {}
+    # Load the morphology image in as a 3D image
     im = da.expand_dims(imread(xenium_dir / 'morphology.ome.tif', **imread_kwargs), axis=0).rechunk((1, 1, 4096, 4096))
     im = Image3DModel.parse(im,
                             dims=('c', 'z', 'y', 'x'),
@@ -222,7 +224,9 @@ def _images_xenium(xenium_dir: str | Path,
                             scale_factors=None, # We don't want scale factors as they scale the z axis as well. Alternative could be messing with multiscale_spatial_image.to_multiscale
                            )
     
+    images = {}
     if aggregate_z:
+        # Aggregate the z-layers
         if callable(aggregate_z):
             im = im.reduce(aggregate_z, **agg_kwargs, dim="z")
         elif aggregate_z == "max":
@@ -234,11 +238,13 @@ def _images_xenium(xenium_dir: str | Path,
                 f"{aggregate_z} not implemented. Try writing as callable function."
             )
             
+        # Read the aggregated image into an Image2DModel
         parsed_image = Image2DModel.parse(im,
                                           c_coords=stainings,
                                           rgb=None,
                                           **image_models_kwargs)
         
+        # Create the image name
         label = aggregate_z if isinstance(aggregate_z, str) else aggregate_z.__name__
         images[f"morphology_{label}_z_layers"] = parsed_image
     else:
@@ -287,6 +293,7 @@ def _polygons(features: geojson.FeatureCollection,
     geo_df = gpd.GeoDataFrame.from_features(features)
     
     if z_planes_present:
+        # Handle z-planes if they are present
         geo_df = geo_df[[x is not None for x in geo_df["z_plane"]]]
         geo_df.loc[:, "z_plane"] = geo_df["z_plane"].astype(float).astype(int)
         if z_plane != -1: # -1 means we take all z-planes
@@ -354,6 +361,7 @@ def _spottable(df: dd.DataFrame,
         feature_key="gene_names",
     )
 
+    # Rename gene_names to gene for consistency and make sure it is a category for efficient storage
     transcripts = transcripts.rename(columns={'gene_names': 'gene'})
     transcripts["gene"] = transcripts["gene"].astype("category")
     return transcripts
