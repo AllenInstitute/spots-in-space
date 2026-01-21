@@ -24,9 +24,10 @@ from spatialdata.transformations import Affine, Identity, BaseTransformation
 from spatialdata.models import Image2DModel, Image3DModel, ShapesModel, PointsModel, TableModel
 
 from .spot_table import SpotTable
+from .image import XeniumImageFile
 
 
-def _is_supported_transformation(transformation: BaseTransformation):
+def _is_supported_transformation(transformation: BaseTransformation) -> bool:
     """Checks if a spatialdata transformation is supported by SIS.
     We only support identity, scaling, and translation transformations
 
@@ -53,17 +54,14 @@ def _is_supported_transformation(transformation: BaseTransformation):
     
     return False
 
-def _images_merscope(
-    images_dir: str | Path,
-    stainings: str | list[str] = "DAPI",
-    z_layers: int | list[int] | None = None,
-    aggregate_z: Literal["max", "mean"] | Callable | None = None,
-    agg_kwargs: Mapping[str, Any] = MappingProxyType({}),
-    image_models_kwargs: Mapping[str, Any] = MappingProxyType({}),
-    imread_kwargs: Mapping[str, Any] = MappingProxyType({}),
-) -> list[DataTree]:
-    """Retrieve and process images from a merscope output directory, optionally aggregating 
-    across z-layers.
+def _images_merscope(images_dir: str | Path,
+                     stainings: str | list[str] = "DAPI",
+                     z_layers: int | list[int] | None = None,
+                     aggregate_z: Literal["max", "mean"] | Callable | None = None,
+                     agg_kwargs: Mapping[str, Any] = MappingProxyType({}),
+                     image_models_kwargs: Mapping[str, Any] = MappingProxyType({}),
+                     imread_kwargs: Mapping[str, Any] = MappingProxyType({})) -> list[DataTree]:
+    """Retrieve and process images from a merscope output directory, optionally aggregating across z-layers.
 
     Parameters
     ----------
@@ -84,13 +82,13 @@ def _images_merscope(
 
     Returns
     -------
-    list of DataTree
-        A list containing the processed images, organized by dataset ID and z-layer.
+    images : dict of DataTree
+        A dictionary containing the processed images and their names
 
     Raises
     ------
     KeyError
-        If both z_layers and aggregate_z are None or if aggregate_z is not a recognized method.
+        If aggregate_z is not a recognized string or callable function.
     """
     from spatialdata_io.readers.merscope import _get_reader
     import glob
@@ -171,14 +169,42 @@ def _images_merscope(
     return images
 
 
-def _images_xenium(
-    xenium_dir: str | Path,
-    stainings: str | list[str] = "DAPI",
-    aggregate_z: Literal["max", "mean"] | Callable | None = None,
-    agg_kwargs: Mapping[str, Any] = MappingProxyType({}),
-    image_models_kwargs: Mapping[str, Any] = MappingProxyType({}),
-    imread_kwargs: Mapping[str, Any] = MappingProxyType({}),
-) -> list[DataTree]:
+def _images_xenium(xenium_dir: str | Path,
+                   stainings: str | list[str] = "DAPI",
+                   aggregate_z: Literal["max", "mean"] | Callable | None = None,
+                   agg_kwargs: Mapping[str, Any] = MappingProxyType({}),
+                   image_models_kwargs: Mapping[str, Any] = MappingProxyType({}),
+                   imread_kwargs: Mapping[str, Any] = MappingProxyType({})) -> list[DataTree]:
+    """Load and process 3D images from a xenium output directory, optionally aggregating along the z-axis.
+
+    Parameters
+    ----------
+    xenium_dir : str or Path
+        The xenium output directory containing the image files.
+    stainings : str or list of str, optional
+        The stainings to be used for the images. Default is "DAPI".
+    aggregate_z : {'max', 'mean'} or callable or None, optional
+        Method to aggregate the image data along the z-axis. If None, no aggregation 
+        is performed. If a string, it must be either 'max' or 'mean'. If a callable, 
+        it should accept the image data and return the aggregated result.
+    agg_kwargs : Mapping[str, Any], optional
+        Additional keyword arguments to pass to the aggregation function.
+    image_models_kwargs : Mapping[str, Any], optional
+        Additional keyword arguments for image model parsing.
+    imread_kwargs : Mapping[str, Any], optional
+        Additional keyword arguments for the image reading function.
+
+    Returns
+    -------
+    images : dict
+        A dictionary containing the processed images, with keys indicating the 
+        type of processing applied.
+        
+    Raises
+    ------
+    KeyError
+        If aggregate_z is not a recognized string or callable function.
+    """
     if not isinstance(xenium_dir, Path):
         xenium_dir = Path(xenium_dir)
     
@@ -221,21 +247,24 @@ def _images_xenium(
     return images
 
 
-def _polygons(features, transformations, z_plane=None):
-    """
-    Custom function for loading polygons generated from spots-in-space for appending into a SpatialData
+def _polygons(features: geojson.FeatureCollection,
+              transformations: BaseTransformation,
+              z_plane: int | list[int] | None = -1) -> gpd.GeoDataFrame:
+    """ Loads polygons generated from spots-in-space and formats them for for appending into a SpatialData
 
-    Parameters:
-    features : {geojson.FeatureCollection}
+    Parameters
+    ----------
+    features : geojson.FeatureCollection
         sis formatted featurecollection. will be formatted to standard
-    transformations : {spatialdata.transformations.BaseTransformation}
+    transformations : spatialdata.transformations.BaseTransformation
         Image transformation for polygon to pixel conversion
-    z_plane : {int, list of ints, or None}, optional
+    z_plane : int, list of ints, None, or -1, optional
         z_plane or planes that we select. If none, will take the union of polygons across all z_layers. if -1, use all z-planes
 
-    Returns:
+    Returns
+    -------
     geo_df : GeoDataFrame
-        geopandas dataframe of polygons to add to SpatailData object.
+        geopandas dataframe of polygons to add to SpatialData object.
     """
     import warnings
     
@@ -286,34 +315,35 @@ def _polygons(features, transformations, z_plane=None):
     return ShapesModel.parse(geo_df, transformations=transformations)
 
 
-def _spottable(
-    df: dd.DataFrame,
-    transformations: BaseTransformation,
-    z_planes: int | list[int] | None = None,
-    genes: str | list[str] | None = None,
-) -> dd.DataFrame:
-    """
-    Custom import function for appending spots-in-space spot-table files into spatialdata.
+def _spottable(df: dd.DataFrame,
+               transformations: BaseTransformation,
+               z_planes: int | list[int] | None = None,
+               genes: str | list[str] | None = None) -> dd.DataFrame:
+    """Loads spots-in-space spot-table files and formats them for inputting into spatialdata.
 
-    Parameters:
-    df: {dask.dataframe.core.DataFrame}
+    Parameters
+    ----------
+    df: dask.dataframe.core.DataFrame
         Dask dataframe containing the transcript information
     transformations : spatialdata.transformations.BaseTransformation
         Image transformation for micron to pixel conversion.
-    z_planes : {int, list of ints, or None}
+    z_planes : int, list of ints, or None
         z_planes to include in the segmentation.
-    genes : {str, list of str, or None}
+    genes : str, list of str, or None
         genes to inlcude in the spottable.
 
-    Returns:
-    transcripts : dask.dataframe.DataFrame
-        dask.dataframe.DataFrame of transcript locations.
+    Returns
+    -------
+    transcripts : dask.dataframe.core.DataFrame
+        Dask dataframe of transcripts to add to SpatialData object.
     """
     if z_planes:
+        # Subset the dataframe to only include specified z_planes
         z_planes = [z_planes] if isinstance(z_planes, int) else z_planes
         df = df[df["z"].isin(z_planes)]
 
     if genes:
+        # Subset the dataframe to only include specified genes
         genes = [genes] if isinstance(genes, str) else genes
         df = df[df["gene_names"].isin(genes)]
 
@@ -324,58 +354,70 @@ def _spottable(
         feature_key="gene_names",
     )
 
-    transcripts["gene"] = transcripts["gene_names"].astype("category")
+    transcripts = transcripts.rename(columns={'gene_names': 'gene'})
+    transcripts["gene"] = transcripts["gene"].astype("category")
     return transcripts
 
 
-def _cell_by_gene(
-    adata: anndata.AnnData,
-) -> anndata.AnnData:
+def _cell_by_gene(adata: anndata.AnnData) -> anndata.AnnData:
+    """Loads spots-in-space cell by gene anndata and formats it for inputting into spatialdata.
+
+    Parameters
+    ----------
+    adata: anndata.AnnData
+        The cell by gene table to be formatted
+
+    Returns
+    -------
+    anndata.AnnData
+        Formatted anndata to add to SpatialData object.
+    """
     try:
+        # SIS stores cell polygons in the anndata
+        # SpatialData already has them elsewhere, so lets remove them here
         del adata.uns['cell_polygons']
     except KeyError:
         pass
     return TableModel.parse(adata)
 
 
-def merscope_to_spatialdata(
-    images_dir: str | Path,
-    sis_dir: str | Path | None = None,
-    spot_table: SpotTable | None = None,
-    z_layers: int | list[int] | None = list(range(7)),
-    aggregate_z: Literal["max", "mean"] | Callable | None = None,
-    agg_kwargs: Mapping[str, Any] = MappingProxyType({}),
-    stainings: str | list[str] | None = None,
-    imread_kwargs: Mapping[str, Any] = MappingProxyType({}),
-    image_models_kwargs: Mapping[str, Any] = MappingProxyType({}),
-    genes: str | list[str] | None = None,
-    get_images: bool = True,
-    get_cell_boundaries: bool = True,
-    get_transcripts: bool = True,
-    get_anndata: bool = True,
-) -> SpatialData:
-    """
-    Parameters:
-
-    image_dir: {str pathlib.Path}
+def merscope_to_spatialdata(images_dir: str | Path,
+                            sis_dir: str | Path | None = None,
+                            spot_table: SpotTable | None = None,
+                            z_layers: int | list[int] | None = list(range(7)),
+                            aggregate_z: Literal["max", "mean"] | Callable | None = None,
+                            agg_kwargs: Mapping[str, Any] = MappingProxyType({}),
+                            stainings: str | list[str] | None = None,
+                            imread_kwargs: Mapping[str, Any] = MappingProxyType({}),
+                            image_models_kwargs: Mapping[str, Any] = MappingProxyType({}),
+                            genes: str | list[str] | None = None,
+                            get_images: bool = True,
+                            get_cell_boundaries: bool = True,
+                            get_transcripts: bool = True,
+                            get_anndata: bool = True) -> SpatialData:
+    """Take a sis merscope output directory or (Segmented)SpotTable and load it into a SpatialData object.
+    
+    Parameters
+    ----------
+    image_dir: str pathlib.Path
         path to directory that contains images
-    sis_dir : {str pathlib.Path}
+    sis_dir : str pathlib.Path
         path to directory that contains sis segmentation results
-    spot_table : {sis.SpotTable}
+    spot_table : sis.SpotTable
         sis.SpotTable that contains sis segmentation results
-    z_layers : {int, list of int, or None}
-        z_planes to include from merscope image. Must be None if aggregate_z is not None.
-    aggregate_z : {"max", "mean", Callable, or None}
-        function to aggregate_z all z_planes of a merscope image. Must be none if z_layers is not None.
+    z_layers : int, list of int or None, optional
+        The z-layers to be processed. If None, it assumes all z-layers will be used.
+    aggregate_z : {'max', 'mean'} or Callable or None, optional
+        The aggregation method to apply across z-layers.
     agg_kwargs : dict, optional
         kwargs to aggregate_z if aggregate_z is a callable function.
-    stainings : {str or list of str}, optional
+    stainings : str or list of str, optional
         stainings to get images for. Can only be [DAPI, PolyT, or Aux 1 - 3]. Will default to all stains in images folder.
     imread_kwargs : dict, optional
         kwargs to pass to _rioxarray_load_merscope function.
     image_models_kwargs : dict, optional
         kwargs to pass to Image2DModel.parse function.
-    genes : {str, list of str, or None}, optional
+    genes : str, list of str, or None, optional
         genes to inlcude in the spottable. Defaults to all genes.
     get_images : bool
         whether or not to load spatialdata with images. Defualt, True.
@@ -386,9 +428,14 @@ def merscope_to_spatialdata(
     get_anndata : bool
         whether or not load AnnData Object. Defualt, True.
     
-    Returns:
-
-    SpatialData of the the MERSCOPE images and the transcript locations.
+    Returns
+    -------
+    SpatialData of the the MERSCOPE images, transcripts, polygons, and cell-by-gene.
+    
+    Raises
+    ------
+    ValueError
+        If both sis_dir and spot_table are defined or both are None.
     """
     if (sis_dir is None) == (spot_table is None):
         raise ValueError('One and exactly one of sis_dir and spot_table should be defined')
@@ -398,22 +445,18 @@ def merscope_to_spatialdata(
         images_dir = Path(images_dir)
 
     if get_images:
-        images = _images_merscope(
-            images_dir,
-            stainings if stainings else _get_channel_names(images_dir),
-            z_layers,
-            aggregate_z,
-            agg_kwargs,
-            image_models_kwargs,
-            imread_kwargs,
-        )
+        images = _images_merscope(images_dir,
+                                  stainings if stainings else _get_channel_names(images_dir),
+                                  z_layers,
+                                  aggregate_z,
+                                  agg_kwargs,
+                                  image_models_kwargs,
+                                  imread_kwargs)
 
     # get transfromations
-    transform = Affine(
-        np.genfromtxt(images_dir / "micron_to_mosaic_pixel_transform.csv"),
-        input_axes=("x", "y"),
-        output_axes=("x", "y"),
-    )
+    transform = Affine(np.genfromtxt(images_dir / "micron_to_mosaic_pixel_transform.csv"),
+                       input_axes=("x", "y"),
+                       output_axes=("x", "y"))
 
     transformations = {"global": transform}
 
@@ -427,11 +470,7 @@ def merscope_to_spatialdata(
                 features = geojson.load(f)
         else:
              features = spot_table.get_geojson_collection()  
-        shapes = {
-            "sis_cell_polygons": _polygons(
-                features, transformations, z_layers
-            )
-        }
+        shapes = {"sis_cell_polygons": _polygons(features, transformations, z_layers)}
 
     # get spottable
     if get_transcripts:
@@ -455,38 +494,37 @@ def merscope_to_spatialdata(
     return SpatialData(images=images, points=points, shapes=shapes, tables=tables)
 
 
-def xenium_to_spatialdata(
-    xenium_dir: str | Path,
-    sis_dir: str | Path | None = None,
-    spot_table: SpotTable | None = None,
-    aggregate_z: Literal["max", "mean"] | Callable | None = None,
-    agg_kwargs: Mapping[str, Any] = MappingProxyType({}),
-    imread_kwargs: Mapping[str, Any] = MappingProxyType({}),
-    image_models_kwargs: Mapping[str, Any] = MappingProxyType({}),
-    genes: str | list[str] | None = None,
-    get_images: bool = True,
-    get_cell_boundaries: bool = True,
-    get_transcripts: bool = True,
-    get_anndata: bool = True,
-) -> SpatialData:
-    """
-    Parameters:
-
-    xenium_dir: {str pathlib.Path}
+def xenium_to_spatialdata(xenium_dir: str | Path,
+                          sis_dir: str | Path | None = None,
+                          spot_table: SpotTable | None = None,
+                          aggregate_z: Literal["max", "mean"] | Callable | None = None,
+                          agg_kwargs: Mapping[str, Any] = MappingProxyType({}),
+                          imread_kwargs: Mapping[str, Any] = MappingProxyType({}),
+                          image_models_kwargs: Mapping[str, Any] = MappingProxyType({}),
+                          genes: str | list[str] | None = None,
+                          get_images: bool = True,
+                          get_cell_boundaries: bool = True,
+                          get_transcripts: bool = True,
+                          get_anndata: bool = True) -> SpatialData: 
+    """Take a SIS xenium output directory or (Segmented)SpotTable and load it into a SpatialData object.
+    
+    Parameters
+    ----------
+    xenium_dir: str pathlib.Path
         path to directory that contains images
-    sis_dir : {str pathlib.Path}
+    sis_dir : str pathlib.Path
         path to directory that contains sis segmentation results
-    spot_table : {sis.SpotTable}
+    spot_table : sis.SpotTable
         sis.SpotTable that contains sis segmentation results
-    aggregate_z : {"max", "mean", Callable, or None}
-        function to aggregate_z all z_planes of a merscope image. Must be none if z_layers is not None.
+    aggregate_z : {'max', 'mean'} or Callable or None, optional
+        The aggregation method to apply across z-layers.
     agg_kwargs : dict, optional
         kwargs to aggregate_z if aggregate_z is a callable function.
     imread_kwargs : dict, optional
         kwargs to pass to _rioxarray_load_merscope function.
     image_models_kwargs : dict, optional
         kwargs to pass to Image2DModel.parse function.
-    genes : {str, list of str, or None}, optional
+    genes : str, list of str, or None, optional
         genes to inlcude in the spottable. Defaults to all genes.
     get_images : bool
         whether or not to load spatialdata with images. Defualt, True.
@@ -497,70 +535,55 @@ def xenium_to_spatialdata(
     get_anndata : bool
         whether or not load AnnData Object. Defualt, True.
     
-    Returns:
-
-    SpatialData of the the MERSCOPE images and the transcript locations.
+    Returns
+    -------
+    SpatialData of the the Xenium images, transcripts, polygons, and cell-by-gene.
+    
+    Raises
+    ------
+    ValueError
+        If both sis_dir and spot_table are defined or both are None.
     """
     if (sis_dir is None) == (spot_table is None):
         raise ValueError('One and exactly one of sis_dir and spot_table should be defined')
 
-    # get images
     if isinstance(xenium_dir, str):
         xenium_dir = Path(xenium_dir)
-
-    if get_images:
-        images = _images_xenium(
-            xenium_dir,
-            ['DAPI'],
-            aggregate_z,
-            agg_kwargs,
-            image_models_kwargs,
-            imread_kwargs,
-        )
-
-    # get transfromations
-    tiff_image_file = tifffile.TiffFile(xenium_dir / 'morphology.ome.tif')
-
-    # this file should have OME metadata:
-    metadata_root = ET.fromstring(tiff_image_file.ome_metadata)
-    # extract the pixel size 
-    for child in metadata_root:
-        if "Image" in child.tag:
-            for cc in child:
-                if "Pixels" in cc.tag:
-                    um_per_pixel_x = float(cc.attrib["PhysicalSizeX"])
-                    um_per_pixel_y = float(cc.attrib["PhysicalSizeY"])
-    # and turn this into a transformation matrix
-    affine_matrix = np.eye(3)[:2,:]
-    affine_matrix[0,0] = um_per_pixel_x
-    affine_matrix[1,1] = um_per_pixel_y
-    m3 = np.eye(3)
-    m3[:2] = affine_matrix
-    um_to_pixel_matrix = np.linalg.inv(m3)
-    
-    transform = Affine(
-        um_to_pixel_matrix,
-        input_axes=("x", "y"),
-        output_axes=("x", "y"),
-    )
-
-    transformations = {"global": transform}
-
-    # get polygons
     if isinstance(sis_dir, str):
         sis_dir = Path(sis_dir)
 
+    # get images
+    if get_images:
+        images = _images_xenium(xenium_dir,
+                                ['DAPI'],
+                                aggregate_z,
+                                agg_kwargs,
+                                image_models_kwargs,
+                                imread_kwargs)
+
+    # extract the pixel size 
+    with tifffile.TiffFile(xenium_dir / 'morphology.ome.tif') as tiff_image_file:
+        # this file should have OME metadata:
+        root = ET.fromstring(tiff_image_file.ome_metadata)
+    pixels = XeniumImageFile._find_by_localname(root, "Pixels")
+    um_per_pixel_x, um_per_pixel_y = float(pixels.attrib["PhysicalSizeX"]), float(pixels.attrib["PhysicalSizeY"])
+
+    # and turn this into a transformation matrix
+    affine_matrix = np.eye(3)
+    affine_matrix[0,0] = um_per_pixel_x
+    affine_matrix[1,1] = um_per_pixel_y
+    um_to_pixel_matrix =  np.linalg.inv(affine_matrix)[:2]
+    transform = Affine(um_to_pixel_matrix, input_axes=("x", "y"), output_axes=("x", "y"))
+    transformations = {"global": transform}
+
+    # get polygons
     if get_cell_boundaries:
         if sis_dir is not None:
             with open(sis_dir / 'cell_polygons.geojson') as f:
                 features = geojson.load(f)
         else:
              features = spot_table.get_geojson_collection()  
-        shapes = {
-            "sis_cell_polygons": _polygons(
-                features, transformations, -1
-            )
-        }
+        shapes = {"sis_cell_polygons": _polygons(features, transformations, -1)}
 
     # get spottable
     if get_transcripts:
