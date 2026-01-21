@@ -27,10 +27,22 @@ from .spot_table import SpotTable
 
 
 def _is_supported_transformation(transformation: BaseTransformation):
-    # We support Identity, scale, and translation transformations
-    # We do not support rotation or shear at this time.
-    # We keep all SIS computations in transcript coordinate space. Thus, when an image is not rotationally aligned we don't have an easy way to subset its pixels for plotting
-    # This is a solvable problem, but out of scope for now.
+    """Checks if a spatialdata transformation is supported by SIS.
+    We only support identity, scaling, and translation transformations
+
+    We do not support rotation or shear at this time.
+    We keep all SIS computations in transcript coordinate space. Thus, when an image is not rotationally aligned we don't have an easy way to subset its pixels for plotting
+    This is a solvable problem, but out of scope for now.
+
+    Parameters
+    ----------
+    transformation : BaseTransformation
+        A spatialdata transformation to check
+    
+    Returns
+    -------
+    bool
+    """
     if isinstance(transformation, Identity):
         return True
     
@@ -41,7 +53,7 @@ def _is_supported_transformation(transformation: BaseTransformation):
     
     return False
 
-def _images(
+def _images_merscope(
     images_dir: str | Path,
     stainings: str | list[str] = "DAPI",
     z_layers: int | list[int] | None = None,
@@ -50,7 +62,39 @@ def _images(
     image_models_kwargs: Mapping[str, Any] = MappingProxyType({}),
     imread_kwargs: Mapping[str, Any] = MappingProxyType({}),
 ) -> list[DataTree]:
+    """Retrieve and process images from a merscope output directory, optionally aggregating 
+    across z-layers.
+
+    Parameters
+    ----------
+    images_dir : str or Path
+        The directory containing the images to be processed.
+    stainings : str or list of str, optional
+        The staining types to be used. Defaults to "DAPI".
+    z_layers : int, list of int or None, optional
+        The z-layers to be processed. If None, it assumes all z-layers will be used.
+    aggregate_z : {'max', 'mean'} or Callable or None, optional
+        The aggregation method to apply across z-layers.
+    agg_kwargs : Mapping[str, Any], optional
+        Additional keyword arguments for the aggregation function.
+    image_models_kwargs : Mapping[str, Any], optional
+        Keyword arguments for image model configuration.
+    imread_kwargs : Mapping[str, Any], optional
+        Additional keyword arguments for the image reading function.
+
+    Returns
+    -------
+    list of DataTree
+        A list containing the processed images, organized by dataset ID and z-layer.
+
+    Raises
+    ------
+    KeyError
+        If both z_layers and aggregate_z are None or if aggregate_z is not a recognized method.
+    """
     from spatialdata_io.readers.merscope import _get_reader
+    import glob
+    import re
     
     if not isinstance(images_dir, Path):
         images_dir = Path(images_dir)
@@ -67,17 +111,23 @@ def _images(
 
     images = {}
 
-    if (z_layers is None) == (aggregate_z is None):
-        raise KeyError("One and only one of z_layers and aggregate_z must be defined")
-
-    z_layers = [z_layers] if isinstance(z_layers, int) else z_layers or []
-
+    if isinstance(z_layers, int):
+        z_layers = [z_layers]
+    elif z_layers is None:
+        image_files = glob.glob(images_dir / 'mosaic_*_z*.tif')
+        z_layers = set()
+        for file in image_files:
+            m = re.match(r'mosaic_(\S+)_z(\d+).tif', Path(file).name)
+            if m is None:
+                continue
+            z_layers.add(int(m.groups()[1]))
+        z_layers = sorted(list(z_layers))
+        
     reader = _get_reader(None)
 
     dataset_id = f"{images_dir.parent.parent.name}_{images_dir.parent.name}"
     
     if aggregate_z:
-        z_layers = list(range(7))
         im = concat(
             [
                 reader(images_dir,
@@ -348,7 +398,7 @@ def merscope_to_spatialdata(
         images_dir = Path(images_dir)
 
     if get_images:
-        images = _images(
+        images = _images_merscope(
             images_dir,
             stainings if stainings else _get_channel_names(images_dir),
             z_layers,
