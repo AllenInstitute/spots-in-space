@@ -828,7 +828,7 @@ class SpotTable:
     
     
     @classmethod
-    def load_xenium(cls, transcript_file: str, cache_file: str|None=None, image_path: str=None, max_rows: int=None, z_depth: float=3.0, pyramid_level: int|None=None, cache_image: bool=True):
+    def load_xenium(cls, transcript_file: str, cache_file: str|None=None, image_path: str=None, max_rows: int=None, z_depth: float=3.0, pyramid_level: int=0, cache_image: bool=True):
         """Load Xenium data from a detected transcripts CSV file.
             This is the preferred method for resegmentation. If you want the original Xenium
             segmentation, use SegmentedSpotTable.load_xenium.
@@ -852,7 +852,7 @@ class SpotTable:
         pyramid_level : int, optional
             Xenium images can have multiple resolutions stored in an image pyramid.
             This parameter specifies which level of the pyramid to load.
-            If None, we default to highest resolution
+            Defaults to the highest resolution (level 0).
         cache_image : bool, optional
             Xenium images are large and not memory mapped and thus we may want to keep them in memory or not.
             The trade off is speed vs memory.
