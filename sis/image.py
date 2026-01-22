@@ -794,7 +794,7 @@ class XeniumImageFile(ImageFile):
                                name=name,  pyramid_level=pyramid_level, cache_image=cache_image)
         
     @classmethod
-    def _find_by_localname(root, localname):
+    def _find_by_localname(cls, root, localname):
         """Helper function to find first XML element with given localname (ignoring namespace)
         
         Parameters
