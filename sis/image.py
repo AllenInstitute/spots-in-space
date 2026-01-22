@@ -1380,7 +1380,7 @@ class SpatialDataImage(ImageBase):
             img_data = img_data.expand_dims('z')
 
         # Certain versions of img_data will not have c
-        if 'c' in img_data.dims:
+        if 'c' not in img_data.dims:
             img_data = img_data.expand_dims('c')
             
         return img_data.transpose('z', 'y', 'x', 'c') # Standard SIS order
