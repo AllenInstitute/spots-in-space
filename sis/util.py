@@ -17,7 +17,6 @@ import seaborn as sns
 
 import zipfile
 
-from .spot_table import SpotTable
 
 def reduce_expression(data, umap_args):
     """Reduce the expression data using UMAP.
@@ -793,14 +792,14 @@ def get_cell_cmap(seg_spot_table, bg_color: str|None = None, remove_negatives: b
 
     return cell_cmap
 
-def parse_polygon_geodataframe(gdf: gpd.GeoDataFrame, spot_table: SpotTable, cell_id_col: str='id', z_plane_col: str='z_plane'):
+def parse_polygon_geodataframe(gdf: gpd.GeoDataFrame, spot_table: SegmentedSpotTable, cell_id_col: str='id', z_plane_col: str='z_plane'):
     """Parse a geopandas GeoDataFrame to extract polygon geometries and put them into a SIS polygon dict.
 
     Parameters
     ----------
     gdf : gpd.GeoDataFrame
         A GeoDataFrame containing polygon geometries and associated cell IDs.
-    spot_table : SpotTable
+    spot_table : sis.SegmentedSpotTable
         The spottable that the polygons are associated with.
     cell_id_col : str, optional
         The name of the column in the GeoDataFrame that contains cell IDs (default is 'id').
