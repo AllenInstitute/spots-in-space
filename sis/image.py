@@ -3,7 +3,6 @@ import warnings
 import os, glob, re
 import numpy as np
 from .optional_import import optional_import
-from .spatialdata import _is_supported_transformation
 rasterio = optional_import('rasterio')
 tifffile = optional_import('tifffile')
 
@@ -1004,6 +1003,8 @@ class ImageStack(ImageBase):
         """
         import spatialdata as sd
         from spatialdata.transformations import get_transformation
+        from .spatialdata import _is_supported_transformation
+
         
         if image_names is None:
             # By default we stack all images

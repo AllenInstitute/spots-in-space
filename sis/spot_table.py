@@ -19,7 +19,6 @@ from .image import ImageBase, ImageFile, ImageStack, ImageTransform, XeniumImage
 from . import util
 from . import _version
 from .util import convert_value_nested_dict, parse_polygon_geodataframe
-from .spatialdata import _is_supported_transformation
 
 
 def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file: str|None, subregion: str|tuple|None, cell_subset_file:str|None, result_file:str|None, alpha_inv_coeff: float=4/3, separate_z_planes=True):
@@ -1580,6 +1579,7 @@ class SpotTable:
         import spatialdata as sd # Import in function so we don't throw error if spatialdata is not installed and this function is not used
         from spatialdata.transformations import get_transformation, Identity
         from .image import SpatialDataImage, ImageTransform
+        from .spatialdata import _is_supported_transformation
         
         if (sd_file is None) == (sd_object is None):
             raise ValueError('One and exactly one of sd_file and sd_object should be defined')
