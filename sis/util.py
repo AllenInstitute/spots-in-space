@@ -17,6 +17,8 @@ import seaborn as sns
 
 import zipfile
 
+from .spot_table import SpotTable
+
 def reduce_expression(data, umap_args):
     """Reduce the expression data using UMAP.
 
@@ -791,9 +793,27 @@ def get_cell_cmap(seg_spot_table, bg_color: str|None = None, remove_negatives: b
 
     return cell_cmap
 
-def parse_polygon_geodataframe(gdf, spot_table, cell_id_col='id', z_plane_col='z_plane'):
+def parse_polygon_geodataframe(gdf: gpd.GeoDataFrame, spot_table: SpotTable, cell_id_col: str='id', z_plane_col: str='z_plane'):
+    """Parse a geopandas GeoDataFrame to extract polygon geometries and put them into a SIS polygon dict.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        A GeoDataFrame containing polygon geometries and associated cell IDs.
+    spot_table : SpotTable
+        The spottable that the polygons are associated with.
+    cell_id_col : str, optional
+        The name of the column in the GeoDataFrame that contains cell IDs (default is 'id').
+    z_plane_col : str, optional
+        The name of the column in the GeoDataFrame that contains z-plane values (default is 'z_plane').
+
+    Returns
+    -------
+    dict
+        A dictionary where keys are cell IDs and values are either None, polygons, or a dictionary mapping z-plane values to polygons.
+    """
     # the 'z_plane' and 'id' column names are used in SIS generated dataframes
-    if cell_id_col in gdf.columns: # If the the cell ids are not set 
+    if cell_id_col in gdf.columns: # If the cell ids are not set 
         gdf = gdf.set_index(cell_id_col)
 
     # Need to distinguish cell_labels and cell_ids
