@@ -651,7 +651,26 @@ class ImageTransform:
         return ImageTransform(m)
 
     @classmethod
-    def load_spatialdata_transformation(cls, transformation):
+    def load_spatialdata_transformation(cls, transformation: sd.transformations.BaseTransformation):
+        """Load a spatial data transformation and convert it to an ImageTransform.
+
+        Parameters
+        ----------
+        cls : type
+            ImageTransformation class
+        transformation : sd.transformations.BaseTransformation
+            The transformation to be converted
+
+        Returns
+        -------
+        ImageTransform
+            conversion of the input spatialdata transformation to an ImageTransform.
+
+        Raises
+        ------
+        ValueError
+            If the input axes of the transformation are not supported (must be (x, y) or (x, y, z)).
+        """
         from spatialdata.transformations import Affine
         
         if not isinstance(transformation, Affine):
