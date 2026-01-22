@@ -2925,7 +2925,7 @@ class SegmentedSpotTable:
 
 
     @classmethod
-    def load_xenium(cls, transcript_file: str, cache_file: str|None=None, image_path: str|None=None, max_rows: int|None=None, z_depth: float=3.0):
+    def load_xenium(cls, transcript_file: str, cache_file: str|None=None, image_path: str|None=None, max_rows: int|None=None, z_depth: float=3.0, pyramid_level: int=0, cache_image: bool=True):
         """Load Xenium data from a detected transcripts CSV file, including
         the original segmentation. If you are resegmenting the data, prefer
         SpotTable.load_xenium.
@@ -2948,13 +2948,20 @@ class SegmentedSpotTable:
         z_depth : float, optional
             Depth (in um) of a imaging layer i.e. z-plane
             Used to bin z-positions into discrete planes
+        pyramid_level : int, optional
+            Xenium images can have multiple resolutions stored in an image pyramid.
+            This parameter specifies which level of the pyramid to load.
+            Defaults to the highest resolution (level 0).
+        cache_image : bool, optional
+            Xenium images are large and not memory mapped and thus we may want to keep them in memory or not.
+            The trade off is speed vs memory.
             
         Returns
         -------
         sis.spot_table.SegmentedSpotTable
         """
         # Read in the positions
-        raw_spot_table = SpotTable.load_xenium(transcript_file=transcript_file, cache_file=cache_file, image_path=image_path, max_rows=max_rows, z_depth=z_depth)
+        raw_spot_table = SpotTable.load_xenium(transcript_file=transcript_file, cache_file=cache_file, image_path=image_path, max_rows=max_rows, z_depth=z_depth, pyramid_level=pyramid_level, cache_image=cache_image)
 
         # Read in the cell ids
         if str(transcript_file).endswith('.csv') or str(transcript_file).endswith('.csv.gz'):
