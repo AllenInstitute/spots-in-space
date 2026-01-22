@@ -828,7 +828,7 @@ class XeniumImageFile(ImageFile):
                 with tifffile.TiffFile(self.file) as tcontext:
                     # Query the file metadata for the shape
                     import xml.etree.ElementTree as ET
-                    pixels = XeniumImageFile.find_by_localname(ET.fromstring(tcontext.ome_metadata), 'Pixels')
+                    pixels = self._find_by_localname(ET.fromstring(tcontext.ome_metadata), 'Pixels')
                     self._shape = (int(pixels.attrib['SizeZ']), int(pixels.attrib['SizeY']), int(pixels.attrib['SizeX']), int(pixels.attrib['SizeC']))
         return self._shape
 
