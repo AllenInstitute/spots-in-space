@@ -50,3 +50,4 @@ CI = "https://github.com/AllenInstitute/spots-in-space/actions"
 [project.optional-dependencies]
 cellpose = ["cellpose==3.0.7"]
 test = ["pytest"]
+spatialdata = ["spatialdata[extra]==0.6.1"]
