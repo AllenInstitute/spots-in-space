@@ -1372,7 +1372,7 @@ class SpatialDataImage(ImageBase):
         ValueError
             If the number of dimensions in the data is not between 2 and 4.
         """
-        if self._data.ndim > 4 or self._data.ndim < 2:
+        if img_data.ndim > 4 or img_data.ndim < 2:
             raise ValueError('Unsupported shape. ndim must be between 2 and 4')
 
         # Certain versions of img_data will not have z
