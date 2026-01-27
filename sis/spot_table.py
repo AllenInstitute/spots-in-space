@@ -1589,8 +1589,9 @@ class SegmentedSpotTable:
         if name == "spot_table" or "spot_table" not in self.__dict__:
             # During __init__, or if setting spot_table itself, set attribute normally
             super().__setattr__(name, value)
-        elif hasattr(self, name):
-            # We first check locally for the attribute and set here if it exists
+        elif name in self.__dict__.keys(): 
+            # we first check locally for the attribute and set here if it exists
+            # Cannot use hasattr here because it calls __getattr__ which will return SpotTable attributes
             super().__setattr__(name, value)
         elif hasattr(self.spot_table, name):
             # If the attribute exists in SpotTable, set it there
@@ -1608,8 +1609,9 @@ class SegmentedSpotTable:
         if name == "spot_table" or "spot_table" not in self.__dict__:
             # During __init__, or if deleting spot_table itself, delete attribute normally
             super().__delattr__(name)
-        elif hasattr(self, name):
+        elif name in self.__dict__.keys(): 
             # We first check locally for the attribute and delete here if it exists
+            # Cannot use hasattr here because it calls __getattr__ which will return SpotTable attributes
             super().__delattr__(name)
         elif hasattr(self.spot_table, name):
             # If the attribute exists in SpotTable, delete it there
