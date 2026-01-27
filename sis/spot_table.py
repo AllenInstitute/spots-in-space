@@ -1,6 +1,7 @@
 from __future__ import annotations
 import os, json
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from scipy.spatial import Delaunay
@@ -1577,6 +1578,29 @@ class SegmentedSpotTable:
             raise
 
         return attr
+    
+    def __setattr__(self, name: str, value: Any):
+        """This method enables SegmentedSpotTable to act as a proxy for
+        attributes in SpotTable. Anytime the user attempts to set an attribute,
+        this method will first check if that attribute is found in SpotTable.
+        If it is, it will set it there (where it can be properly accessed
+        by SpotTable functions). If not, it will set the attribute in SegmentedSpotTable.
+        """
+        if hasattr(self.spot_table, name):# check if the value exists in spot_table
+            setattr(self.spot_table, name, value) # if it does, we'll set it there
+        else: # if it doesn't, we'll set it here
+            super().__setattr__(name, value)
+            
+    def __delattr__(self, name: str) -> None:
+        """This method enables SegmentedSpotTable to act as a proxy for
+        attributes in SpotTable. Anytime the user attempts to delete an attribute,
+        this method will first check if that attribute is found in SpotTable.
+        If it is, it will delete it there. If not, it will delete it here.
+        """
+        if hasattr(self.spot_table, name): # check if the value exists in spot_table
+            delattr(self.spot_table, name) # if it does, we'll delete it there
+        else: # if it doesn't, we'll delete it here
+            super().__delattr__(name)
 
     def __getitem__(self, item: np.ndarray):
         """Return a subset of this SegmentedSpotTable.
