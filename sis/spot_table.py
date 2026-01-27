@@ -180,15 +180,15 @@ class SpotTable:
             # gene_names are specified, so we need to create gene_ids and name/id mappings
             assert gene_ids is None and gene_id_to_name is None
             gene_ids, gene_to_id, id_to_gene = self._make_gene_index(gene_names)
-            self.gene_ids = gene_ids
-            self.gene_name_to_id = gene_to_id
-            self.gene_id_to_name = id_to_gene
+            self._gene_ids = gene_ids
+            self._gene_name_to_id = gene_to_id
+            self._gene_id_to_name = id_to_gene
         elif gene_ids is not None:
             # gene_id and id to name mappings are specified so we need to create name to id mappings
             assert gene_id_to_name is not None
-            self.gene_ids = gene_ids
-            self.gene_id_to_name = gene_id_to_name
-            self.gene_name_to_id = {name:id for id,name in enumerate(self.gene_id_to_name)}
+            self._gene_ids = gene_ids
+            self._gene_id_to_name = gene_id_to_name
+            self._gene_name_to_id = {name:id for id,name in enumerate(self.gene_id_to_name)}
         else:
             raise Exception("Must specify either gene_names or gene_ids")
 
@@ -263,6 +263,81 @@ class SpotTable:
         if self._gene_names is None:
             self._gene_names = self.map_gene_ids_to_names(self.gene_ids)
         return self._gene_names
+    
+    @gene_names.setter
+    def gene_names(self, names):
+        self._gene_names = names
+        # have to update underlying ids as well
+        self._gene_ids = self.map_gene_names_to_ids(names)
+        
+
+    @property
+    def gene_ids(self):
+        """Return an array of gene IDs corresponding to the spots in the SpotTable.
+        
+        Returns
+        -------
+        self._gene_ids : numpy.ndarray
+        """
+        return self._gene_ids
+    
+    @gene_ids.setter
+    def gene_ids(self, ids):
+        """Set the gene IDs for the spots in the SpotTable.
+        
+        Parameters
+        ----------
+        ids : numpy.ndarray
+            Array of gene IDs to set.
+        """
+        self._gene_ids = ids
+        self._gene_names = None # reset cached gene names
+    
+    @property
+    def gene_id_to_name(self):
+        """Return an array mapping from gene IDs to gene names.
+        
+        Returns
+        -------
+        self._gene_id_to_name : numpy.ndarray
+        """
+        return self._gene_id_to_name
+    
+    @gene_id_to_name.setter
+    def gene_id_to_name(self, id_to_name):
+        """Set the mapping from gene IDs to gene names.
+        
+        Parameters
+        ----------
+        id_to_name : numpy.ndarray
+            Array mapping from gene IDs to gene names.
+        """
+        self._gene_id_to_name = id_to_name
+        self._gene_name_to_id = {name:id for id,name in enumerate(self._gene_id_to_name)}
+        self._gene_names = None # reset cached gene names
+
+    @property
+    def gene_name_to_id(self):
+        """Return an array mapping from gene IDs to gene names.
+        
+        Returns
+        -------
+        self._gene_name_to_id : numpy.ndarray
+        """
+        return self._gene_name_to_id
+    
+    @gene_name_to_id.setter
+    def gene_name_to_id(self, name_to_id):
+        """Set the mapping from gene IDs to gene names.
+        
+        Parameters
+        ----------
+        name_to_id : numpy.ndarray
+            Array mapping from gene names to gene IDs.
+        """
+        self._gene_name_to_id = name_to_id
+        self._gene_id_to_name = {id:name for id,name in enumerate(self._gene_name_to_id)}
+        self._gene_names = None # reset cached gene names
 
     @property
     def x(self):
@@ -273,6 +348,17 @@ class SpotTable:
         self.pos[:, 0] : numpy.ndarray
         """
         return self.pos[:, 0]
+    
+    @x.setter
+    def x(self, coords):
+        """Set the x-coordinates of the spots in the SpotTable.
+        
+        Parameters
+        ----------
+        coords : numpy.ndarray
+            Array of x-coordinates to set.
+        """
+        self.pos[:, 0] = coords
 
     @property
     def y(self):
@@ -290,6 +376,19 @@ class SpotTable:
         else:
             return self.pos[:, 1]
 
+    @y.setter
+    def y(self, coords):
+        """Set the y-coordinates of the spots in the SpotTable.
+        
+        Parameters
+        ----------
+        coords : numpy.ndarray
+            Array of y-coordinates to set.
+        """
+        if self.pos.shape[1] < 2:
+            raise ValueError("Cannot set y-coordinates: SpotTable has no y-coordinates.")
+        self.pos[:, 1] = coords
+
     @property
     def z(self):
         """Return the z-coordinates of the spots in the SpotTable.
@@ -305,6 +404,19 @@ class SpotTable:
             return None
         else:
             return self.pos[:, 2]
+        
+    @z.setter
+    def z(self, coords):
+        """Set the z-coordinates of the spots in the SpotTable.
+        
+        Parameters
+        ----------
+        coords : numpy.ndarray
+            Array of z-coordinates to set.
+        """
+        if self.pos.shape[1] < 3:
+            raise ValueError("Cannot set z-coordinates: SpotTable has no z-coordinates.")
+        self.pos[:, 2] = coords
 
     def map_gene_names_to_ids(self, names):
         """Map gene names to gene IDs.
