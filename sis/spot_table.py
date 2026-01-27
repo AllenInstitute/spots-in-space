@@ -1586,9 +1586,17 @@ class SegmentedSpotTable:
         If it is, it will set it there (where it can be properly accessed
         by SpotTable functions). If not, it will set the attribute in SegmentedSpotTable.
         """
-        if hasattr(self.spot_table, name):# check if the value exists in spot_table
-            setattr(self.spot_table, name, value) # if it does, we'll set it there
-        else: # if it doesn't, we'll set it here
+        if name == "spot_table" or "spot_table" not in self.__dict__:
+            # During __init__, or if setting spot_table itself, set attribute normally
+            super().__setattr__(name, value)
+        elif hasattr(self, name):
+            # We first check locally for the attribute and set here if it exists
+            super().__setattr__(name, value)
+        elif hasattr(self.spot_table, name):
+            # If the attribute exists in SpotTable, set it there
+            setattr(self.spot_table, name, value)
+        else:
+            # In all other cases, set attribute locally
             super().__setattr__(name, value)
             
     def __delattr__(self, name: str) -> None:
@@ -1597,9 +1605,17 @@ class SegmentedSpotTable:
         this method will first check if that attribute is found in SpotTable.
         If it is, it will delete it there. If not, it will delete it here.
         """
-        if hasattr(self.spot_table, name): # check if the value exists in spot_table
-            delattr(self.spot_table, name) # if it does, we'll delete it there
-        else: # if it doesn't, we'll delete it here
+        if name == "spot_table" or "spot_table" not in self.__dict__:
+            # During __init__, or if deleting spot_table itself, delete attribute normally
+            super().__delattr__(name)
+        elif hasattr(self, name):
+            # We first check locally for the attribute and delete here if it exists
+            super().__delattr__(name)
+        elif hasattr(self.spot_table, name):
+            # If the attribute exists in SpotTable, delete it there
+            delattr(self.spot_table, name)
+        else:
+            # In all other cases, delete attribute locally
             super().__delattr__(name)
 
     def __getitem__(self, item: np.ndarray):
