@@ -90,7 +90,6 @@ def _images_merscope(images_dir: str | Path,
     KeyError
         If aggregate_z is not a recognized string or callable function.
     """
-    from spatialdata_io.readers.merscope import _get_reader
     import glob
     import re
     
@@ -123,16 +122,17 @@ def _images_merscope(images_dir: str | Path,
         
     # spatialdata specific variables
     images = {}
-    reader = _get_reader(None)
     dataset_id = f"{images_dir.parent.parent.name}_{images_dir.parent.name}"
+    stainings = [stainings] if isinstance(stainings, str) else stainings or []
     
     if aggregate_z:
         # Read all the z-layers
-        im = concat([reader(images_dir,
-                            [stainings] if isinstance(stainings, str) else stainings or [],
-                            z_layer,
-                            image_models_kwargs,
-                            **imread_kwargs)["scale0"].ds.to_dataarray()
+        im = concat([Image2DModel.parse(da.stack([imread(images_dir / f"mosaic_{stain}_z{z_layer}.tif", **imread_kwargs).squeeze() for stain in stainings],
+                                                 axis=0),
+                                        dims=("c", "y", "x"),
+                                        c_coords=stainings,
+                                        rgb=None,
+                                        **image_models_kwargs)["scale0"].ds.to_dataarray()
                      for z_layer in z_layers],
                     dim="z")
 
@@ -160,12 +160,12 @@ def _images_merscope(images_dir: str | Path,
         images[f"{dataset_id}_{label}_z_layers"] = parsed_image
     else:
         for z_layer in z_layers:
-            images[f"{dataset_id}_z{z_layer}"] = reader(images_dir,
-                                                        [stainings] if isinstance(stainings, str) else stainings or [],
-                                                        z_layer,
-                                                        image_models_kwargs,
-                                                        **imread_kwargs)
-            
+            images[f"{dataset_id}_z{z_layer}"] = Image2DModel.parse(da.stack([imread(images_dir / f"mosaic_{stain}_z{z_layer}.tif", **imread_kwargs).squeeze() for stain in stainings],
+                                                                             axis=0),
+                                                                    dims=("c", "y", "x"),
+                                                                    c_coords=stainings,
+                                                                    rgb=None,
+                                                                    **image_models_kwargs)
 
     return images
 
@@ -354,16 +354,17 @@ def _spottable(df: dd.DataFrame,
         genes = [genes] if isinstance(genes, str) else genes
         df = df[df["gene_names"].isin(genes)]
 
+    # Rename gene_names to gene for consistency and make sure it is a category for efficient storage
+    df = df.rename(columns={'gene_names': 'gene'})
+    df["gene"] = df["gene"].astype("category")
+
     transcripts = PointsModel.parse(
         df,
         coordinates={"x": "x", "y": "y", "z": "z"},
         transformations=transformations,
-        feature_key="gene_names",
+        feature_key="gene",
     )
 
-    # Rename gene_names to gene for consistency and make sure it is a category for efficient storage
-    transcripts = transcripts.rename(columns={'gene_names': 'gene'})
-    transcripts["gene"] = transcripts["gene"].astype("category")
     return transcripts
 
 
