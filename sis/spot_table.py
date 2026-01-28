@@ -380,7 +380,7 @@ class SpotTable:
         """
         if self._unique_genes_names is None: # If we don't have the unique gene names cached, we need to create them
             self._unique_genes_names = np.sort(pandas.Series(self.gene_names).unique()) # Faster than np.unique
-        return self._unique_cell_ids
+        return self._unique_genes_names
     
     @unique_genes_names.setter
     def unique_genes_names(self, names):
