@@ -266,11 +266,14 @@ class SpotTable:
     
     @gene_names.setter
     def gene_names(self, names):
+        # we'll update the underlying gene ids first to catch situations where a gene name is not found
+        # before we update the cached gene names
+        try:
+            self._gene_ids = self.map_gene_names_to_ids(names)
+        except KeyError as e:
+            raise KeyError(f"{e} missing from self.gene_name_to_id mapping. Cannot set gene_names without first updating mapping to include all new genes.")
         self._gene_names = names
-        # have to update underlying ids as well
-        self._gene_ids = self.map_gene_names_to_ids(names)
         
-
     @property
     def gene_ids(self):
         """Return an array of gene IDs corresponding to the spots in the SpotTable.
@@ -290,6 +293,9 @@ class SpotTable:
         ids : numpy.ndarray
             Array of gene IDs to set.
         """
+        # Double check that the ids are valid
+        assert np.max(ids) < len(self._gene_id_to_name), "One or more gene IDs not found in self.gene_id_to_name mapping."
+        
         self._gene_ids = ids
         self._gene_names = None # reset cached gene names
     
@@ -312,6 +318,9 @@ class SpotTable:
         id_to_name : numpy.ndarray
             Array mapping from gene IDs to gene names.
         """
+        # Check that all gene IDs in the table are present in the new mapping
+        assert np.max(self.gene_ids) < len(id_to_name), "One or more gene IDs not found in new id_to_name mapping."
+        
         self._gene_id_to_name = id_to_name
         self._gene_name_to_id = {name:id for id,name in enumerate(self._gene_id_to_name)}
         self._gene_names = None # reset cached gene names
@@ -335,8 +344,19 @@ class SpotTable:
         name_to_id : numpy.ndarray
             Array mapping from gene names to gene IDs.
         """
+        # Check that all gene names in the table are present in the new mapping
+        for gene in np.unique(self.gene_names):
+            assert gene in name_to_id, f"Gene name: {gene} not found in new name_to_id mapping."
+            
         self._gene_name_to_id = name_to_id
-        self._gene_id_to_name = {id:name for id,name in enumerate(self._gene_name_to_id)}
+        
+        # Construct the id to name array
+        max_len = max(map(len, name_to_id.keys()))
+        id_to_name = np.empty(len(name_to_id), dtype=f'U{max_len}')
+        for gene, i in name_to_id.items():
+            id_to_name[i] = gene
+        self._gene_id_to_name = id_to_name
+        
         self._gene_names = None # reset cached gene names
 
     @property
