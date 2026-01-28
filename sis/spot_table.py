@@ -178,6 +178,7 @@ class SpotTable:
 
         if gene_names is not None:
             # gene_names are specified, so we need to create gene_ids and name/id mappings
+            assert len(gene_names) == len(pos), "length of gene_names must match length of pos"
             assert gene_ids is None and gene_id_to_name is None
             gene_ids, gene_to_id, id_to_gene = self._make_gene_index(gene_names)
             self._gene_ids = gene_ids
@@ -185,6 +186,7 @@ class SpotTable:
             self._gene_id_to_name = id_to_gene
         elif gene_ids is not None:
             # gene_id and id to name mappings are specified so we need to create name to id mappings
+            assert len(gene_ids) == len(pos), "length of gene_ids must match length of pos"
             assert gene_id_to_name is not None
             self._gene_ids = gene_ids
             self._gene_id_to_name = gene_id_to_name
@@ -193,6 +195,7 @@ class SpotTable:
             raise Exception("Must specify either gene_names or gene_ids")
 
         self._gene_names = None
+        self._unique_genes_names = None
 
         self.images = []
         if images is None:
@@ -268,11 +271,13 @@ class SpotTable:
     def gene_names(self, names):
         # we'll update the underlying gene ids first to catch situations where a gene name is not found
         # before we update the cached gene names
+        assert len(names) == len(self.pos), "length of gene_names must match length of self.pos"
         try:
             self._gene_ids = self.map_gene_names_to_ids(names)
         except KeyError as e:
             raise KeyError(f"{e} missing from self.gene_name_to_id mapping. Cannot set gene_names without first updating mapping to include all new genes.")
         self._gene_names = names
+        self._unique_genes_names = None # reset cached unique gene names
         
     @property
     def gene_ids(self):
@@ -294,10 +299,12 @@ class SpotTable:
             Array of gene IDs to set.
         """
         # Double check that the ids are valid
+        assert len(ids) == len(self.pos), "length of gene_ids must match length of self.pos"
         assert np.max(ids) < len(self._gene_id_to_name), "One or more gene IDs not found in self.gene_id_to_name mapping."
         
         self._gene_ids = ids
         self._gene_names = None # reset cached gene names
+        self._unique_genes_names = None # reset cached unique gene names
     
     @property
     def gene_id_to_name(self):
@@ -319,11 +326,13 @@ class SpotTable:
             Array mapping from gene IDs to gene names.
         """
         # Check that all gene IDs in the table are present in the new mapping
+        assert isinstance(id_to_name, np.ndarray), "gene_id_to_name must be a numpy array."
         assert np.max(self.gene_ids) < len(id_to_name), "One or more gene IDs not found in new id_to_name mapping."
         
         self._gene_id_to_name = id_to_name
         self._gene_name_to_id = {name:id for id,name in enumerate(self._gene_id_to_name)}
         self._gene_names = None # reset cached gene names
+        self._unique_genes_names = None # reset cached unique gene names
 
     @property
     def gene_name_to_id(self):
@@ -345,7 +354,7 @@ class SpotTable:
             Array mapping from gene names to gene IDs.
         """
         # Check that all gene names in the table are present in the new mapping
-        for gene in np.unique(self.gene_names):
+        for gene in self.unique_genes_names:
             assert gene in name_to_id, f"Gene name: {gene} not found in new name_to_id mapping."
             
         self._gene_name_to_id = name_to_id
@@ -358,6 +367,26 @@ class SpotTable:
         self._gene_id_to_name = id_to_name
         
         self._gene_names = None # reset cached gene names
+        self._unique_genes_names = None # reset cached unique gene names
+
+    @property
+    def unique_genes_names(self):
+        """Return the unique gene names in the SpotTable.
+        
+        Returns
+        -------
+        numpy.ndarray
+            Array of unique gene names.
+        """
+        if self._unique_genes_names is None: # If we don't have the unique gene names cached, we need to create them
+            self._unique_genes_names = np.sort(pandas.Series(self.gene_names).unique()) # Faster than np.unique
+        return self._unique_cell_ids
+    
+    @unique_genes_names.setter
+    def unique_genes_names(self, names):
+        """Setter to make sure we don't set unique_cell_ids directly.
+        """
+        raise ValueError("unique_genes_names cannot be set directly. Use gene_names instead.")
 
     @property
     def x(self):
