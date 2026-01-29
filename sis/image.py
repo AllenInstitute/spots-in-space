@@ -649,6 +649,40 @@ class ImageTransform:
         m[:, 2] += offset
         return ImageTransform(m)
 
+    @classmethod
+    def load_spatialdata_transformation(cls, transformation: sd.transformations.BaseTransformation):
+        """Load a spatial data transformation and convert it to an ImageTransform.
+
+        Parameters
+        ----------
+        cls : type
+            ImageTransformation class
+        transformation : sd.transformations.BaseTransformation
+            The transformation to be converted
+
+        Returns
+        -------
+        ImageTransform
+            conversion of the input spatialdata transformation to an ImageTransform.
+
+        Raises
+        ------
+        ValueError
+            If the input axes of the transformation are not supported (must be (x, y) or (x, y, z)).
+        """
+        from spatialdata.transformations import Affine
+        
+        if not isinstance(transformation, Affine):
+            transformation = transformation.to_affine(input_axes=('x', 'y'), output_axes=('x', 'y'))
+        
+        if transformation.input_axes == ('x', 'y'):
+            um_to_px = transformation.matrix[:2] # We only use the first 2 rows
+        elif transformation.input_axes == ('x', 'y', 'z'):
+            um_to_px = transformation.matrix[1:3][:, [0, 1, 3]] # cutting out the z row/column
+        else:
+            raise ValueError('Unsupported transformation axes. Must be (x,y) or (x,y,z)')
+        um_to_px = um_to_px[::-1] # swizzle first and second rows so we map from (x, y) to (row,col) instead of (col,row) since images take (row, col) as coordinates
+        return cls(um_to_px)
 
 class XeniumImageFile(ImageFile):
     """Represents a single image stored on disk, carrying metadata about:
@@ -682,8 +716,8 @@ class XeniumImageFile(ImageFile):
     """
     
     def __init__(self, file: str, transform: ImageTransform, axes: list|None,
-                  channels: list, name: str|None,
-                  pyramid_level: int= 0, cache_image: bool = True):
+                 channels: list, name: str|None,
+                 pyramid_level: int= 0, cache_image: bool = True):
         """
         Parameters
         ----------
@@ -715,7 +749,7 @@ class XeniumImageFile(ImageFile):
         self.cache_image = cache_image
 
     @classmethod
-    def load(cls, xenium_image_file, pyramid_level=None, cache_image=True, name=None):
+    def load(cls, xenium_image_file, pyramid_level=0, cache_image=True, name=None):
         """Read standard Xenium image mosaic tiff file, returning list of XeniumImageFiles
         
         Parameters
@@ -738,36 +772,47 @@ class XeniumImageFile(ImageFile):
         """
         import xml.etree.ElementTree as ET
 
-        tiff_image_file = tifffile.TiffFile(xenium_image_file)
-
-        # this file should have OME metadata:
-        metadata_root = ET.fromstring(tiff_image_file.ome_metadata)
         # extract the pixel size 
-        for child in metadata_root:
-            if "Image" in child.tag:
-                for cc in child:
-                    if "Pixels" in cc.tag:
-                        um_per_pixel_x = float(cc.attrib["PhysicalSizeX"])
-                        um_per_pixel_y = float(cc.attrib["PhysicalSizeY"])
+        with tifffile.TiffFile(xenium_image_file) as tiff_image_file:
+            # this file should have OME metadata:
+            root = ET.fromstring(tiff_image_file.ome_metadata)
+        pixels = cls._find_by_localname(root, "Pixels")
+        um_per_pixel_x, um_per_pixel_y = float(pixels.attrib["PhysicalSizeX"]), float(pixels.attrib["PhysicalSizeY"])
+
         # and turn this into a transformation matrix
-        affine_matrix = np.eye(3)[:2,:]
+        affine_matrix = np.eye(3)
         affine_matrix[0,0] = um_per_pixel_x
         affine_matrix[1,1] = um_per_pixel_y
-        m3 = np.eye(3)
-        m3[:2] = affine_matrix
-        um_to_pixel_matrix =  np.linalg.inv(m3)[:2]
+        um_to_pixel_matrix =  np.linalg.inv(affine_matrix)[:2]
         
         # swizzle first and second rows so we map from (x, y) to (row,col) instead of (col,row)
         # since images take (row, col) as coordinates
         transform = ImageTransform(um_to_pixel_matrix[::-1])
 
-        if pyramid_level is None:
-            pyramid_level = 0 # Default pyramid level to highest resolution
-
-        return XeniumImageFile(file=xenium_image_file, transform=transform, axes=['frame', 'row', 'col', 'channel'],
-                                channels=['DAPI'], name=name,
-                                pyramid_level=pyramid_level, cache_image=cache_image)
+        return XeniumImageFile(file=xenium_image_file, transform=transform, 
+                               axes=['frame', 'row', 'col', 'channel'], channels=['DAPI'],
+                               name=name,  pyramid_level=pyramid_level, cache_image=cache_image)
         
+    @classmethod
+    def _find_by_localname(cls, root, localname):
+        """Helper function to find first XML element with given localname (ignoring namespace)
+        
+        Parameters
+        ----------
+        root : xml.etree.ElementTree.Element
+            Root XML element to search
+        localname : str
+            Local name of element to find
+            
+        Returns
+        -------
+        xml.etree.ElementTree.Element or None
+            First element with given localname, or None if not found
+        """
+        for elem in root.iter():
+            if elem.tag.split('}')[-1] == localname:
+                return elem
+        return None
 
     @property
     def shape(self):
@@ -781,11 +826,13 @@ class XeniumImageFile(ImageFile):
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
                 with tifffile.TiffFile(self.file) as tcontext:
-                    self._shape = (tcontext.series[0].shape[0], tcontext.series[0].shape[1], tcontext.series[0].shape[2], 1)
+                    # Query the file metadata for the shape
+                    import xml.etree.ElementTree as ET
+                    pixels = self._find_by_localname(ET.fromstring(tcontext.ome_metadata), 'Pixels')
+                    self._shape = (int(pixels.attrib['SizeZ']), int(pixels.attrib['SizeY']), int(pixels.attrib['SizeX']), int(pixels.attrib['SizeC']))
         return self._shape
 
-
-    def get_data(self, pyramid_level=None):
+    def get_data(self, channel=None, pyramid_level=None):
         """Return array of image data.
         
         Parameters
@@ -801,7 +848,7 @@ class XeniumImageFile(ImageFile):
         """
         if pyramid_level is None:
             pyramid_level = self.pyramid_level
-            
+                        
         if isinstance( self.whole_image_array, type(None)): # if it's not cached, we have to read
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
@@ -923,6 +970,77 @@ class ImageStack(ImageBase):
             stacks.append(ImageStack(images))
 
         return stacks
+
+    @classmethod
+    def load_spatialdata_stacks(cls, sd_object, image_names=None, points_name=None):
+        """Load images from a spatialdata object into an ImageStack
+
+        Requires that images are named with _z{index} suffixes to indicate z-layer.
+
+        Parameters
+        ----------
+        cls : type
+            The class type that is calling this method.
+        sd_object : spatialdata.SpatialData
+            The spatial data object containing images
+        image_names : list of str, optional
+            A list of image names to be loaded. If None, all images in the
+            spatial data object will be used.
+        points_name : str, optional
+            The name of the points element to be used for transformations.
+            Defaults to the first points value
+
+        Returns
+        -------
+        cls
+            An ImageStacks instance containing the loaded images.
+
+        Raises
+        ------
+        ValueError
+            If there are duplicate z-layers in the images or if unsupported
+            transformations (rotation or shear) are detected.
+        """
+        import spatialdata as sd
+        from spatialdata.transformations import get_transformation
+        from .spatialdata import _is_supported_transformation
+
+        
+        if image_names is None:
+            # By default we stack all images
+            image_names = list(sd_object.images.keys())
+            
+        if points_name is None:
+            # Load the first points element by default
+            if len(sd_object.points.keys()) > 1:
+                import warnings
+                warnings.warn('Points name was left unspecified and there are multiple Points elements. Defaulting to the first listed for creating the transformation')
+            points_name = list(sd_object.points.keys())[0]
+            
+        # Extract z-indices from image names so that we can loop over them in order
+        z_inds = sorted([int(image_name.split('_z')[-1]) for image_name in image_names])
+        if list(set(z_inds)) != z_inds:
+            raise ValueError('Duplicate z-layer in images')
+        name_dict = {int(image_name.split('_z')[-1]): image_name for image_name in image_names}
+
+        images = []
+        for z in z_inds:
+            image_name = name_dict[z]
+            channels = list(sd.get_pyramid_levels(sd_object[image_name], n=0).c.to_numpy()) # Extract channel names
+            
+            # Check that the transformation is supported (no rotation or shear)
+            if not _is_supported_transformation(get_transformation(sd_object[image_name])):
+                raise ValueError('We do not support rotation or shear transformations')
+            
+            # Load the image and its associated transformation into SIS
+            transform = ImageTransform.load_spatialdata_transformation(get_transformation(sd_object[points_name]))
+            images.append(SpatialDataImage(sd.get_pyramid_levels(sd_object[image_name], n=0),
+                                           transform,
+                                           ['frame', 'row', 'col', 'channel'],
+                                           channels,
+                                           None))
+            
+        return cls(images)
 
     @property
     def shape(self):
@@ -1136,6 +1254,11 @@ class ImageView(ImageBase):
         np.ndarray
             Subregion of image data
         """
+        if channel is None and self.view_channels is not None: # If the user doesn't specify a channel but we have view_channels, then we will just pull from those
+            assert len(self.view_channels) == 1, "Must specify channel to return" # across all images, get_data only supports returning one channel
+            channel = self.view_channels[0]
+        if channel is not None and self.view_channels is not None:
+            assert channel in self.view_channels, "Requested channel not in view channels"
         return self.image.get_sub_data(self.view_frames, self.view_rows, self.view_cols, channel=channel)
 
     def get_sub_data(self, frames, rows, cols, channel=None):
@@ -1163,5 +1286,173 @@ class ImageView(ImageBase):
         frames = (frames[0] + framestart, frames[1] + framestart)
         rows = (rows[0] + rowstart, rows[1] + rowstart)
         cols = (cols[0] + colstart, cols[1] + colstart)
+        if channel is None and self.view_channels is not None: # If the user doesn't specify a channel but we have view_channels, then we will just pull from those
+            assert len(self.view_channels) == 1, "Must specify channel to return" # across all images, get_data only supports returning one channel
+            channel = self.view_channels[0]
+        if channel is not None and self.view_channels is not None:
+            assert channel in self.view_channels, "Requested channel not in view channels"
         return self.image.get_sub_data(frames, rows, cols, channel=channel)
 
+
+class SpatialDataImage(ImageBase):
+    """Class for handling spatialdata images within SIS
+    The data input is an xarray DataArray
+    
+    Attributes
+    ----------
+    transform : callable
+        A transformation function to apply to the image data.
+    axes : list of str
+        The names of the axes corresponding to the dimensions of the data.
+    channels : list of str
+        The names of the channels in the image data.
+    name : str
+        The name of the image.
+    shape : tuple
+        The shape of the image data in the standard SIS format (frames, rows, columns, channels).
+    """
+    def __init__(self, data, transform, axes, channels, name):
+        """
+        Parameters
+        ----------
+        data : xarray.DataArray
+            The image data as an xarray DataArray.
+        transform : callable
+            A transformation function to apply to the image data.
+        axes : list of str
+            The names of the axes corresponding to the dimensions of the data.
+        channels : list of str
+            The names of the channels in the image data.
+        name : str
+            The name of the image.
+        """
+        super().__init__()
+        self._data = data
+        self.transform = transform
+        self.axes = axes
+        self.channels = channels
+        self.name = name
+
+    @property
+    def shape(self):
+        """Returns the shape of the image data in standard SIS order:
+        (frames, rows, columns, channels) (z, y, x, c)
+        
+        Returns
+        -------
+        tuple
+            4D shape (frames, rows, columns, channels)
+            
+        Raises
+        ------
+        ValueError
+            If the number of dimensions in the data is not between 2 and 4.
+        """
+        if self._data.ndim > 4 or self._data.ndim < 2:
+            raise ValueError('Unsupported shape. ndim must be between 2 and 4')
+        axes_dict = dict(zip(self._data.dims, self._data.shape))
+        return (axes_dict.get('z', 1), axes_dict.get('y', 1), axes_dict.get('x', 1), axes_dict.get('c', 1))
+
+    def _standard_image_shape(self, img_data):
+        """Swizzles the order of the axes so that it is in the standard SIS order
+        (frames, rows, columns, channels) (z, y, x, c)
+        
+        Parameters
+        ----------
+        img_data : xarray.DataArray
+            The image data as an xarray DataArray.
+        
+        Returns
+        -------
+        xarray.DataArray
+            The image data with axes in standard SIS order.
+            
+        Raises
+        ------
+        ValueError
+            If the number of dimensions in the data is not between 2 and 4.
+        """
+        if img_data.ndim > 4 or img_data.ndim < 2:
+            raise ValueError('Unsupported shape. ndim must be between 2 and 4')
+
+        # Certain versions of img_data will not have z
+        if 'z' not in img_data.dims:
+            img_data = img_data.expand_dims('z')
+
+        # Certain versions of img_data will not have c
+        if 'c' not in img_data.dims:
+            img_data = img_data.expand_dims('c')
+            
+        return img_data.transpose('z', 'y', 'x', 'c') # Standard SIS order
+    
+    def get_data(self, channel=None):
+        """Return one channel of the image data.
+        
+        Parameters
+        ----------
+        channel : str or None, optional
+            Name of channel to return data from
+                
+        Returns
+        -------
+        np.ndarray
+            Subregion of image data (frames, rows, columns)
+            
+        Raises
+        ------
+        AssertionError
+            If there is more than one channel user must specify which channel to return.
+        """
+        index = self._get_channel_index(channel)
+        return self._standard_image_shape(self._data)[..., index].to_numpy() 
+            
+    def get_sub_data(self, frames: tuple|None, rows: tuple, cols: tuple, channel: str|None=None):
+        """Return a view of this image limited to the given frames, rows, and cols
+        
+        Parameters
+        ----------
+        frames : tuple
+            first_frame is inclusive, last_frame is exclusive
+        rows : tuple
+            first_row is inclusive, last_row is exclusive
+        cols : tuple
+            first_col is inclusive, last_col is exclusive
+        channel : str or None, optional
+            Name of channel to return data from
+        
+        Returns
+        -------
+        np.ndarray
+            Subregion of image data
+            
+        Raises
+        ------
+        AssertionError
+            If there is more than one channel user must specify which channel to return.
+        """
+        # We repeat some of the above code to keep object as xarray longer. This improves speed
+        # If user specified channel or if only one channel, we will return (frames, rows, columns) shaped array
+        # There may be a case where a channel is specified without a dimension in the underlying data
+        # Then we want to make sure we don't accidentally index it. It will still output 3dimensional array b/c of _standard_image_shape
+        if frames is None and self.shape[0] == 1:
+            frames = (0, 1)
+        elif frames is None and self.shape[0] > 1:
+            raise ValueError('frames must be defined if image has more than one frame')
+        
+        index = self._get_channel_index(channel)
+        return self._standard_image_shape(self._data)[frames[0]:frames[1], rows[0]:rows[1], cols[0]:cols[1], index].to_numpy()
+
+    def _get_channel_index(self, channel):
+        """Return the index of the given channel in the underlying data array
+        
+        Parameters
+        ----------
+        channel : str or None
+            Name of channel to return data from
+        """
+        if channel is not None:
+            return self.channels.index(channel)
+        else:
+            # If there is more than one channel force user to specify, otherwise just return the one channel
+            assert self.shape[3] == 1, "Must specify channel to return"
+            return 0

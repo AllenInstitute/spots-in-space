@@ -16,7 +16,7 @@ A Python based scalable pipeline to apply the **Cellpose** segmentation algorith
 
 Create a conda environment in which to install spots-in-space:
 ```bash
-conda create -n sis python=3.10
+conda create -n sis python=3.12
 conda activate sis
 ```
 

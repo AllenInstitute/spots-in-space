@@ -7,4 +7,5 @@ from . import segmentation
 from . import spot_table
 from . import image
 from . import util
+from . import spatialdata
 __version__ = _version.get_versions()['version']

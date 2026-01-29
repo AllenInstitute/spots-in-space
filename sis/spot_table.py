@@ -18,7 +18,7 @@ make_valid = optional_import('shapely.validation', names=['make_valid'])[0]
 from .image import ImageBase, ImageFile, ImageStack, ImageTransform, XeniumImageFile, StereoSeqImageFile
 from . import util
 from . import _version
-from sis.util import convert_value_nested_dict
+from .util import convert_value_nested_dict, parse_polygon_geodataframe
 
 
 def run_cell_polygon_calculation(load_func, load_args:dict, cell_id_file: str|None, subregion: str|tuple|None, cell_subset_file:str|None, result_file:str|None, alpha_inv_coeff: float=4/3, separate_z_planes=True):
@@ -814,7 +814,7 @@ class SpotTable:
                 raise ValueError('max_rows is not supported for parquet files as pandas does not allow partial reading')
             spot_dataframe = pandas.read_parquet(transcript_file, engine='pyarrow')
         else:
-            raise ValueError(f"Unsupported file type for transcript_file: {transcript_file}")
+            raise ValueError(f"Unsupported file type for transcript_file: {transcript_file}. Must be .csv, .csv.gz, or .parquet")
 
         pos= spot_dataframe.loc[:,["x_location","y_location","z_location"]].values
         
@@ -822,13 +822,13 @@ class SpotTable:
         z_bins = np.arange(0, np.max(pos[:, 2]) + z_depth, z_depth) 
         pos[:, 2] = (np.digitize(pos[:,2], z_bins) - 1).astype(int)
 
-        gene_names = spot_dataframe.loc[:,"feature_name"].values
+        gene_names = spot_dataframe.loc[:,"feature_name"].values.astype(str) # ensure string type. sometimes genes load as bstrings
 
         return pos, gene_names
     
     
     @classmethod
-    def load_xenium(cls, transcript_file: str, cache_file: str|None=None, image_path: str=None, max_rows: int=None, z_depth: float=3.0, pyramid_level: int|None=None, cache_image: bool=True):
+    def load_xenium(cls, transcript_file: str, cache_file: str|None=None, image_path: str=None, max_rows: int=None, z_depth: float=3.0, pyramid_level: int=0, cache_image: bool=True):
         """Load Xenium data from a detected transcripts CSV file.
             This is the preferred method for resegmentation. If you want the original Xenium
             segmentation, use SegmentedSpotTable.load_xenium.
@@ -852,7 +852,7 @@ class SpotTable:
         pyramid_level : int, optional
             Xenium images can have multiple resolutions stored in an image pyramid.
             This parameter specifies which level of the pyramid to load.
-            If None, we default to highest resolution
+            Defaults to the highest resolution (level 0).
         cache_image : bool, optional
             Xenium images are large and not memory mapped and thus we may want to keep them in memory or not.
             The trade off is speed vs memory.
@@ -1484,6 +1484,151 @@ class SpotTable:
             else, if an int is provided, that specific z plane is used.
         """
         self.get_image(name=name, channel=channel, frames=frames).show(ax=ax)
+        
+    @classmethod
+    def load_merscope_spatialdata(cls, sd_file: str|Path|None=None, sd_object: spatialdata.SpatialData|None=None, image_names: list[str]|None=None, points_name: str|None=None):
+        """Take a merscope spatialdata file or object and load its data into a SpotTable
+        The spatialdata object should follow the MERSCOPE convention as defined in spatialdata-io.merscope()
+        
+        Parameters
+        ----------
+        sd_file : str or Path, optional
+            The path to the spatial data file. If provided, `sd_object` should be None.
+        sd_object : spatialdata.SpatialData, optional
+            An instance of the SpatialData object. If provided, `sd_file` should be None.
+        image_names : list of str, optional
+            A list of image names to load from the spatial data. If None, all images will be loaded.
+        points_name : str, optional
+            The name of the points to load from the spatial data. If None and multiple points are available, the first one will be used.
+
+        Raises
+        ------
+        ValueError
+            If both `sd_file` and `sd_object` are None or if both are provided.
+
+        Returns
+        -------
+        SpotTable
+            A SpotTable containing the transcripts and images loaded from the spatial data object
+        """
+        import spatialdata as sd # Import in function so we don't throw error if spatialdata is not installed and this function is not used
+        import warnings
+
+        if (sd_file is None) == (sd_object is None):
+            raise ValueError('One and only one of sd_file and sd_object should be defined')
+        if sd_file is not None:
+            sd_object = sd.read_zarr(sd_file)
+
+        if points_name is None:
+            if len(sd_object.points.keys()) > 1:
+                import warnings
+                warnings.warn('Points name was left unspecified and there are multiple Points elements. Loading to the first listed by default')
+            points_name = list(sd_object.points.keys())[0]
+        
+        # Read in the images
+        images = ImageStack.load_spatialdata_stacks(sd_object, image_names=image_names, points_name=points_name)
+        
+        # Read in the transcripts
+        # 'global_x', 'global_y', and 'global_z' are already renamed to 'x', 'y', and 'z' by spatialdata_io's merscope() function
+        pos = sd_object[points_name][['x', 'y', 'z']].to_dask_array().compute()
+        
+        max_gene_len = max(map(len, sd_object[list(sd_object.points.keys())[0]]['gene']))
+        with warnings.catch_warnings(): # Dask array throws an error about converting from dataframe
+            warnings.simplefilter("ignore")
+            gene_names = sd_object[list(sd_object.points.keys())[0]]['gene'].to_dask_array().compute().astype(f'U{max_gene_len}')
+
+        return cls(pos=pos, gene_names=gene_names, images=images)
+
+    @classmethod
+    def load_xenium_spatialdata(cls, sd_file: str|Path|None=None, sd_object: spatialdata.SpatialData|None=None, morphology_path: str|Path|None=None, z_depth: float=3.0, image_name: str='morphology', points_name: str|None=None, gene_col: str='feature_name'):
+        """Take a xenium spatialdata file or object and load its data into a SpotTable
+        The spatialdata object should follow the xenium convention as defined in spatialdata-io.xenium()
+        
+        Parameters
+        ----------
+        sd_file : str or Path, optional
+            The path to the spatial data file. If provided, `sd_object` should be None.
+        sd_object : spatialdata.SpatialData, optional
+            An instance of the SpatialData object. If provided, `sd_file` should be None.
+        morphology_path : str or Path, optional
+            spatialdata_io.xenium only loads the focus and mip images. Since SIS relies on the original morphology file,
+            we provide the ability to load the morphology file via the path.
+            If provided, it will be added to the spatialdata object under the name given by [image_name].
+        z_depth : float, optional
+            The z depth to use when binning continuous z locations into integer z planes.
+            Make sure to set this to 1.0 if your xenium data has already been binned to z planes.
+        image_name : str, optional
+            The name of the image to load from the spatial data. Or if morphology_path is provided, the name to assign to the morphology image.
+        points_name : str, optional
+            The name of the points to load from the spatial data. If None and multiple points are available, the first one will be used.
+        gene_col : str, optional
+            The name of the column in the points table that contains the gene names.
+
+        Raises
+        ------
+        ValueError
+            If both `sd_file` and `sd_object` are None or if both are provided
+            or if the transformation applied to the image is not supported (i.e. rotation or shear).
+
+        Returns
+        -------
+        SpotTable
+            A SpotTable containing the transcripts and images loaded from the spatial data object/file system
+        """
+        import warnings
+        import spatialdata as sd # Import in function so we don't throw error if spatialdata is not installed and this function is not used
+        from spatialdata.transformations import get_transformation, Identity
+        from .image import SpatialDataImage, ImageTransform
+        from .spatialdata import _is_supported_transformation
+        
+        if (sd_file is None) == (sd_object is None):
+            raise ValueError('One and exactly one of sd_file and sd_object should be defined')
+        if sd_file is not None:
+            sd_object = sd.read_zarr(sd_file)
+
+        if points_name is None:
+            if len(sd_object.points.keys()) > 1:
+                warnings.warn('Points name was left unspecified and there are multiple Points elements. Loading to the first listed by default')
+            points_name = list(sd_object.points.keys())[0]
+        
+        # Read in images
+        if morphology_path is not None:
+            import dask.array as da
+            from dask_image.imread import imread
+            from spatialdata.transformations.transformations import Identity
+            from spatialdata.models import Image3DModel
+            morphology_image = da.expand_dims(imread(morphology_path), axis=0).rechunk((1, 1, 4096, 4096))
+            sd_object[image_name] = Image3DModel.parse(morphology_image,
+                                                    dims=('c', 'z', 'y', 'x'),
+                                                    transformations={"global": Identity()},
+                                                    c_coords=None,
+                                                    scale_factors=None, # We don't want scale factors as they scale the z axis as well. Alternative could be messing with multiscale_spatial_image.to_multiscale
+                                                    )
+
+        channels = ['DAPI']
+        if not _is_supported_transformation(get_transformation(sd_object[image_name])):
+            raise ValueError('We do not support rotation or shear transformations')
+        transform = ImageTransform.load_spatialdata_transformation(get_transformation(sd_object[points_name]))
+        image = SpatialDataImage(sd_object[image_name],
+                                transform,
+                                ['frame', 'row', 'col', 'channel'],
+                                channels,
+                                image_name)
+        
+        # Read in the transcripts
+        # 'x_location', 'y_location', and 'z_location' are already renamed to 'x', 'y', and 'z' by spatialdata_io's xenium() funcytion
+        pos = sd_object[list(sd_object.points.keys())[0]][['x', 'y', 'z']].to_dask_array().compute()
+        
+        # Xenium z-values are continuous. For image operations, we bin float z locations to integers
+        z_bins = np.arange(0, np.max(pos[:, 2]) + z_depth, z_depth) 
+        pos[:, 2] = (np.digitize(pos[:,2], z_bins) - 1).astype(int)
+        
+        max_gene_len = max(map(len, sd_object[list(sd_object.points.keys())[0]][gene_col]))
+        with warnings.catch_warnings(): # Dask array throws an error about converting from dataframe
+            warnings.simplefilter("ignore")
+            gene_names = sd_object[list(sd_object.points.keys())[0]][gene_col].to_dask_array().compute().astype(f'U{max_gene_len}')
+
+        return cls(pos=pos, gene_names=gene_names, images=image)
 
 
 class SegmentedSpotTable:
@@ -2013,6 +2158,15 @@ class SegmentedSpotTable:
 
     @staticmethod
     def save_anndata(filename: str, adata: anndata.AnnData):
+        """Save an AnnData object to file, converting any unsupported objects to strings as needed.
+        
+        Parameters
+        ----------
+        filename : str
+            The path to save the AnnData object to.
+        adata : anndata.AnnData
+            The AnnData object to save.
+        """
         # geojson objects must be converted to strings before saving
         for k, v in adata.uns.items():
             if isinstance(v, geojson.feature.FeatureCollection) or isinstance(v, geojson.geometry.GeometryCollection):
@@ -2349,16 +2503,22 @@ class SegmentedSpotTable:
                 # Polygon for cell and 3D polygons for spot table
                 for z_plane, polygon in self.cell_polygons[cid].items():
                     # Each z-plane is a separate feature
-                    all_polygons.append(geojson.Feature(geometry=polygon, id=self.convert_cell_id(cid) if use_cell_labels else str(cid), z_plane=str(z_plane)))
+                    all_polygons.append(geojson.Feature(geometry=polygon,
+                                                        id=self.convert_cell_id(cid) if use_cell_labels else str(cid),
+                                                        properties={'z_plane': str(z_plane)}))
             elif self.cell_polygons[cid] and not bool_3d_poly:
                 # Polygon for cell and 2D polygons for spot table
-                all_polygons.append(geojson.Feature(geometry=self.cell_polygons[cid], id=self.convert_cell_id(cid) if use_cell_labels else str(cid)))
+                all_polygons.append(geojson.Feature(geometry=self.cell_polygons[cid],
+                                                    id=self.convert_cell_id(cid) if use_cell_labels else str(cid)))
             elif self.cell_polygons[cid] is None and bool_3d_poly:
                 # No polygon for cell and 3D polygons for spot table
-                all_polygons.append(geojson.Feature(geometry=None, id=self.convert_cell_id(cid) if use_cell_labels else str(cid), z_plane=None))
+                all_polygons.append(geojson.Feature(geometry=None,
+                                                    id=self.convert_cell_id(cid) if use_cell_labels else str(cid),
+                                                    properties={'z_plane': None}))
             else:
                 # No polygon for cell and 2D polygons for spot table
-                all_polygons.append(geojson.Feature(geometry=None, id=self.convert_cell_id(cid) if use_cell_labels else str(cid)))
+                all_polygons.append(geojson.Feature(geometry=None,
+                                                    id=self.convert_cell_id(cid) if use_cell_labels else str(cid)))
 
         return geojson.FeatureCollection(all_polygons)
     
@@ -2765,7 +2925,7 @@ class SegmentedSpotTable:
 
 
     @classmethod
-    def load_xenium(cls, transcript_file: str, cache_file: str|None=None, image_path: str|None=None, max_rows: int|None=None, z_depth: float=3.0):
+    def load_xenium(cls, transcript_file: str, cache_file: str|None=None, image_path: str|None=None, max_rows: int|None=None, z_depth: float=3.0, pyramid_level: int=0, cache_image: bool=True):
         """Load Xenium data from a detected transcripts CSV file, including
         the original segmentation. If you are resegmenting the data, prefer
         SpotTable.load_xenium.
@@ -2788,13 +2948,20 @@ class SegmentedSpotTable:
         z_depth : float, optional
             Depth (in um) of a imaging layer i.e. z-plane
             Used to bin z-positions into discrete planes
+        pyramid_level : int, optional
+            Xenium images can have multiple resolutions stored in an image pyramid.
+            This parameter specifies which level of the pyramid to load.
+            Defaults to the highest resolution (level 0).
+        cache_image : bool, optional
+            Xenium images are large and not memory mapped and thus we may want to keep them in memory or not.
+            The trade off is speed vs memory.
             
         Returns
         -------
         sis.spot_table.SegmentedSpotTable
         """
         # Read in the positions
-        raw_spot_table = SpotTable.load_xenium(transcript_file=transcript_file, cache_file=cache_file, image_path=image_path, max_rows=max_rows, z_depth=z_depth)
+        raw_spot_table = SpotTable.load_xenium(transcript_file=transcript_file, cache_file=cache_file, image_path=image_path, max_rows=max_rows, z_depth=z_depth, pyramid_level=pyramid_level, cache_image=cache_image)
 
         # Read in the cell ids
         if str(transcript_file).endswith('.csv') or str(transcript_file).endswith('.csv.gz'):
@@ -2805,24 +2972,60 @@ class SegmentedSpotTable:
             cell_ids = pandas.read_parquet(transcript_file, columns=['cell_id']).values
 
         cell_ids = np.squeeze(cell_ids).astype(str) # Sometimes xenium ids are read in as bytes so just convert them now
-        cell_labels = cell_ids.copy()
-
-        # Xenium cell_id column is string, but SegmentedSpotTable needs ints, so convert
-        unique_ids = list(np.unique(cell_ids))
-        bg_id = 'UNASSIGNED'
-        assert bg_id in unique_ids  # if this changes with Xenium version, may need more options
-        unique_ids.remove(bg_id) # Remove background cell id so it won't be assigned to a random number
-
-        cid_to_ints_mapping = dict(zip(unique_ids, np.arange(1, len(unique_ids)+1)))
-        cid_to_ints_mapping[bg_id] = -1 # Set background to -1 to be more in line with later expectations
-        cell_ids = [cid_to_ints_mapping[cid] for cid in cell_ids]
-        cell_ids = np.array(cell_ids)
+        cell_ids, cell_labels = cls._default_cell_ids(cell_ids, bg_ids=set(['UNASSIGNED']))
 
         spottable = cls(spot_table=raw_spot_table, cell_ids=cell_ids, seg_metadata={'seg_method': 'Xenium'})
 
         spottable.cell_labels = cell_labels
         
         return spottable
+    
+    @classmethod
+    def _default_cell_ids(cls, cell_ids, bg_ids=set(['UNASSIGNED', '-1'])):
+        """This method takes an array of cell IDs, converts them to strings, and maps them to unique integers.
+        Background IDs are excluded from the unique integer mapping and are assigned a value of -1.
+        It is primariyl used for loading the default segmentations from MERSCOPE and Xenium datasets.
+
+        Parameters
+        ----------
+        cell_ids : numpy.ndarray
+            An array of cell IDs that need to be reindexed
+        bg_ids : set, optional
+            A set of background IDs that should be excluded from the unique integer mapping.
+            The default is {'UNASSIGNED', '-1'}.
+
+        Returns
+        -------
+        cell_ids : numpy.ndarray
+            An array of integer-mapped cell IDs.
+        cell_labels : numpy.ndarray
+            The original cell ids stored as strings
+
+        Raises
+        ------
+        AssertionError
+            If the wrong background IDs are provided.
+        """
+        
+        cell_ids = cell_ids.astype(str) # Convert to string b/c eventual labels will be strings
+        cell_labels = cell_ids.copy()
+
+        # Xenium cell_id column is string, but SegmentedSpotTable needs ints, so convert
+        unique_ids = list(np.unique(cell_ids))
+
+        # only want to deal with the background IDs actually present
+        bg_ids = list(bg_ids & set(unique_ids)) 
+        assert len(bg_ids) > 0
+        for bg_id in bg_ids:
+            unique_ids.remove(bg_id) # Remove background cell id so it won't be assigned to a random number
+
+        cid_to_ints_mapping = dict(zip(unique_ids, np.arange(1, len(unique_ids)+1)))
+        for bg_id in bg_ids:
+            cid_to_ints_mapping[bg_id] = -1 # Set background to -1 to be more in line with later expectations
+        cell_ids = [cid_to_ints_mapping[cid] for cid in cell_ids]
+        cell_ids = np.array(cell_ids)
+        
+        return cell_ids, cell_labels
 
     @classmethod
     def load_stereoseq(cls, gem_file: str|None=None, cache_file: str|None=None, gem_cols: dict|tuple=(('gene', 0), ('x', 1), ('y', 2), ('MIDcounts', 3)), 
@@ -3182,3 +3385,196 @@ class SegmentedSpotTable:
         
         cell_by_gene.write(output_file)
     
+    @classmethod
+    def load_merscope_spatialdata(cls, sd_file: str|Path|None=None, sd_object: spatialdata.SpatialData|None=None, image_names: str|None=None, points_name: str|None=None, shapes_name: str|None=None, cell_id_col: str|None=None, seg_method: str|None=None, use_original_cell_ids: bool=False):
+        """Take a merscope spatialdata file or object and load its data into a SegmentedSpotTable
+        The spatialdata object should follow the MERSCOPE convention as defined in spatialdata-io.merscope()
+        
+        Parameters
+        ----------
+        sd_file : str or Path, optional
+            The path to the spatial data file. If provided, `sd_object` should be None.
+        sd_object : spatialdata.SpatialData, optional
+            An existing SpatialData object. If provided, `sd_file` should be None.
+        image_names : str, optional
+            Names of the images to be loaded from the spatial data.
+        points_name : str, optional
+            The name of the points to be loaded. If None and multiple points are available, 
+            the first one will be used by default.
+        shapes_name : str, optional
+            The name of the shapes to be loaded from the spatial data.
+        cell_id_col : str, optional
+            The column name for cell IDs in the points data. If None, defaults to 'cell_id' or 'cell_ids'.
+        seg_method : str, optional
+            The segmentation method used to generate the data.
+            Sets the 'seg_method' field in SegmentedSpotTable.seg_metadata.
+        use_original_cell_ids : bool, optional
+            Flag indicating whether to use the spatial data's cell ID names to set cls.cell_ids
+            If False, cell IDs will be reindexed to be consecutive integers starting at 1
+            and original cell IDs will be stored in cls.cell_labels.
+            Default is False.
+
+        Raises
+        ------
+        ValueError
+            If both `sd_file` and `sd_object` are None or if both are provided.
+
+        Returns
+        -------
+        SegmentedSpotTable
+            An instance of SegmentedSpotTable containing the loaded spatial data.
+        """
+        
+        import warnings
+        import spatialdata as sd
+
+        if (sd_file is None) == (sd_object is None):
+            raise ValueError('One and only one of sd_file and sd_object should be defined')
+        if sd_file is not None:
+            sd_object = sd.read_zarr(sd_file)
+
+        if points_name is None:
+            if len(sd_object.points.keys()) > 1:
+                warnings.warn('Points name was left unspecified and there are multiple Points elements. Loading to the first listed by default')
+            points_name = list(sd_object.points.keys())[0]
+
+        raw_spot_table = SpotTable.load_merscope_spatialdata(sd_object=sd_object, image_names=image_names, points_name=points_name)
+
+        return cls._load_spatialdata_cids_polygons(raw_spot_table, sd_object, points_name, shapes_name, cell_id_col, seg_method, use_original_cell_ids, set(['-1']))
+    
+    @classmethod
+    def load_xenium_spatialdata(cls, sd_file: str|Path|None=None, sd_object: spatialdata.SpatialData|None=None, morphology_path: str|Path|None=None, z_depth: float=3.0, image_name: str='morphology', points_name: str|None=None, shapes_name: str|None=None, cell_id_col: str|None=None, gene_col: str|None='feature_name', seg_method: str|None=None, use_original_cell_ids: bool=False):
+        """Take a xenium spatialdata file or object and load its data into a SegmentedSpotTable
+        The spatialdata object should follow the Xenium convention as defined in spatialdata-io.xenium()
+
+        Parameters
+        ----------
+        sd_file : str or Path, optional
+            The path to the spatial data file. If provided, `sd_object` should be None.
+        sd_object : spatialdata.SpatialData, optional
+            An existing SpatialData object. If provided, `sd_file` should be None.
+        morphology_path : str or Path, optional
+            spatialdata_io.xenium only loads the focus and mip images. Since SIS relies on the original morphology file,
+            we provide the ability to load the morphology file via the path.
+            If provided, it will be added to the spatialdata object under the name given by [image_name].
+        z_depth : float, optional
+            The z depth to use when binning continuous z locations into integer z planes.
+            Make sure to set this to 1.0 if your xenium data has already been binned to z planes.
+        image_name : str, optional
+            The name of the image to load from the spatial data. Or if morphology_path is provided, the name to assign to the morphology image.
+        points_name : str, optional
+            The name of the points to load from the spatial data. If None and multiple points exist, the first one will be used.
+        shapes_name : str, optional
+            The name of the shapes to load from the spatial data.
+        cell_id_col : str, optional
+            The column name for cell IDs in the points data. If None, defaults to 'cell_id' or 'cell_ids'.
+        gene_col : str, optional
+            The column name for gene features. Default is 'feature_name'.
+        seg_method : str, optional
+            The segmentation method used to generate the data.
+            Sets the 'seg_method' field in SegmentedSpotTable.seg_metadata.
+        use_original_cell_ids : bool, optional
+            Flag indicating whether to use the spatial data's cell ID names to set cls.cell_ids
+            If False, cell IDs will be reindexed to be consecutive integers starting at 1
+            and original cell IDs will be stored in cls.cell_labels.
+            Default is False.
+
+        Raises
+        ------
+        ValueError
+            If both `sd_file` and `sd_object` are None or if both are provided.
+
+        Returns
+        -------
+        SegmentedSpotTable
+            An instance of SegmentedSpotTable containing the loaded spatial data.
+        """
+        
+        import spatialdata as sd
+        import warnings
+
+        if (sd_file is None) == (sd_object is None):
+            raise ValueError('One and only one of sd_file and sd_object should be defined')
+        if sd_file is not None:
+            sd_object = sd.read_zarr(sd_file)
+
+        if points_name is None:
+            if len(sd_object.points.keys()) > 1:
+                warnings.warn('Points name was left unspecified and there are multiple Points elements. Loading to the first listed by default')
+            points_name = list(sd_object.points.keys())[0]
+
+        raw_spot_table = SpotTable.load_xenium_spatialdata(sd_object=sd_object, morphology_path=morphology_path, z_depth=z_depth, image_name=image_name, points_name=points_name, gene_col=gene_col)
+        
+        return cls._load_spatialdata_cids_polygons(raw_spot_table, sd_object, points_name, shapes_name, cell_id_col, seg_method, use_original_cell_ids, set(['UNASSIGNED']))
+    
+    @classmethod
+    def _load_spatialdata_cids_polygons(cls, raw_spot_table, sd_object, points_name, shapes_name, cell_id_col, seg_method, use_original_cell_ids, bg_ids):
+        """Helper function for loading spatial data cell IDs and polygons from a given spatial data object into a SegmentedSpotTable
+        Called by load_merscope_spatialdata and load_xenium_spatialdata
+
+        Parameters
+        ----------
+        cls : type
+            The class type that is calling this method.
+        raw_spot_table : DataFrame
+            The raw spot table containing initial data.
+        sd_object : object
+            The spatial data object containing points and shapes.
+        points_name : str
+            The name of the points in the spatial data object.
+        shapes_name : str, optional
+            The name of the shapes in the spatial data object. If None and multiple shapes exist, the first shape will be used.
+        cell_id_col : str, optional
+            The column name for cell IDs in the points data. If None, defaults to 'cell_id' or 'cell_ids'.
+        seg_method : str, optional
+            The segmentation method used to generate the data.
+            Sets the 'seg_method' field in SegmentedSpotTable.seg_metadata.
+        use_original_cell_ids : bool, optional
+            Flag indicating whether to use the spatial data's cell ID names to set cls.cell_ids
+            If False, cell IDs will be reindexed to be consecutive integers starting at 1
+            and original cell IDs will be stored in cls.cell_labels.
+            Default is False.
+        bg_ids : list
+            Background IDs to be used for cell ID generation.
+
+        Returns
+        -------
+        spot_table : SegmentedSpotTable
+            An SegmentedSpotTable containing the loaded spot table, cell IDs, and cell polygons.
+
+        Raises
+        ------
+        ValueError
+            If original cell IDs are requested but cannot be converted to integers.
+        """
+        
+        import warnings
+        
+        if cell_id_col is None:
+            cell_id_col = 'cell_id' if 'cell_id' in sd_object[points_name].columns else 'cell_ids'
+        
+        cell_ids = sd_object[points_name][cell_id_col].compute().values
+        if use_original_cell_ids: 
+            # Must ensure that cell_ids can be ints
+            try: 
+                cell_ids = cell_ids.astype(int)
+                cell_labels = None
+            except ValueError as e:
+                raise ValueError('Cannot use original cell ids as cell ids must be ints. Please set use_original_cell_ids=False')
+        else:
+            # If we aren't using the original cell ids, we will still put them into cell_labels to preserve them
+            # We also generate new cell ids between [1, num_cells]
+            cell_ids, cell_labels = cls._default_cell_ids(cell_ids, bg_ids=bg_ids)
+
+        # Allow the user to specify a segmentation method
+        spot_table = cls(spot_table=raw_spot_table, cell_ids=cell_ids, seg_metadata={'seg_method': seg_method} if seg_method is not None else None)
+        spot_table.cell_labels = cell_labels
+        
+        if len(sd_object.shapes) > 0:
+            if shapes_name is None:
+                if len(sd_object.points.keys()) > 1:
+                    warnings.warn('Shapes name was left unspecified and there are multiple Shapes elements. Loading to the first listed by default')
+                shapes_name = list(sd_object.shapes.keys())[0]
+            spot_table.cell_polygons = parse_polygon_geodataframe(sd_object[shapes_name], spot_table)
+            
+        return spot_table
