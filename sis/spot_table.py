@@ -1,6 +1,7 @@
 from __future__ import annotations
 import os, json
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from scipy.spatial import Delaunay
@@ -177,21 +178,24 @@ class SpotTable:
 
         if gene_names is not None:
             # gene_names are specified, so we need to create gene_ids and name/id mappings
+            assert len(gene_names) == len(pos), "length of gene_names must match length of pos"
             assert gene_ids is None and gene_id_to_name is None
             gene_ids, gene_to_id, id_to_gene = self._make_gene_index(gene_names)
-            self.gene_ids = gene_ids
-            self.gene_name_to_id = gene_to_id
-            self.gene_id_to_name = id_to_gene
+            self._gene_ids = gene_ids
+            self._gene_name_to_id = gene_to_id
+            self._gene_id_to_name = id_to_gene
         elif gene_ids is not None:
             # gene_id and id to name mappings are specified so we need to create name to id mappings
+            assert len(gene_ids) == len(pos), "length of gene_ids must match length of pos"
             assert gene_id_to_name is not None
-            self.gene_ids = gene_ids
-            self.gene_id_to_name = gene_id_to_name
-            self.gene_name_to_id = {name:id for id,name in enumerate(self.gene_id_to_name)}
+            self._gene_ids = gene_ids
+            self._gene_id_to_name = gene_id_to_name
+            self._gene_name_to_id = {name:id for id,name in enumerate(self.gene_id_to_name)}
         else:
             raise Exception("Must specify either gene_names or gene_ids")
 
         self._gene_names = None
+        self._unique_gene_names = None
 
         self.images = []
         if images is None:
@@ -262,6 +266,127 @@ class SpotTable:
         if self._gene_names is None:
             self._gene_names = self.map_gene_ids_to_names(self.gene_ids)
         return self._gene_names
+    
+    @gene_names.setter
+    def gene_names(self, names):
+        # we'll update the underlying gene ids first to catch situations where a gene name is not found
+        # before we update the cached gene names
+        assert len(names) == len(self.pos), "length of gene_names must match length of self.pos"
+        try:
+            self._gene_ids = self.map_gene_names_to_ids(names)
+        except KeyError as e:
+            raise KeyError(f"{e} missing from self.gene_name_to_id mapping. Cannot set gene_names without first updating mapping to include all new genes.")
+        self._gene_names = names
+        self._unique_gene_names = None # reset cached unique gene names
+        
+    @property
+    def gene_ids(self):
+        """Return an array of gene IDs corresponding to the spots in the SpotTable.
+        
+        Returns
+        -------
+        self._gene_ids : numpy.ndarray
+        """
+        return self._gene_ids
+    
+    @gene_ids.setter
+    def gene_ids(self, ids):
+        """Set the gene IDs for the spots in the SpotTable.
+        
+        Parameters
+        ----------
+        ids : numpy.ndarray
+            Array of gene IDs to set.
+        """
+        # Double check that the ids are valid
+        assert len(ids) == len(self.pos), "length of gene_ids must match length of self.pos"
+        assert np.max(ids) < len(self._gene_id_to_name), "One or more gene IDs not found in self.gene_id_to_name mapping."
+        
+        self._gene_ids = ids
+        self._gene_names = None # reset cached gene names
+        self._unique_gene_names = None # reset cached unique gene names
+    
+    @property
+    def gene_id_to_name(self):
+        """Return an array mapping from gene IDs to gene names.
+        
+        Returns
+        -------
+        self._gene_id_to_name : numpy.ndarray
+        """
+        return self._gene_id_to_name
+    
+    @gene_id_to_name.setter
+    def gene_id_to_name(self, id_to_name):
+        """Set the mapping from gene IDs to gene names.
+        
+        Parameters
+        ----------
+        id_to_name : numpy.ndarray
+            Array mapping from gene IDs to gene names.
+        """
+        # Check that all gene IDs in the table are present in the new mapping
+        assert isinstance(id_to_name, np.ndarray), "gene_id_to_name must be a numpy array."
+        assert np.max(self.gene_ids) < len(id_to_name), "One or more gene IDs not found in new id_to_name mapping."
+        
+        self._gene_id_to_name = id_to_name
+        self._gene_name_to_id = {name:id for id,name in enumerate(self._gene_id_to_name)}
+        self._gene_names = None # reset cached gene names
+        self._unique_gene_names = None # reset cached unique gene names
+
+    @property
+    def gene_name_to_id(self):
+        """Return an array mapping from gene IDs to gene names.
+        
+        Returns
+        -------
+        self._gene_name_to_id : numpy.ndarray
+        """
+        return self._gene_name_to_id
+    
+    @gene_name_to_id.setter
+    def gene_name_to_id(self, name_to_id):
+        """Set the mapping from gene IDs to gene names.
+        
+        Parameters
+        ----------
+        name_to_id : numpy.ndarray
+            Array mapping from gene names to gene IDs.
+        """
+        # Check that all gene names in the table are present in the new mapping
+        for gene in self.unique_gene_names:
+            assert gene in name_to_id, f"Gene name: {gene} not found in new name_to_id mapping."
+            
+        self._gene_name_to_id = name_to_id
+        
+        # Construct the id to name array
+        max_len = max(map(len, name_to_id.keys()))
+        id_to_name = np.empty(len(name_to_id), dtype=f'U{max_len}')
+        for gene, i in name_to_id.items():
+            id_to_name[i] = gene
+        self._gene_id_to_name = id_to_name
+        
+        self._gene_names = None # reset cached gene names
+        self._unique_gene_names = None # reset cached unique gene names
+
+    @property
+    def unique_gene_names(self):
+        """Return the unique gene names in the SpotTable.
+        
+        Returns
+        -------
+        numpy.ndarray
+            Array of unique gene names.
+        """
+        if self._unique_gene_names is None: # If we don't have the unique gene names cached, we need to create them
+            self._unique_gene_names = np.sort(pandas.Series(self.gene_names).unique()) # Faster than np.unique
+        return self._unique_gene_names
+    
+    @unique_gene_names.setter
+    def unique_gene_names(self, names):
+        """Setter to make sure we don't set unique_cell_ids directly.
+        """
+        raise ValueError("unique_gene_names cannot be set directly. Use gene_names instead.")
 
     @property
     def x(self):
@@ -272,6 +397,17 @@ class SpotTable:
         self.pos[:, 0] : numpy.ndarray
         """
         return self.pos[:, 0]
+    
+    @x.setter
+    def x(self, coords):
+        """Set the x-coordinates of the spots in the SpotTable.
+        
+        Parameters
+        ----------
+        coords : numpy.ndarray
+            Array of x-coordinates to set.
+        """
+        self.pos[:, 0] = coords
 
     @property
     def y(self):
@@ -289,6 +425,19 @@ class SpotTable:
         else:
             return self.pos[:, 1]
 
+    @y.setter
+    def y(self, coords):
+        """Set the y-coordinates of the spots in the SpotTable.
+        
+        Parameters
+        ----------
+        coords : numpy.ndarray
+            Array of y-coordinates to set.
+        """
+        if self.pos.shape[1] < 2:
+            raise ValueError("Cannot set y-coordinates: SpotTable has no y-coordinates.")
+        self.pos[:, 1] = coords
+
     @property
     def z(self):
         """Return the z-coordinates of the spots in the SpotTable.
@@ -304,6 +453,19 @@ class SpotTable:
             return None
         else:
             return self.pos[:, 2]
+        
+    @z.setter
+    def z(self, coords):
+        """Set the z-coordinates of the spots in the SpotTable.
+        
+        Parameters
+        ----------
+        coords : numpy.ndarray
+            Array of z-coordinates to set.
+        """
+        if self.pos.shape[1] < 3:
+            raise ValueError("Cannot set z-coordinates: SpotTable has no z-coordinates.")
+        self.pos[:, 2] = coords
 
     def map_gene_names_to_ids(self, names):
         """Map gene names to gene IDs.
@@ -1722,6 +1884,47 @@ class SegmentedSpotTable:
             raise
 
         return attr
+    
+    def __setattr__(self, name: str, value: Any):
+        """This method enables SegmentedSpotTable to act as a proxy for
+        attributes in SpotTable. Anytime the user attempts to set an attribute,
+        this method will first check if that attribute is found in SpotTable.
+        If it is, it will set it there (where it can be properly accessed
+        by SpotTable functions). If not, it will set the attribute in SegmentedSpotTable.
+        """
+        if name == "spot_table" or "spot_table" not in self.__dict__:
+            # During __init__, or if setting spot_table itself, set attribute normally
+            super().__setattr__(name, value)
+        elif name in self.__dict__.keys(): 
+            # we first check locally for the attribute and set here if it exists
+            # Cannot use hasattr here because it calls __getattr__ which will return SpotTable attributes
+            super().__setattr__(name, value)
+        elif hasattr(self.spot_table, name):
+            # If the attribute exists in SpotTable, set it there
+            setattr(self.spot_table, name, value)
+        else:
+            # In all other cases, set attribute locally
+            super().__setattr__(name, value)
+            
+    def __delattr__(self, name: str) -> None:
+        """This method enables SegmentedSpotTable to act as a proxy for
+        attributes in SpotTable. Anytime the user attempts to delete an attribute,
+        this method will first check if that attribute is found in SpotTable.
+        If it is, it will delete it there. If not, it will delete it here.
+        """
+        if name == "spot_table" or "spot_table" not in self.__dict__:
+            # During __init__, or if deleting spot_table itself, delete attribute normally
+            super().__delattr__(name)
+        elif name in self.__dict__.keys(): 
+            # We first check locally for the attribute and delete here if it exists
+            # Cannot use hasattr here because it calls __getattr__ which will return SpotTable attributes
+            super().__delattr__(name)
+        elif hasattr(self.spot_table, name):
+            # If the attribute exists in SpotTable, delete it there
+            delattr(self.spot_table, name)
+        else:
+            # In all other cases, delete attribute locally
+            super().__delattr__(name)
 
     def __getitem__(self, item: np.ndarray):
         """Return a subset of this SegmentedSpotTable.
