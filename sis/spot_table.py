@@ -3330,6 +3330,8 @@ class SegmentedSpotTable:
         seg_subtable : SegmentedSpotTable
             A SegmentedSpotTable including the subset of this table inside the region xlim, ylim.
         """
+        import scipy
+        
         expt_dir = Path(expt_dir)
         transcript_file = expt_dir / 'transcripts.parquet'
         
@@ -3351,14 +3353,40 @@ class SegmentedSpotTable:
         cell_boundaries['cell_id'] = cell_boundaries['cell_id'].astype(str) # Standardize cell_id type to str
         cell_boundaries['cell_id'] = [f'{expt_metadata["region_name"]}_{cid}' for cid in cell_boundaries['cell_id']] # Standardize cell_id to match cell_labels
         seg_spot_table.cell_polygons = {}
-        for cid, coords in cell_boundaries.groupby(by='cell_id'):
-            if seg_spot_table._cl_to_cid.get(cid) is None:
+        max_cid = np.max(seg_spot_table.cell_ids)
+        transcriptless_cells = []
+        for cl, coords in cell_boundaries.groupby(by='cell_id'):
+            if seg_spot_table._cl_to_cid.get(cl) is None:
                 # Because cells are determined imagewise and not transcript wise, 
                 # there are some cells without transcripts and thus which don't have cell labels
-                continue
-            seg_spot_table.cell_polygons[seg_spot_table.convert_cell_id(cid)] = shapely.geometry.polygon.Polygon(coords[['vertex_x', 'vertex_y']])
+                # we will add them in manually to the cell label dicts so they are still included
+                max_cid += 1
+                seg_spot_table._cl_to_cid[cl] = max_cid
+                seg_spot_table._cid_to_cl[max_cid] = cl
+                transcriptless_cells.append(cl)
+            seg_spot_table.cell_polygons[seg_spot_table.convert_cell_id(cl)] = shapely.geometry.polygon.Polygon(coords[['vertex_x', 'vertex_y']])
 
         cell_by_gene = seg_spot_table.cell_by_gene_anndata(x_format=x_format, additional_obs=additional_obs)
+
+        # We have to add the transcriptless cells to the anndata X and obs manually
+        # Create empty df for transcriptless cells
+        empty_obs = np.empty((len(transcriptless_cells), cell_by_gene.obs.shape[1]))
+        empty_obs.fill(np.nan)
+        df = pandas.DataFrame(empty_obs, index=transcriptless_cells, columns=cell_by_gene.obs.columns)
+        
+        # Add data to the transcriptless cells
+        df['SpotTable_cell_id'] = df.index.map(seg_spot_table.convert_cell_id)
+        df['cell_label'] = df.index
+        df['segmentation_job_id'] = cell_by_gene.obs['segmentation_job_id'].iloc[0]
+        if additional_obs is not None:
+            for column in additional_obs.keys():
+                if len(cell_by_gene.obs[column].unique()) == 1:
+                    df[column] = cell_by_gene.obs[column].iloc[0]
+        
+        # Append to anndata
+        new_X = scipy.sparse.vstack((cell_by_gene.X, scipy.sparse.csr_matrix((len(transcriptless_cells), cell_by_gene.X.shape[1]), dtype=cell_by_gene.X.dtype)))
+        new_obs = pandas.concat([cell_by_gene.obs, df.astype(cell_by_gene.obs.dtypes)], axis=0)
+        cell_by_gene = anndata.AnnData(new_X, obs=new_obs, var=cell_by_gene.var, uns=cell_by_gene.uns)
 
         # Xenium also records cell centroids and areas
         # Cell polygons only ever have 13 vertices so I assume that they are downsampled before stored
