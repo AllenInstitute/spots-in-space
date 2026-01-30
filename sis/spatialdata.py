@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pathlib import Path
 from types import MappingProxyType
 from typing import Literal, Callable, Mapping, Any
@@ -9,19 +11,20 @@ import tifffile
 import numpy as np
 import xml.etree.ElementTree as ET
 from shapely import MultiPolygon
-from xarray import concat, DataTree
 
+from .optional_import import optional_import
 
-import dask
-dask.config.set({"dataframe.query-planning": False})
-import dask.array as da
-import dask.dataframe as dd
-from dask_image.imread import imread
+concat, DataTree = optional_import('xarray', names=['concat', 'DataTree'])
 
-from spatialdata import SpatialData
-from spatialdata_io.readers.merscope import _get_channel_names
-from spatialdata.transformations import Affine, Identity, BaseTransformation
-from spatialdata.models import Image2DModel, Image3DModel, ShapesModel, PointsModel, TableModel
+dask = optional_import('dask')
+da = optional_import('dask.array')
+dd = optional_import('dask.dataframe')
+imread = optional_import('dask_image.imread', names=['imread'])[0]
+
+SpatialData = optional_import('spatialdata', names=['SpatialData'])[0]
+_get_channel_names = optional_import('spatialdata_io.readers.merscope', names=['_get_channel_names'])[0]
+Affine, Identity, BaseTransformation = optional_import('spatialdata.transformations', names=['Affine', 'Identity', 'BaseTransformation'])
+Image2DModel, Image3DModel, ShapesModel, PointsModel, TableModel = optional_import('spatialdata.models', names=['Image2DModel', 'Image3DModel', 'ShapesModel', 'PointsModel', 'TableModel'])
 
 from .spot_table import SpotTable
 from .image import XeniumImageFile
@@ -92,6 +95,7 @@ def _images_merscope(images_dir: str | Path,
     """
     import glob
     import re
+    dask.config.set({"dataframe.query-planning": False})
     
     if not isinstance(images_dir, Path):
         images_dir = Path(images_dir)
@@ -206,6 +210,8 @@ def _images_xenium(xenium_dir: str | Path,
     KeyError
         If aggregate_z is not a recognized string or callable function.
     """
+    dask.config.set({"dataframe.query-planning": False})
+    
     if not isinstance(xenium_dir, Path):
         xenium_dir = Path(xenium_dir)
     
@@ -273,6 +279,7 @@ def _polygons(features: geojson.FeatureCollection,
         geopandas dataframe of polygons to add to SpatialData object.
     """
     import warnings
+    dask.config.set({"dataframe.query-planning": False})
     
     # Find out if z-planes are in the geojson
     z_planes_present = "z_plane" in features['features'][0]
@@ -344,6 +351,8 @@ def _spottable(df: dd.DataFrame,
     transcripts : dask.dataframe.core.DataFrame
         Dask dataframe of transcripts to add to SpatialData object.
     """
+    dask.config.set({"dataframe.query-planning": False})
+    
     if z_planes:
         # Subset the dataframe to only include specified z_planes
         z_planes = [z_planes] if isinstance(z_planes, int) else z_planes
@@ -381,6 +390,8 @@ def _cell_by_gene(adata: anndata.AnnData) -> anndata.AnnData:
     anndata.AnnData
         Formatted anndata to add to SpatialData object.
     """
+    dask.config.set({"dataframe.query-planning": False})
+    
     try:
         # SIS stores cell polygons in the anndata
         # SpatialData already has them elsewhere, so lets remove them here
@@ -446,6 +457,8 @@ def merscope_to_spatialdata(images_dir: str | Path,
     ValueError
         If both sis_dir and spot_table are defined or both are None.
     """
+    dask.config.set({"dataframe.query-planning": False})
+    
     if (sis_dir is None) == (spot_table is None):
         raise ValueError('One and exactly one of sis_dir and spot_table should be defined')
 
@@ -553,6 +566,8 @@ def xenium_to_spatialdata(xenium_dir: str | Path,
     ValueError
         If both sis_dir and spot_table are defined or both are None.
     """
+    dask.config.set({"dataframe.query-planning": False})
+    
     if (sis_dir is None) == (spot_table is None):
         raise ValueError('One and exactly one of sis_dir and spot_table should be defined')
 
