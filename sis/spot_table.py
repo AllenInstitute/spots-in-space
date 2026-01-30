@@ -464,7 +464,6 @@ class SpotTable:
             'y': self.y,
             'z': self.z,
             'gene_id': self.gene_ids,
-            'cell_id': self.cell_ids,
         }
         if 'gene_name' in columns:
             col_data['gene_name'] = self.gene_names
@@ -482,8 +481,6 @@ class SpotTable:
         # which columns to write?
         if columns is None:
             columns = ['x', 'y', 'z', 'gene_id']
-            if self.cell_ids is not None:
-                columns.append('cell_id')
                 
         # write csv
         header = ','.join(columns)
