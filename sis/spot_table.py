@@ -3331,6 +3331,7 @@ class SegmentedSpotTable:
             A SegmentedSpotTable including the subset of this table inside the region xlim, ylim.
         """
         import scipy
+        from collections.abc import Iterable
         
         expt_dir = Path(expt_dir)
         transcript_file = expt_dir / 'transcripts.parquet'
@@ -3367,7 +3368,13 @@ class SegmentedSpotTable:
             seg_spot_table.cell_polygons[seg_spot_table.convert_cell_id(cl)] = shapely.geometry.polygon.Polygon(coords[['vertex_x', 'vertex_y']])
 
         cell_by_gene = seg_spot_table.cell_by_gene_anndata(x_format=x_format, additional_obs=additional_obs)
-
+        for col, dtype in cell_by_gene.obs.dtypes.items():
+            if dtype.kind == 'i' and col in additional_obs.keys() and len(cell_by_gene.obs[col].unique()) > 1:
+                # We make additional integer columns with dynamic values into pandas Int64 so they can handle nan types
+                # We don't have to do so for ones with singular values since those will get copied to the transcriptless cells
+                # Also don't have to do so for standard columns (that are integer) since the transcriptless cells get values for those
+                cell_by_gene.obs[col] = cell_by_gene.obs[col].astype('Int64')
+                
         # We have to add the transcriptless cells to the anndata X and obs manually
         # Create empty df for transcriptless cells
         empty_obs = np.empty((len(transcriptless_cells), cell_by_gene.obs.shape[1]))
