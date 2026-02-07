@@ -12,8 +12,6 @@ from shapely import MultiPolygon
 from xarray import concat, DataTree
 
 
-import dask
-dask.config.set({"dataframe.query-planning": False})
 import dask.array as da
 import dask.dataframe as dd
 from dask_image.imread import imread
