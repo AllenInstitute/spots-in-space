@@ -3369,7 +3369,7 @@ class SegmentedSpotTable:
 
         cell_by_gene = seg_spot_table.cell_by_gene_anndata(x_format=x_format, additional_obs=additional_obs)
         for col, dtype in cell_by_gene.obs.dtypes.items():
-            if dtype.kind == 'i' and col in additional_obs.keys() and len(cell_by_gene.obs[col].unique()) > 1:
+            if dtype.kind == 'i' and col in additional_obs.keys() and cell_by_gene.obs[col].nunique() > 1:
                 # We make additional integer columns with dynamic values into pandas Int64 so they can handle nan types
                 # We don't have to do so for ones with singular values since those will get copied to the transcriptless cells
                 # Also don't have to do so for standard columns (that are integer) since the transcriptless cells get values for those
@@ -3387,11 +3387,12 @@ class SegmentedSpotTable:
         df['segmentation_job_id'] = cell_by_gene.obs['segmentation_job_id'].iloc[0]
         if additional_obs is not None:
             for column in additional_obs.keys():
-                if len(cell_by_gene.obs[column].unique()) == 1:
+                if cell_by_gene.obs[column].nunique() == 1:
                     df[column] = cell_by_gene.obs[column].iloc[0]
         
         # Append to anndata
-        new_X = scipy.sparse.vstack((cell_by_gene.X, scipy.sparse.csr_matrix((len(transcriptless_cells), cell_by_gene.X.shape[1]), dtype=cell_by_gene.X.dtype)))
+        empty_sparse = scipy.sparse.csr_matrix((len(transcriptless_cells), cell_by_gene.X.shape[1]), dtype=cell_by_gene.X.dtype)
+        new_X = scipy.sparse.vstack((cell_by_gene.X, empty_sparse))
         new_obs = pandas.concat([cell_by_gene.obs, df.astype(cell_by_gene.obs.dtypes)], axis=0)
         cell_by_gene = anndata.AnnData(new_X, obs=new_obs, var=cell_by_gene.var, uns=cell_by_gene.uns)
 
