@@ -16,16 +16,10 @@ from .optional_import import optional_import
 
 concat, DataTree = optional_import('xarray', names=['concat', 'DataTree'])
 
-<<<<<<< issue_86
-import dask.array as da
-import dask.dataframe as dd
-from dask_image.imread import imread
-=======
 dask = optional_import('dask')
 da = optional_import('dask.array')
 dd = optional_import('dask.dataframe')
 imread = optional_import('dask_image.imread', names=['imread'])[0]
->>>>>>> main
 
 SpatialData = optional_import('spatialdata', names=['SpatialData'])[0]
 _get_channel_names = optional_import('spatialdata_io.readers.merscope', names=['_get_channel_names'])[0]
