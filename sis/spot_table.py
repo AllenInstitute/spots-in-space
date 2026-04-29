@@ -99,7 +99,10 @@ class SpotTable:
     gene_ids : numpy.ndarray
         Array of shape (N,) describing the gene detected in each transcript, as an index into *gene_id_to_name*.
     gene_id_to_name: numpy.ndarray
-        Array mapping from values in *gene_ids* to string names.
+        Array mapping from values in *gene_ids* to string names. 
+        This attribute is not intended to be modified inplace via indexing, doing so may lead to unexpected behavior. 
+        To modify the gene_id_to_name mapping, use the gene_id_to_name setter, which will also update
+        the gene_name_to_id mapping and reset cached gene names.
     gene_name_to_id : dict
         Dictionary mapping from gene names to gene IDs.
     _gene_names : numpy.ndarray
@@ -336,7 +339,7 @@ class SpotTable:
 
     @property
     def gene_name_to_id(self):
-        """Return an array mapping from gene IDs to gene names.
+        """Return a dictionary mapping from gene IDs to gene names.
         
         Returns
         -------
@@ -498,10 +501,7 @@ class SpotTable:
         out : array
             Array of gene names corresponding to the input gene IDs.
         """
-        out = np.empty(len(ids), dtype=self.gene_id_to_name.dtype)
-        for i,id in enumerate(ids):
-            out[i] = self.gene_id_to_name[id]
-        return out
+        return self.gene_id_to_name[ids]
 
         
     def bounds(self):
