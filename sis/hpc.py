@@ -117,11 +117,8 @@ def run_slurm(*,
         
     Returns
     -------
-    SlurmJob
-        If no array is specified, returns a SlurmJob instance
-    SlurmJobArray
-        if an array is specified, returns a SlurmJobArray instance
-        
+    SlurmJob or SlurmJobArray
+        If no array is specified, returns a SlurmJob instance. Otherwise returns a SlurmJobArray instance
     """
     if array is None:
         # Slurm replaces "%j" with the job allocation number
@@ -723,7 +720,7 @@ def seconds_to_time(seconds: int):
     
     Parameters
     ----------
-    seconds: int
+    seconds : int
         time amount in a seconds (1800 or 217803)
     
     Returns

@@ -90,7 +90,7 @@ class SpotTable:
     ----------
     pos : numpy.ndarray
         Array of shape (N, 3) giving the position of each detected transcript.
-    parent_table : SpotTable
+    parent_table : sis.spot_table.SpotTable
         Indicates that this table is a subset of a parent SpotTable.
     parent_inds : numpy.ndarray
         Indices used to select the subset of spots in this table from the parent spots.
@@ -105,47 +105,14 @@ class SpotTable:
         the gene_name_to_id mapping and reset cached gene names.
     gene_name_to_id : dict
         Dictionary mapping from gene names to gene IDs.
+    images : list[sis.image.ImageBase]
+        Image(s) associated with the data (e.g. nuclei stain).
     _gene_names : numpy.ndarray
         Cached array of gene names corresponding to the gene IDs in the SpotTable.
-    images : list[ImageBase]
-        Image(s) associated with the data (e.g. nuclei stain).
     _xenium_min_qv : float or None
         Minimum quality value (Q-Score) for transcripts stored in this spot table. 
         Only relevant for Xenium data, where it corresponds to the 'qv' column in the transcripts file.
         See https://www.10xgenomics.com/support/software/xenium-onboard-analysis/latest/analysis/xoa-output-understanding-outputs#transcript-file
-
-    Methods
-    -------
-    __len__()
-        Returns the number of spots in the SpotTable.
-    __getitem__(item)
-        Returns a subset of the SpotTable.
-    dataframe(cols=['x', 'y', 'z', 'gene_ids'])
-        Returns a dataframe containing the specified columns.
-    gene_names
-        Returns an array of gene names corresponding to the gene IDs in the SpotTable.
-    x
-        Returns the x-coordinates of the spots in the SpotTable.
-    y
-        Returns the y-coordinates of the spots in the SpotTable.
-    z
-        Returns the z-coordinates of the spots in the SpotTable.
-    map_gene_names_to_ids(names)
-        Maps gene names to gene IDs.
-    map_gene_ids_to_names(ids)
-        Maps gene IDs to gene names.
-    bounds()
-        Returns the boundaries of the data included in the SpotTable.
-    get_subregion(xlim, ylim, incl_end=False)
-        Returns a SpotTable including the subset of this table inside the specified region.
-    get_genes(gene_names=None, gene_ids=None)
-        Returns a subtable containing only the genes specified by either gene_names or gene_ids.
-    detect_z_planes(float_cut=None)
-        Returns the minimum and maximum z-planes in the SpotTable.
-    z_plane_mask(z_planes)
-        Returns a mask of the SpotTable containing only spots in the specified z_planes.
-    save_csv(file_name, columns=None)
-        Saves a CSV file with columns x, y, z, gene_id, [gene_name, cell_id].
     """
 
     def __init__(self, 
@@ -170,13 +137,13 @@ class SpotTable:
             Array of shape (N,) describing the gene detected in each transcript, as an index into *gene_id_to_name*. Must specify either *gene_names* or *gene_ids*, not both.
         gene_id_to_name : numpy.ndarray or None, optional
             Array mapping from values in *gene_ids* to string names.
-        parent_table : SpotTable or None, optional
+        parent_table : sis.spot_table.SpotTable or None, optional
             Indicates that this table is a subset of a parent SpotTable.
         parent_inds : numpy.ndarray or None, optional
             Indices used to select the subset of spots in this table from the parent spots.
         parent_region : tuple or None, optional
             X,Y boundaries ((xmin, xmax), (ymin, ymax)) used to select this table from the parent table.
-        images : list[ImageBase] or ImageBase or None, optional
+        images : list[sis.image.ImageBase] or sis.image.ImageBase or None, optional
             Image(s) associated with the data (e.g. nuclei stain).
         xenium_min_qv : float or None
             Minimum quality value (Q-Score) for stored transcripts in this spot table.
@@ -264,6 +231,7 @@ class SpotTable:
         Returns
         -------
         pandas.DataFrame
+            Dataframe containg *cols* attributes from the SpotTable.
         """
         if self.pos.shape[1] == 2 and 'z' in cols: # Handle 2D data elegantly
             cols.remove('z')
@@ -275,7 +243,8 @@ class SpotTable:
         
         Returns
         -------
-        self._gene_names : numpy.ndarray
+        numpy.ndarray
+            Array of gene names corresponding to the stored gene IDs
         """
         if self._gene_names is None:
             self._gene_names = self.map_gene_ids_to_names(self.gene_ids)
@@ -408,7 +377,8 @@ class SpotTable:
         
         Returns
         -------
-        self.pos[:, 0] : numpy.ndarray
+        numpy.ndarray
+            Array of x-coordinates of the spots in the SpotTable (self.pos[:, 0])
         """
         return self.pos[:, 0]
     
@@ -429,10 +399,9 @@ class SpotTable:
         
         Returns
         -------
-        None
-            If no y-coordinates are available, returns None.
-        self.pos[:, 1] : numpy.ndarray
-            Array of y-coordinates of the spots in the SpotTable.
+        numpy.ndarray
+            Array of y-coordinates of the spots in the SpotTable (self.pos[:, 1]).
+            If no y-coordinates are available (i.e. SpotTable only has x coordinates), returns None.
         """
         if self.pos.shape[1] < 2:
             return None
@@ -458,10 +427,9 @@ class SpotTable:
         
         Returns
         -------
-        None
-            If no z-coordinates are available, returns None.
-        self.pos[:, 2] : numpy.ndarray
-            Array of z-coordinates of the spots in the SpotTable.
+        numpy.ndarray
+            Array of z-coordinates of the spots in the SpotTable (self.pos[:, 2]).
+            If no z-coordinates are available (i.e. SpotTable only has x,y coordinates), returns None.
         """
         if self.pos.shape[1] < 3:
             return None
@@ -494,12 +462,12 @@ class SpotTable:
         
         Parameters
         ----------
-        names : array
+        names : numpy.ndarray
             Array of gene names to be mapped to gene IDs.
         
         Returns
         -------
-        out : array
+        out : numpy.ndarray
             Array of gene IDs corresponding to the input gene names.
         """
         out = np.empty(len(names), dtype=self.gene_ids.dtype)
@@ -512,12 +480,12 @@ class SpotTable:
         
         Parameters
         ----------
-        ids : array
+        ids : numpy.ndarray
             Array of gene IDs to be mapped to gene names.
         
         Returns
         -------
-        out : array
+        out : numpy.ndarray
             Array of gene names corresponding to the input gene IDs.
         """
         return self.gene_id_to_name[ids]
@@ -548,7 +516,7 @@ class SpotTable:
         
         Returns
         -------
-        sub : SpotTable
+        sub : sis.spot_table.SpotTable
             A new SpotTable object containing the subset of spots and image inside the specified region.
         """
         mask = (
@@ -567,14 +535,14 @@ class SpotTable:
 
         Parameters
         ----------
-        gene_names : array or None
+        gene_names : numpy.ndarray or None
             Array of gene names to include in the subtable.
-        gene_ids : array or None
+        gene_ids : numpy.ndarray or None
             Array of gene IDs to include in the subtable.
         
         Returns
         -------
-        SpotTable
+        sis.spot_table.SpotTable
             A new SpotTable object containing only the specified genes.
         """
         inds = self.gene_indices(gene_names=gene_names, gene_ids=gene_ids)
@@ -615,7 +583,7 @@ class SpotTable:
         
         Returns
         -------
-        mask : array
+        mask : numpy.ndarray
             A boolean mask indicating which spots are in the specified z-planes.
         """
         return np.isin(self.z, [z for z in range(*z_planes)])
@@ -731,10 +699,12 @@ class SpotTable:
             
         Returns
         -------
-        (raw_data, pos, gene_names) : tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray]
-            - Raw data read from the CSV file.
-            - Positions of the spots.
-            - Gene names corresponding to the spots.
+        raw_data : numpy.ndarray
+            Raw data read from the CSV file
+        pos : numpy.ndarray
+            Positions of the spots
+        gene_names : numpy.ndarray
+            Gene names corresponding to the spots
         """
 
         # Which columns are present in csv file?
@@ -826,15 +796,14 @@ class SpotTable:
         
         Returns
         -------
-        (pos, gene_ids, gene_id_to_name, cell_ids) : tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray]
+        pos : numpy.ndarray
             Array of shape (N, 2) giving the position of each detected transcript.
+        gene_ids : numpy.ndarray
             Array of shape (N,) describing the gene detected in each transcript, as an index into *gene_id_to_name*.
+        gene_id_to_name : numpy.ndarray
             Array mapping from values in *gene_ids* to string names.
+        cell_ids : numpy.ndarray, optional
             Array of shape (N,) giving the cell ID for each detected transcript. Only included if *cell_col* is not None.
-        (pos, gene_ids, gene_id_to_name) : tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray]
-            - Array of shape (N, 2) giving the position of each detected transcript.
-            - Array of shape (N,) describing the gene detected in each transcript, as an index into *gene_id_to_name*.
-            - Array mapping from values in *gene_ids* to string names.
         """
         xyscale = 0.5  # um per unit (stereoseq spots are separated by 500 nm)
 
@@ -983,9 +952,10 @@ class SpotTable:
             
         Returns
         -------
-        (pos, gene_names) : tuple[numpy.ndarray, numpy.ndarray]
-            - Array of shape (N, 3) giving the position of each detected transcript.
-            - Array of shape (N,) giving the name of the gene detected in each transcript.
+        pos : numpy.ndarray
+            Array of shape (N, 3) giving the position of each detected transcript.
+        gene_names : numpy.ndarray
+            Array of shape (N,) giving the name of the gene detected in each transcript.
         """
         if str(transcript_file).endswith('.csv') or str(transcript_file).endswith('.csv.gz'):
             spot_dataframe = pandas.read_csv(transcript_file, nrows=max_rows)
@@ -1094,7 +1064,7 @@ class SpotTable:
         ----------
         npz_file : str
             Path to the npz file.
-        images : ImageBase or list[ImageBase] or None, optional
+        images : sis.image.ImageBase or list[sis.image.ImageBase] or None, optional
             Image(s) to attach to the SpotTable. Must be loaded separately
             since these cannot be stored in the NPZ file.
 
@@ -1123,10 +1093,12 @@ class SpotTable:
             
         Returns
         -------
-        (gene_ids, gene_to_id, id_to_gene) : tuple[numpy.ndarray, dict, numpy.ndarray]
-            - Array of gene IDs corresponding to the input gene names.
-            - Dictionary mapping from gene names to gene IDs.
-            - Array mapping from gene IDs to gene names.
+        gene_ids : numpy.ndarray
+            Array of gene IDs corresponding to the input gene names.
+        gene_to_id : dict
+            Dictionary mapping from gene names to gene IDs.
+        id_to_gene : numpy.ndarray
+            Array mapping from gene IDs to gene names.
         """
         genes = np.unique(gene_names)
         max_len = max(map(len, genes))
@@ -1153,7 +1125,7 @@ class SpotTable:
             
         Returns
         -------
-        inds : array
+        indices : numpy.ndarray
             Array of indices where the detected transcript is in either gene_names or gene_ids.
         """
         assert (gene_names is not None) != (gene_ids is not None) # must specify either gene_names XOR gene_ids
@@ -1162,12 +1134,17 @@ class SpotTable:
         return np.argwhere(np.isin(self.gene_ids, gene_ids))[:, 0]
     
     def map_indices_to_parent(self, inds: np.ndarray):
-        """Given an array of indices into this SpotTable, return a new array of indices that
+        """Given an array of indices in this SpotTable, return a new array of indices that
         select the same spots in the parent SpotTable.
+        
+        Parameters
+        ----------
+        inds : numpy.ndarray
+            Array of indices in SpotTable to be mapped to parent SpotTable.
         
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
             Array of indices into the parent SpotTable.
         """
         return self.parent_inds[inds]
@@ -1176,9 +1153,14 @@ class SpotTable:
         """Given an array of indices into the parent SpotTable, return a new array of indices that
         select the same spots in this SpotTable.
         
+        Parameters
+        ----------
+        inds : numpy.ndarray
+            Array of indices in the parent SpotTable to be mapped to this SpotTable
+        
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
             Array of indices into this SpotTable.
         """
         inv_map = {b:a for a,b in enumerate(self.parent_inds)}
@@ -1188,9 +1170,14 @@ class SpotTable:
         """Given a boolean mask that selects spots from this SpotTable, return a new boolean mask
         that selects the same spots from the parent SpotTable.
         
+        Parameters
+        ----------
+        mask : numpy.ndarray
+            Boolean mask that selects spots from this SpotTable to be mapped to the parent SpotTable.
+            
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
             Boolean mask that selects the same spots from the parent SpotTable.
         """
         parent_mask = np.zeros(len(self.parent_table), dtype=bool)
@@ -1336,7 +1323,7 @@ class SpotTable:
 
         See also: split_tiles
 
-        Paramters
+        Parameters
         ----------
         max_tile_size : int
             Maximum width and height of each tile.
@@ -1349,7 +1336,7 @@ class SpotTable:
        
         Returns
         -------
-        filter_tiles : list[SpotTables]
+        filter_tiles : list[sis.spot_table.SpotTable]
             A list of SpotTables that tile this one.
         """
         assert max_tile_size > 2 * overlap
@@ -1579,7 +1566,7 @@ class SpotTable:
         image_size : int, optional
             Height/width of the image in pixels.
         bin_size : int, optional
-                Size of each bin in um. Alternative to image_size.
+            Size of each bin in um. Alternative to image_size.
         log : bool, optional
             Whether to take the log of the binned counts.
         """
@@ -1611,7 +1598,7 @@ class SpotTable:
         
         Parameters
         ----------
-        image : ImageBase
+        image : sis.image.ImageBase
             The image to attach.
     """
         if image.name is not None and image.name in [img.name for img in self.images]:
@@ -1633,7 +1620,7 @@ class SpotTable:
             
         Returns
         -------
-        selected_img : ImageBase
+        selected_img : sis.image.ImageBase
             The image with the given name or channel name.
         """
         if name is not None:
@@ -1696,7 +1683,7 @@ class SpotTable:
 
         Returns
         -------
-        SpotTable
+        sis.spot_table.SpotTable
             A SpotTable containing the transcripts and images loaded from the spatial data object
         """
         import spatialdata as sd # Import in function so we don't throw error if spatialdata is not installed and this function is not used
@@ -1868,13 +1855,17 @@ class SegmentedSpotTable:
 
     Attributes
     ----------
-    spot_table : SpotTable
+    spot_table : sis.spot_table.SpotTable
         The spot table associated with the dataset, containing information about transcript locations and gene ids.
-    _old_cell_ids : np.ndarray or None
+    cell_polygons : dict or None
+        Polygons associated with each cell_id. Used to approximate the shapes of cells and measurements such as volume.
+    seg_metadata : dict or None
+        Metadata about segmentation, e.g. method, parameters, options. Will be saved in the cell by gene anndata uns if created.
+    _old_cell_ids : numpy.ndarray or None
         Array of old cell ids before the most recent change. Used to update polygons when cell_ids are changed
-    _cell_ids : np.ndarray
+    _cell_ids : numpy.ndarray
         Array of integer cell ids per spot
-    _cell_labels : np.ndarray or None
+    _cell_labels : numpy.ndarray or None
         Uniformly increasing cell ids stored as a string. Allows for user prefix and suffix
     _cl_to_cid : dict or None
         Dictionary mapping cell labels to cell ids
@@ -1884,19 +1875,15 @@ class SegmentedSpotTable:
         Cached information about which transcripts belong to which cells, used to speed up lookups.
     _cell_bounds : dict or None
         Cached information about cell bounds, used to speed up lookups.
-    _unique_cell_ids : np.ndarray or None
+    _unique_cell_ids : numpy.ndarray or None
         Cached information about unique cell ids, used to speed up lookups.
-    cell_polygons : dict or None
-        Polygons associated with each cell_id. Used to approximate the shapes of cells and measurements such as volume.
-    seg_metadata : dict or None
-        Metadata about segmentation, e.g. method, parameters, options. Will be saved in the cell by gene anndata uns if created.
     """
 
     def __init__(self, spot_table: SpotTable, cell_ids: np.ndarray, cell_labels: None|np.ndarray=None, cl_to_cid: None|dict=None, cid_to_cl: None|dict=None, cell_polygons: None|dict=None, seg_metadata: None|dict=None):
         """
         Parameters
         ----------
-        spot_table : SpotTable
+        spot_table : sis.spot_table.SpotTable
             The spot table associated with the dataset, containing information 
             about transcript locations and gene ids.
         cell_ids : numpy.ndarray
@@ -2039,14 +2026,12 @@ class SegmentedSpotTable:
 
     @property
     def cell_labels(self):
-        """An array of string cell labels.
+        """Cell labels are linked to cell_ids, but offer more descriptive naming possibilities. See generate_cell_labels()
         
         Returns
         -------
-        numpy.ndarray
-            Array of cell labels
-        None
-            If cell_labels have not been set
+        numpy.ndarray or None
+            Array of cell labels or None if cell_labels have not been set
         """
         return self._cell_labels
     
@@ -2093,10 +2078,9 @@ class SegmentedSpotTable:
         
         Returns
         -------
-        str 
+        str or int
             If *cell_id* is an integer, returns the cell label as a string.
-        int
-            If *cell_id* is a string, returns the cell id as an integer.
+            If *cell_id* is a string, returns the cell id as an integer.            
         """
         if self.cell_labels is None:
             raise ValueError("cell_labels must be set to use convert_cell_id()")
@@ -2182,8 +2166,8 @@ class SegmentedSpotTable:
   
     def generate_cell_labels(self, prefix: str|None=None, suffix: str|None=None):
         """Generates cell ids which count up from 1 to the total cell count rather than jumping between integers.
-            Cell labels are of type string to allow for concatenating a prefix and/or suffix to the id
-            If no prefix or suffix are specified, a UUID is used as a prefix to ensure that labels are unique
+        Cell labels are of type string to allow for concatenating a prefix and/or suffix to the id
+        If no prefix or suffix are specified, a UUID is used as a prefix to ensure that labels are unique
     
         Parameters
         ----------
@@ -2238,7 +2222,7 @@ class SegmentedSpotTable:
         
         Returns
         -------
-        filtered_table : SegmentedSpotTable
+        filtered_table : sis.spot_table.SegmentedSpotTable
             A filtered spot table containing only cells matching the filter criteria.
         """
         assert real_cells or min_spot_count, 'One of real_cells or min_spot_count must be specified'
@@ -2279,10 +2263,12 @@ class SegmentedSpotTable:
             
         Returns
         -------
-        tuple[numpy.ndarray, pandas.Index, pandas.Index]
-            - A numpy array of shape (n_cells, n_genes) containing the number of transcripts per cell.
-            - The cell ids used to construct the matrix
-            - The gene ids used to construct the matrix
+        numpy.ndarray
+            A numpy array of shape (n_cells, n_genes) containing the number of transcripts per cell.
+        pandas.Index
+            The cell ids used to construct the matrix
+        pandas.Index
+            The gene ids used to construct the matrix
         """
         filtered_table = self.filter_cells(real_cells=True) # Don't want to include unassigned transcripts
         spot_df = filtered_table.dataframe(cols=['cell_ids', 'gene_ids']).rename({'cell_ids': 'cell', 'gene_ids': 'gene'}, axis=1)
@@ -2300,10 +2286,12 @@ class SegmentedSpotTable:
             
         Returns
         -------
-        (cell_by_gene, cell_ids, gene_ids) : tuple[scipy.sparse.csr_matrix, np.ndarray, np.ndarray]
-            - A sparse matrix of shape (n_cells, n_genes) containing the number of transcripts per cell.
-            - The cell ids used to construct the matrix
-            - The gene ids used to construct the matrix
+        cell_by_gene : scipy.sparse.csr_matrix
+            A sparse matrix of shape (n_cells, n_genes) containing the number of transcripts per cell.
+        cell_ids : numpy.ndarray
+            The cell ids used to construct the matrix
+        gene_ids : numpy.ndarray
+            The gene ids used to construct the matrix
         """
         import scipy.sparse
 
@@ -2341,9 +2329,9 @@ class SegmentedSpotTable:
     def cell_by_gene_anndata(self, x_format, x_dtype='uint16', additional_obs: dict|None=None):
         """Return a cell-by-gene table in AnnData format.
         
-        Obs includes: area/volume, cell transcipt centroids, cell polygon centroids, cell labels, cell ids
-        Var includes: probe name, num cells with reads, num segmented reads, num unsegmented reads
-        Uns includes: segmentation metadata, cell polygons, and SIS version
+        - Obs includes: area/volume, cell transcipt centroids, cell polygon centroids, cell labels, cell ids
+        - Var includes: probe name, num cells with reads, num segmented reads, num unsegmented reads
+        - Uns includes: segmentation metadata, cell polygons, and SIS version
         
         Parameters
         ----------
@@ -2507,7 +2495,7 @@ class SegmentedSpotTable:
 
         Parameters
         ----------
-        cell_points : np.ndarray
+        cell_points : numpy.ndarray
             numpy array of point locations with expected columns [x,y].
         alpha_inv : float
             parameter that sets the radius filter on the Delaunay triangulation.  
@@ -2571,12 +2559,12 @@ class SegmentedSpotTable:
 
     @staticmethod
     def calculate_optimal_polygon(xy_pos, alpha_inv, alpha_inv_coeff: float=4/3):
-        """Calculate the optimal polygon for a set of points by increasing alpha_inv until a single polygon containing all points is generated
-        After the alpha_inv is decided, the alpha_inv_coeff is applied to get promote a more natural cell shape
+        """Calculate the optimal polygon for a set of points by increasing alpha_inv until a single polygon containing all points is generated.
+        After the alpha_inv is decided, the alpha_inv_coeff is applied to get promote a more natural cell shape.
         
         Parameters
         ----------
-        xy_pos : np.ndarray
+        xy_pos : numpy.ndarray
             numpy array of point locations with expected columns [x,y].
         alpha_inv : float
             parameter that sets the radius filter on the Delaunay triangulation.  
@@ -2587,10 +2575,9 @@ class SegmentedSpotTable:
         
         Returns
         -------
-        shapely.geometry.Polygon
+        shapely.geometry.Polygon or None
             The polygon which encompasses the given xy coordinate
-        None
-            If a polygon cannot be created from the given xy coordinates (e.g. if there are <= 3 points)
+            If a polygon cannot be created from the given xy coordinates (e.g. if there are <= 3 points), returns None
         """
         # Helper function to test if an alphashape is a polygon and contains all points
         def _test_polygon(points, polygon):
@@ -2626,7 +2613,7 @@ class SegmentedSpotTable:
 
 
     def calculate_cell_polygons(self, alpha_inv=1.5, separate_z_planes=True, cells_to_run: np.ndarray|None=None, alpha_inv_coeff: float=4/3, disable_tqdm=False):
-        """Calculate the cell polygons for each cell id in self.cell_ids. Add these to the self.cell_polygons dictionary
+        """Calculate the cell polygons for each cell id in self.cell_ids. Add these to the `cell_polygons` dictionary
         
         Parameters
         ----------
@@ -2635,7 +2622,7 @@ class SegmentedSpotTable:
             Traditionally alpha is defined as 1/radius, and here the function input is inverted for slightly more intuitive use
         separate_z_planes : bool, optional
             If True, calculate separate polygons for each z-plane.
-        cells_to_run : np.ndarray or None, optional
+        cells_to_run : numpy.ndarray or None, optional
             If not None, only calculate polygons for these cell ids.
         alpha_inv_coeff : float, optional
             Coefficient to apply to alpha_inv to get a more natural cell shape
@@ -2829,7 +2816,7 @@ class SegmentedSpotTable:
         ----------
         load_path : Path or str, optional
             Path to the file containing the cell polygons. Can be either '.geojson' or '.pkl'
-        cell_ids : Path or str or list or np.ndarray or None, optional [BACKWARDS COMPATIBILITY USAGE ONLY]
+        cell_ids : Path or str or list or numpy.ndarray or None, optional [BACKWARDS COMPATIBILITY USAGE ONLY]
             Path/str to .npy file containing cell ids corresponding to cell polygons for GeometryCollection
             list/np.ndarray containing cell ids corresponding to cell polygons for GeometryCollection
             Used to assign polygons to cell ids for GeometryCollection b/c it does not store IDs. 
@@ -2920,12 +2907,12 @@ class SegmentedSpotTable:
         
         Parameters
         ----------
-        cell_ids : int or str or np.ndarray
+        cell_ids : int or str or numpy.ndarray
             The cell ids (type int) or cell labels (type str) to query.
         
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
             An array of indices corresponding to the spots with the specified cell ids.
         """
         if self._cell_index is None: # Create a cache to store index info
@@ -2974,12 +2961,12 @@ class SegmentedSpotTable:
         
         Parameters
         ----------
-        cell_ids : int or str or np.ndarray
+        cell_ids : int or str or numpy.ndarray
             The cell ids (type int) or cell labels (type str) to query.
         
         Returns
         -------
-        mask : np.ndarray
+        mask : numpy.ndarray
             A boolean mask selecting spots that belong to cells in *cell_ids*.
         """
         mask = np.zeros(len(self), dtype=bool)
@@ -2998,7 +2985,7 @@ class SegmentedSpotTable:
         return mask
 
     def cell_indices_within_padding(self, padding=5.0):
-        """Return spot indices all cells that do not come within *padding* distance of the parent_region bounds.
+        """Return spot indices all cells that do not come within *padding* distance of the `parent_region` bounds.
         This is used to exclude cells near the edge of a tile, where the segmentation becomes unreliable.
         
         Parameters
@@ -3008,8 +2995,8 @@ class SegmentedSpotTable:
             
         Returns
         -------
-        include_inds : np.ndarray
-            An array of spot indices that do not come within *padding* distance of the parent_region bounds.
+        include_inds : numpy.ndarray
+            An array of spot indices that do not come within *padding* distance of the `parent_region` bounds.
         """
         tile_xlim, tile_ylim = self.parent_region
         include_xlim = (tile_xlim[0] + padding, tile_xlim[1] - padding) 
@@ -3024,7 +3011,7 @@ class SegmentedSpotTable:
         
         Parameters
         ----------
-        other : SegmentedSpotTable
+        other : sis.spot_table.SegmentedSpotTable
             The other SpotTable to merge with.
         padding : float, optional
             The padding distance.
@@ -3322,7 +3309,7 @@ class SegmentedSpotTable:
         ----------
         npz_file : str
             Path to the npz file.
-        images : ImageBase or list[ImageBase] or None, optional
+        images : sis.image.ImageBase or list[sis.image.ImageBase] or None, optional
             Image(s) to attach to the SpotTable. Must be loaded separately
             since these cannot be stored in the NPZ file.
         allow_pickle : bool, optional
@@ -3377,7 +3364,7 @@ class SegmentedSpotTable:
 
     def dataframe(self, cols=['x', 'y', 'z', 'gene_ids', 'cell_ids']):
         """Return a dataframe containing the specified columns.
-        By default, columns are x, y, z, gene_ids, and cell_ids.
+        By default, columns are `x`, `y`, `z`, `gene_ids`, and `cell_ids`.
         Also available: gene_names
         
         Parameters
@@ -3539,7 +3526,7 @@ class SegmentedSpotTable:
             
         Returns
         -------
-        SegmentedSpotTable
+        sis.spot_table.SegmentedSpotTable
             A copy of self with the specified attributes replaced.
         """
         spot_table = self.spot_table.copy(deep=deep)
@@ -3570,7 +3557,7 @@ class SegmentedSpotTable:
         
         Returns
         -------
-        seg_subtable : SegmentedSpotTable
+        seg_subtable : sis.spot_table.SegmentedSpotTable
             A SegmentedSpotTable including the subset of this table inside the region xlim, ylim.
         """
         subtable = self.spot_table.get_subregion(xlim, ylim, incl_end)
@@ -3607,7 +3594,7 @@ class SegmentedSpotTable:
             
         Returns
         -------
-        seg_subtable : SegmentedSpotTable
+        seg_subtable : sis.spot_table.SegmentedSpotTable
             A SegmentedSpotTable including the subset of this table inside the region xlim, ylim.
         """
         import scipy
@@ -3723,7 +3710,7 @@ class SegmentedSpotTable:
             The column name for cell IDs in the points data. If None, defaults to 'cell_id' or 'cell_ids'.
         seg_method : str, optional
             The segmentation method used to generate the data.
-            Sets the 'seg_method' field in SegmentedSpotTable.seg_metadata.
+            Sets the 'seg_method' field in `SegmentedSpotTable.seg_metadata`.
         use_original_cell_ids : bool, optional
             Flag indicating whether to use the spatial data's cell ID names to set cls.cell_ids
             If False, cell IDs will be reindexed to be consecutive integers starting at 1
@@ -3737,7 +3724,7 @@ class SegmentedSpotTable:
 
         Returns
         -------
-        SegmentedSpotTable
+        sis.spot_table.SegmentedSpotTable
             An instance of SegmentedSpotTable containing the loaded spatial data.
         """
         
@@ -3795,7 +3782,7 @@ class SegmentedSpotTable:
             The column name for gene features. Default is 'feature_name'.
         seg_method : str, optional
             The segmentation method used to generate the data.
-            Sets the 'seg_method' field in SegmentedSpotTable.seg_metadata.
+            Sets the 'seg_method' field in `SegmentedSpotTable.seg_metadata`.
         use_original_cell_ids : bool, optional
             Flag indicating whether to use the spatial data's cell ID names to set cls.cell_ids
             If False, cell IDs will be reindexed to be consecutive integers starting at 1
@@ -3809,7 +3796,7 @@ class SegmentedSpotTable:
 
         Returns
         -------
-        SegmentedSpotTable
+        sis.spot_table.SegmentedSpotTable
             An instance of SegmentedSpotTable containing the loaded spatial data.
         """
         
@@ -3855,7 +3842,7 @@ class SegmentedSpotTable:
             The column name for cell IDs in the points data. If None, defaults to 'cell_id' or 'cell_ids'.
         seg_method : str, optional
             The segmentation method used to generate the data.
-            Sets the 'seg_method' field in SegmentedSpotTable.seg_metadata.
+            Sets the 'seg_method' field in `SegmentedSpotTable.seg_metadata`.
         use_original_cell_ids : bool, optional
             Flag indicating whether to use the spatial data's cell ID names to set cls.cell_ids
             If False, cell IDs will be reindexed to be consecutive integers starting at 1
@@ -3866,7 +3853,7 @@ class SegmentedSpotTable:
 
         Returns
         -------
-        spot_table : SegmentedSpotTable
+        spot_table : sis.spot_table.SegmentedSpotTable
             An SegmentedSpotTable containing the loaded spot table, cell IDs, and cell polygons.
 
         Raises

@@ -31,7 +31,7 @@ class ImageBase:
         
         Returns
         ------- 
-        ImageView
+        sis.image.ImageView
             A view of this image limited to the channel
         """
         assert channel in self.channels
@@ -51,7 +51,7 @@ class ImageBase:
             
         Returns
         -------
-        ImageView
+        sis.image.ImageView
             A view of this image limited to the region
         """
         corners = np.array(region).T
@@ -66,6 +66,7 @@ class ImageBase:
         Returns
         -------
         tuple
+            (xlim, ylim) bounds of the image in spot coordinates
         """
         o = self.transform.map_from_pixels([[0, 0]])[0]
         c = self.transform.map_from_pixels([self.shape[1:3]])[0]
@@ -81,7 +82,8 @@ class ImageBase:
         
         Returns
         -------
-        ImageView
+        sis.image.ImageView
+            image limited to the given frame
         """
         if frame is None:
             return self
@@ -100,7 +102,8 @@ class ImageBase:
         
         Returns
         -------
-        ImageView
+        sis.image.ImageView
+            image limited to the given frames
         """
         if frames is None:
             return self
@@ -151,7 +154,7 @@ class ImageBase:
         
         Parameters
         ----------
-        data : np.ndarray
+        data : numpy.ndarray
             Data to show
         ax : matplotlib.axes.Axes
             Axis to show image in
@@ -184,13 +187,13 @@ class Image(ImageBase):
     
     Attributes
     ----------
-    transform : ImageTransform
+    transform : sis.image.ImageTransform
         Transformation mapping from pixel coordinates to spot coordinates
     channels : list
         List of names given to each channel (e.g.: 'dapi')
     name : str or None
         Optional unique identifier for this image
-    _data : np.ndarray
+    _data : numpy.ndarray
         4D array of image data
     """
     def __init__(self, data:np.ndarray, transform:ImageTransform, channels:list, name: str|None=None):
@@ -198,9 +201,9 @@ class Image(ImageBase):
         """
         Parameters
         ----------
-        data : np.ndarray
+        data : numpy.ndarray
             4D array of image data
-        transform : ImageTransform
+        transform : sis.image.ImageTransform
             Transformation mapping from pixel coordinates to spot coordinates
         channels : list
             List of names given to each channel (e.g.: 'dapi')
@@ -221,6 +224,7 @@ class Image(ImageBase):
         Returns
         -------
         tuple
+            This images (frames, rows, columns, channels) values
         """
         return self._data.shape
         
@@ -277,12 +281,12 @@ class ImageFile(ImageBase):
         
         Parameters
         ----------
-        img_data : np.ndarray
+        img_data : numpy.ndarray
             Image data to convert into the standard shape of (frames, rows, columns)
             
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
             Image data in standard shape
         """
         if img_data.ndim == 2:
@@ -295,7 +299,8 @@ class ImageFile(ImageBase):
         
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
+            This images (frames, rows, columns, channels) values
         """
         if self._shape is None:
             with warnings.catch_warnings():
@@ -311,12 +316,12 @@ class ImageFile(ImageBase):
         
         Parameters
         ----------
-        channel : str|None, optional
+        channel : str or None, optional
             Name of channel to return data from
     
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
         """
         index = self._get_channel_index(channel)
         with warnings.catch_warnings():
@@ -378,7 +383,7 @@ class MerscopeImageFile(ImageFile):
     ----------
     file : str
         Path to image file
-    transform : ndarray
+    transform : numpy.ndarray
         ImageTransform relating (row, col) image pixel coordinates to (x, y) spot coordinates.
     axes : list
         List of axis names giving order of axes in *file*; options are 'frame', 'row', 'col', 'channel'
@@ -395,7 +400,7 @@ class MerscopeImageFile(ImageFile):
         ----------
         file : str
             Path to image file
-        transform : ndarray
+        transform : numpy.ndarray
             ImageTransform relating (row, col) image pixel coordinates to (x, y) spot coordinates.
         axes : list
             List of axis names giving order of axes in *file*; options are 'frame', 'row', 'col', 'channel'
@@ -429,7 +434,7 @@ class MerscopeImageFile(ImageFile):
             
         Returns
         -------
-        MerscopeImageFile
+        sis.image.MerscopeImageFile
         """
         um_to_px = np.loadtxt(transform_file)[:2]
         # swizzle first and second rows so we map from (x, y) to (row,col) instead of (col,row)
@@ -455,6 +460,7 @@ class MerscopeImageFile(ImageFile):
         Returns
         -------
         numpy.ndarray
+            image data for a subregion (defined by frames, rows, and cols, NOT by spot coordinates)
         """
         index = self._get_channel_index(channel)
         win = rasterio.windows.Window(cols[0], rows[0], cols[1]-cols[0], rows[1]-rows[0])
@@ -476,7 +482,7 @@ class StereoSeqImageFile(ImageFile):
     ----------
     file : str
         Path to image file
-    transform : ndarray
+    transform : numpy.ndarray
         ImageTransform relating (row, col) image pixel coordinates to (x, y) spot coordinates.
     axes : list
         List of axis names giving order of axes in *file*; options are 'frame', 'row', 'col', 'channel'
@@ -493,7 +499,7 @@ class StereoSeqImageFile(ImageFile):
         ----------
         file : str
             Path to image file
-        transform : ndarray
+        transform : numpy.ndarray
             ImageTransform relating (row, col) image pixel coordinates to (x, y) spot coordinates.
         axes : list
             List of axis names giving order of axes in *file*; options are 'frame', 'row', 'col', 'channel'
@@ -527,7 +533,7 @@ class StereoSeqImageFile(ImageFile):
             
         Returns
         -------
-        StereoSeqImageFile
+        sis.image.StereoSeqImageFile
         """
         # values are off diagonal so we map from (x, y) to (row,col) instead of (col,row)
         # since images take (row, col) as coordinates
@@ -554,6 +560,7 @@ class StereoSeqImageFile(ImageFile):
         Returns
         -------
         numpy.ndarray
+            image data for a subregion (defined by frames, rows, and cols, NOT by spot coordinates)
         """
         index = self._get_channel_index(channel)
         win = rasterio.windows.Window(cols[0], rows[0], cols[1]-cols[0], rows[1]-rows[0])
@@ -561,142 +568,20 @@ class StereoSeqImageFile(ImageFile):
             warnings.simplefilter('ignore')
             with rasterio.open(self.file) as src:
                 return self._standard_image_shape(src.read(index, window=win))
-
-
-class ImageTransform:
-    """Transfomation mapping between (x, y) spot coordinates and (row, col) image pixels
-    
-    Attributes
-    ----------
-    matrix : np.ndarray
-        2x3 affine transformation matrix mapping from spots to pixels
-    _inverse : np.ndarray or None
-        Cached inverse of the transformation matrix
-    """
-    def __init__(self, matrix):
-        """
-        Parameters
-        ----------
-        matrix : np.ndarray
-            2x3 affine transformation matrix mapping from spots to pixels
-        """
-        self.matrix = matrix
-        assert matrix.shape == (2, 3)
-        self._inverse = None
-
-    def map_to_pixels(self, points):
-        """Map (x, y) positions to image pixels (row, col). 
-        
-        Parameters
-        ----------
-        points : np.ndarray
-            Points to map. Must be of shape (N, 2)
             
-        Returns
-        -------
-        numpy.ndarray
-        """
-        points = np.asarray(points)
-        assert points.ndim == 2
-        assert points.shape[1] == 2
-        return (self.matrix[:2, :2] @ points.T + self.matrix[:2, 2:]).T
-
-    @property
-    def inverse_matrix(self):
-        """Returns the inverse of the transformation matrix
-        
-        Returns
-        -------
-        np.ndarray
-        """
-        if self._inverse is None: # if we haven't stored inverse, calculate it
-            m3 = np.eye(3)
-            m3[:2] = self.matrix
-            self._inverse = np.linalg.inv(m3)[:2]
-        return self._inverse
-
-    def map_from_pixels(self, pixels):
-        """Map (row, col) image pixels to positions (x, y). 
-        
-        Parameters
-        ----------
-        pixels : np.ndarray
-            Pixels to map. Must be of shape (N, 2)
-            
-        Returns
-        -------
-        np.ndarray
-        """
-        pixels = np.asarray(pixels)
-        assert pixels.ndim == 2
-        assert pixels.shape[1] == 2
-        return (self.inverse_matrix[:2, :2] @ pixels.T + self.inverse_matrix[:2, 2:]).T
-
-    def translated(self, offset):
-        """Return a new transform that is translated by *offset* (where offset is expressed in pixels)
-        
-        Parameters
-        ----------
-        offset : np.ndarray
-            Offset to translate by. Must be of shape (2,)
-            
-        Returns
-        -------
-        ImageTransform
-            New transform that is translated by *offset*
-        """
-        m = self.matrix.copy()
-        m[:, 2] += offset
-        return ImageTransform(m)
-
-    @classmethod
-    def load_spatialdata_transformation(cls, transformation: sd.transformations.BaseTransformation):
-        """Load a spatial data transformation and convert it to an ImageTransform.
-
-        Parameters
-        ----------
-        cls : type
-            ImageTransformation class
-        transformation : sd.transformations.BaseTransformation
-            The transformation to be converted
-
-        Returns
-        -------
-        ImageTransform
-            conversion of the input spatialdata transformation to an ImageTransform.
-
-        Raises
-        ------
-        ValueError
-            If the input axes of the transformation are not supported (must be (x, y) or (x, y, z)).
-        """
-        from spatialdata.transformations import Affine
-        
-        if not isinstance(transformation, Affine):
-            transformation = transformation.to_affine(input_axes=('x', 'y'), output_axes=('x', 'y'))
-        
-        if transformation.input_axes == ('x', 'y'):
-            um_to_px = transformation.matrix[:2] # We only use the first 2 rows
-        elif transformation.input_axes == ('x', 'y', 'z'):
-            um_to_px = transformation.matrix[1:3][:, [0, 1, 3]] # cutting out the z row/column
-        else:
-            raise ValueError('Unsupported transformation axes. Must be (x,y) or (x,y,z)')
-        um_to_px = um_to_px[::-1] # swizzle first and second rows so we map from (x, y) to (row,col) instead of (col,row) since images take (row, col) as coordinates
-        return cls(um_to_px)
-
 class XeniumImageFile(ImageFile):
     """Represents a single image stored on disk, carrying metadata about:
-    - The file containing image data
-    - The transform that maps from pixel coordinates to spot table coordinates
-    - Which axes are which
-    - What is represented by each channel
+        - The file containing image data
+        - The transform that maps from pixel coordinates to spot table coordinates
+        - Which axes are which
+        - What is represented by each channel
     Image data are lazy-loaded so that we can handle subregions without loading the entire image
     
     Attributes
     ----------
     file : str
         Path to image file
-    transform : ndarray
+    transform : numpy.ndarray
         ImageTransform relating (row, col) image pixel coordinates to (x, y) spot coordinates.
     axes : list or None
         List of axis names giving order of axes in *file*; options are 'frame', 'row', 'col', 'channel'
@@ -707,12 +592,12 @@ class XeniumImageFile(ImageFile):
     pyramid_level : int
         Xenium images are stored as OMEs which support image pyramids. This is the level of the pyramid to load.
         This is not currently utilized anywhere, but included for potential future use.
-    _shape : tuple or None
-        Cached shape of the image, to avoid reading it from disk multiple times
-    whole_image_array : np.ndarray or None
+    whole_image_array : numpy.ndarray or None
         Cached array of the whole image data, to avoid reading it from disk multiple times
     cache_image : bool
         Xenium images are large and not memory mapped and thus we may want to keep them in memory or not. The trade off is speed vs memory.
+    _shape : tuple or None
+        Cached shape of the image, to avoid reading it from disk multiple times
     """
     
     def __init__(self, file: str, transform: ImageTransform, axes: list|None,
@@ -723,7 +608,7 @@ class XeniumImageFile(ImageFile):
         ----------
         file : str
             Path to image file
-        transform : ndarray
+        transform : numpy.ndarray
             ImageTransform relating (row, col) image pixel coordinates to (x, y) spot coordinates.
         axes : list or None
             List of axis names giving order of axes in *file*; options are 'frame', 'row', 'col', 'channel'
@@ -821,6 +706,7 @@ class XeniumImageFile(ImageFile):
         Returns
         -------
         tuple
+            (frames, rows, columns, channels) values for this image
         """
         if self._shape is None: # Caching helps speed up retrieval of shape
             with warnings.catch_warnings():
@@ -843,7 +729,7 @@ class XeniumImageFile(ImageFile):
             
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
             Image data at specified pyramid level
         """
         if pyramid_level is None:
@@ -871,7 +757,7 @@ class XeniumImageFile(ImageFile):
             first row is inclusive, last_row is exclusive
         cols : tuple
             first col is inclusive, last_col is exclusive
-        pyramid_level : int|None, optional
+        pyramid_level : int or None, optional
             Xenium images can have multiple resolutions stored in an image pyramid.
             This parameter specifies which level of the pyramid to load.
         channel : None
@@ -879,7 +765,7 @@ class XeniumImageFile(ImageFile):
             
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
             Subregion of image data
         """
         if pyramid_level is None:
@@ -901,9 +787,131 @@ class XeniumImageFile(ImageFile):
             return self.channels.index(channel) 
 
 
+class ImageTransform:
+    """Transfomation mapping between (x, y) spot coordinates and (row, col) image pixels
+    
+    Attributes
+    ----------
+    matrix : numpy.ndarray
+        2x3 affine transformation matrix mapping from spots to pixels
+    _inverse : numpy.ndarray or None
+        Cached inverse of the transformation matrix
+    """
+    def __init__(self, matrix):
+        """
+        Parameters
+        ----------
+        matrix : numpy.ndarray
+            2x3 affine transformation matrix mapping from spots to pixels
+        """
+        self.matrix = matrix
+        assert matrix.shape == (2, 3)
+        self._inverse = None
+
+    def map_to_pixels(self, points):
+        """Map (x, y) positions to image pixels (row, col). 
+        
+        Parameters
+        ----------
+        points : numpy.ndarray
+            Points to map. Must be of shape (N, 2)
+            
+        Returns
+        -------
+        numpy.ndarray
+        """
+        points = np.asarray(points)
+        assert points.ndim == 2
+        assert points.shape[1] == 2
+        return (self.matrix[:2, :2] @ points.T + self.matrix[:2, 2:]).T
+
+    @property
+    def inverse_matrix(self):
+        """Returns the inverse of the transformation matrix
+        
+        Returns
+        -------
+        numpy.ndarray
+        """
+        if self._inverse is None: # if we haven't stored inverse, calculate it
+            m3 = np.eye(3)
+            m3[:2] = self.matrix
+            self._inverse = np.linalg.inv(m3)[:2]
+        return self._inverse
+
+    def map_from_pixels(self, pixels):
+        """Map (row, col) image pixels to positions (x, y). 
+        
+        Parameters
+        ----------
+        pixels : numpy.ndarray
+            Pixels to map. Must be of shape (N, 2)
+            
+        Returns
+        -------
+        numpy.ndarray
+        """
+        pixels = np.asarray(pixels)
+        assert pixels.ndim == 2
+        assert pixels.shape[1] == 2
+        return (self.inverse_matrix[:2, :2] @ pixels.T + self.inverse_matrix[:2, 2:]).T
+
+    def translated(self, offset):
+        """Return a new transform that is translated by *offset* (where offset is expressed in pixels)
+        
+        Parameters
+        ----------
+        offset : numpy.ndarray
+            Offset to translate by. Must be of shape (2,)
+            
+        Returns
+        -------
+        sis.image.ImageTransform
+            New transform that is translated by *offset*
+        """
+        m = self.matrix.copy()
+        m[:, 2] += offset
+        return ImageTransform(m)
+
+    @classmethod
+    def load_spatialdata_transformation(cls, transformation: sd.transformations.BaseTransformation):
+        """Load a spatial data transformation and convert it to an ImageTransform.
+
+        Parameters
+        ----------
+        cls : type
+            ImageTransformation class
+        transformation : spatialdata.transformations.BaseTransformation
+            The transformation to be converted
+
+        Returns
+        -------
+        sis.image.ImageTransform
+            conversion of the input spatialdata transformation to an ImageTransform.
+
+        Raises
+        ------
+        ValueError
+            If the input axes of the transformation are not supported (must be (x, y) or (x, y, z)).
+        """
+        from spatialdata.transformations import Affine
+        
+        if not isinstance(transformation, Affine):
+            transformation = transformation.to_affine(input_axes=('x', 'y'), output_axes=('x', 'y'))
+        
+        if transformation.input_axes == ('x', 'y'):
+            um_to_px = transformation.matrix[:2] # We only use the first 2 rows
+        elif transformation.input_axes == ('x', 'y', 'z'):
+            um_to_px = transformation.matrix[1:3][:, [0, 1, 3]] # cutting out the z row/column
+        else:
+            raise ValueError('Unsupported transformation axes. Must be (x,y) or (x,y,z)')
+        um_to_px = um_to_px[::-1] # swizzle first and second rows so we map from (x, y) to (row,col) instead of (col,row) since images take (row, col) as coordinates
+        return cls(um_to_px)
+    
+    
 class ImageStack(ImageBase):
     """A stack of Image z-planes
-    Assumes images are all the same shape and evenly spaced along the z axis.
+    Assumes `images` are all the same shape and evenly spaced along the z axis.
     
     Attributes
     ----------
@@ -992,8 +1000,8 @@ class ImageStack(ImageBase):
 
         Returns
         -------
-        cls
-            An ImageStacks instance containing the loaded images.
+        sis.image.ImageStack
+            An ImageStack instance containing the loaded images.
 
         Raises
         ------
@@ -1049,6 +1057,7 @@ class ImageStack(ImageBase):
         Returns
         -------
         tuple
+            (frames, rows, columns, channels) values for this image stack
         """
         img_shape = self.images[0].shape # All images are assumed to be the same shape so we just query the first
         return (len(self.images),) + img_shape[1:] 
@@ -1060,6 +1069,7 @@ class ImageStack(ImageBase):
         Returns
         -------
         list[str]
+            channel names for the images in this stack
         """
         return self.images[0].channels # All images are assumed to be the same shape so we just query the first
 
@@ -1083,7 +1093,7 @@ class ImageStack(ImageBase):
         
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
             3D array of image data (frames, rows, columns)
         """
         def get_image_data():
@@ -1107,7 +1117,7 @@ class ImageStack(ImageBase):
             
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
             3D array of image data (frames, rows, columns)
         """
         images = self.images[frames[0]:frames[1]]
@@ -1143,7 +1153,7 @@ class ImageView(ImageBase):
     
     Attributes
     ----------
-    image : ImageBase
+    image : sis.image.ImageBase
         Image to get data from
     view_frames : tuple
         Frames to include in the view
@@ -1153,14 +1163,14 @@ class ImageView(ImageBase):
         Columns to include in the view
     view_channels : list or None
         List of channels to include in the view. If None, all channels are included.
-    transform : ImageTransform
+    transform : sis.image.ImageTransform
         Transformation mapping from pixel coordinates to spot coordinates, adjusted for the view
     """
     def __init__(self, image, frames=None, rows=None, cols=None, channels=None):
         """
         Parameters
         ----------
-        image : ImageBase
+        image : sis.image.ImageBase
             Image to get data from
         frames : tuple or None, optional
             Frames to include in the view. If None, all frames are included. (first_frame is inclusive, last_frame is exclusive)
@@ -1215,6 +1225,7 @@ class ImageView(ImageBase):
         Returns
         -------
         tuple
+            (frames, rows, columns, channels) values for this image view
         """
         shape = [
             self.view_frames[1] - self.view_frames[0],
@@ -1251,7 +1262,7 @@ class ImageView(ImageBase):
                 
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
             Subregion of image data
         """
         if channel is None and self.view_channels is not None: # If the user doesn't specify a channel but we have view_channels, then we will just pull from those
@@ -1277,7 +1288,7 @@ class ImageView(ImageBase):
         
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
             Subregion of image data
         """
         framestart = self.view_frames[0]
@@ -1395,7 +1406,7 @@ class SpatialDataImage(ImageBase):
                 
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
             Subregion of image data (frames, rows, columns)
             
         Raises
@@ -1422,7 +1433,7 @@ class SpatialDataImage(ImageBase):
         
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
             Subregion of image data
             
         Raises

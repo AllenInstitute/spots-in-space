@@ -23,14 +23,14 @@ def reduce_expression(data, umap_args):
 
     Parameters
     ----------
-    data : np.ndarray
+    data : numpy.ndarray
         The input expression data.
     umap_args : dict
         Additional UMAP arguments.
    
     Returns
     -------
-    ndarray
+    numpy.ndarray
         The reduced expression data.
     """
     import umap
@@ -75,12 +75,12 @@ def map_to_ubyte(data):
     
     Parameters
     ----------
-    data : np.ndarray
+    data : numpy.ndarray
         The input array of floats.
     
     Returns
     -------
-    np.ndarray
+    numpy.ndarray
         The mapped array with values between 0 and 255.
     """
     mn, mx = data.min(), data.max()
@@ -93,11 +93,11 @@ def rainbow_wheel(points, center=None, radius=None, center_color=None):
     
     Parameters
     ----------
-    points : np.ndarray
+    points : numpy.ndarray
         Nx2 array of point locations
-    center : np.ndarray or None, optional
+    center : numpy.ndarray or None, optional
         1x2 array of center location (default: mean of points)
-    radius : np.ndarray or None, optional
+    radius : numpy.ndarray or None, optional
         1x2 array of radius in x and y directions (default: 4 * std of points)
     center_color : tuple or None, optional
         RGB color for the center point
@@ -128,7 +128,7 @@ def show_float_rgb(data, extent, ax):
     
     Parameters
     ----------
-    data : np.ndarray
+    data : numpy.ndarray
         WxHx3 array of floats
     extent : list
         List of four floats defining the extent of the image (see matplotlib.pyplot.imshow)
@@ -197,7 +197,7 @@ def package_for_10x(anndata_object,
     
     Parameters
     ----------
-    anndata_object : AnnData
+    anndata_object : anndata.AnnData
         The input AnnData object.
     output_directory : Path
         The directory to save the output files.
@@ -212,10 +212,9 @@ def package_for_10x(anndata_object,
         
     Returns
     -------
-    pandas.DataFrame
+    pandas.DataFrame or None
         If dry_run is True, returns features_tsv DataFrame. 
-    None 
-        If dry_run is False, writes files to output_directory.
+        If dry_run is False, writes files to output_directory and returns None.
     """
     # organize some paths:
     pathlib.Path(output_directory).mkdir(exist_ok=exist_ok)
@@ -295,7 +294,7 @@ def plot_genes(spottable,  gene_list,
     
     Parameters
     ----------
-    spottable : SpotTable
+    spottable : sis.SpotTable
         The SpotTable object containing gene expression data.
     gene_list : list
         List of genes to plot.
@@ -387,9 +386,9 @@ def show_cells_and_transcripts(spottable, anndata_obj,
     """
     Parameters
     ----------
-    spottable : SpotTable
+    spottable : sis.SpotTable
         The SpotTable object containing gene expression data.
-    anndata_obj : AnnData
+    anndata_obj : anndata.AnnData
         The AnnData object containing cell annotations.
     segmentation_geopandas : geopandas.GeoDataFrame
         GeoDataFrame containing cell segmentation polygons.
@@ -405,9 +404,9 @@ def show_cells_and_transcripts(spottable, anndata_obj,
         Dictionary mapping cell annotation values to colors and linewidths.
     plot_blanks : bool, optional
         Whether to plot blank genes. Default is False.
-    loaded_image_array : np.ndarray or None, optional
+    loaded_image_array : numpy.ndarray or None, optional
         will take a 2D numpy array and use it for background. otherwise a maximum projection of image data from the SpotTable is created and used.
-    loaded_image_extent : np.ndarray or None, optional
+    loaded_image_extent : numpy.ndarray or None, optional
         Extent of the image data. If not provided, it will be calculated from the SpotTable.
     initial_figsize : list, optional
         Initial figure size for the plot. Default is [20, 20].
@@ -610,7 +609,7 @@ def plot_cbg_centroids(cell_by_gene: ad.AnnData, ax, x='x', y='y', **kwargs):
     
     Parameters
     ----------
-    cell_by_gene : AnnData
+    cell_by_gene : anndata.AnnData
         The input AnnData object.
     ax : matplotlib.axes.Axes
         Axes to plot on.
@@ -635,8 +634,10 @@ def unpack_test_data():
 
     Returns
     -------
-    Tuple[str, str]
-        A tuple containing the confirmation strings for the Xenium and Merscope test data.
+    xenium_confirmation : str
+        Confirmation string for the Xenium test data
+    merscope_confirmation : str
+        Confirmation string for the Xenium test data
     """
     SIS_DIR = pathlib.Path().absolute()
     print(SIS_DIR)
@@ -688,10 +689,9 @@ def make_cirro_compatible(cell_by_gene: ad.AnnData,obs_spatial_columns =  ['x', 
         
     Returns
     -------
-    bool 
+    bool or anndata.AnnData
         If in_place is True, modifies the input AnnData object and returns True.
-    cell_by_gene_cirro : anndata.AnnData
-        If in_place is False, returns a new AnnData object with the obsm updated to make cirrocumulus-compatible fields.
+        If in_place is False, returns a new AnnData object with the obsm updated to make cirrocumulus-compatible fields.        
     '''
     # confirm AnnData is in correct format
     if not set(obs_spatial_columns).issubset(cell_by_gene.obs.columns):
@@ -761,7 +761,7 @@ def get_cell_cmap(seg_spot_table, bg_color: str|None = None, remove_negatives: b
     
     Parameters
     ----------
-    seg_spot_table : sis.spot_table.SegmentedSpotTable
+    seg_spot_table : sis.SegmentedSpotTable
         spot table to get cell ids from
     bg_color : str or None, optional
         Color for background cells (0 and -1). If None, no black is set. Default is None.
@@ -797,7 +797,7 @@ def parse_polygon_geodataframe(gdf: gpd.GeoDataFrame, spot_table: SegmentedSpotT
 
     Parameters
     ----------
-    gdf : gpd.GeoDataFrame
+    gdf : geopandas.GeoDataFrame
         A GeoDataFrame containing polygon geometries and associated cell IDs.
     spot_table : sis.SegmentedSpotTable
         The spottable that the polygons are associated with.
