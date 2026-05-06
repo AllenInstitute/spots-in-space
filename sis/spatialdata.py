@@ -272,7 +272,7 @@ def _polygons(features: geojson.FeatureCollection,
 
     Returns
     -------
-    geo_df : GeoDataFrame
+    geo_df : geopandas.GeoDataFrame
         geopandas dataframe of polygons to add to SpatialData object.
     """
     import warnings

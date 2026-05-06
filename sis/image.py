@@ -575,6 +575,7 @@ class XeniumImageFile(ImageFile):
         - The transform that maps from pixel coordinates to spot table coordinates
         - Which axes are which
         - What is represented by each channel
+        
     Image data are lazy-loaded so that we can handle subregions without loading the entire image
     
     Attributes

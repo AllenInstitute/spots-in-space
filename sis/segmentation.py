@@ -57,62 +57,6 @@ def run_segmentation(load_func, load_args:dict, method_class, method_args:dict, 
         print(f"saved segmentated cell IDs to {cell_id_file}")
 
 
-class SegmentationResult:
-    """Base class defining a segmentation of SpotTable data--method, options, results
-        
-    Attributes
-    ----------
-    method : sis.segmentation.SegmentationMethod
-        The segmentation method used.
-    input_spot_table : sis.spot_table.SpotTable
-        The input spot table upon which segmentation was run
-    """
-    
-    def __init__(self, method: SegmentationMethod, input_spot_table: SpotTable):
-        """
-        Parameters
-        ----------
-        method : sis.segmentation.SegmentationMethod
-            The segmentation method used.
-        input_spot_table : sis.spot_table.SpotTable
-            The input spot table upon which segmentation was run
-        """
-        self.method = method
-        self.input_spot_table = input_spot_table
-
-    @property
-    def cell_ids(self):
-        """Array of segmented cell IDs for each spot in the table
-        """
-        raise NotImplementedError()        
-
-    def spot_table(self, min_spots: int|None=None):
-        """Return a SegmentedSpotTable with cell_ids determined by the segmentation.
-
-        Parameters
-        ----------
-        min_spots : int or None, optional
-            The minimum number of spots required for a cell to be considered valid. Cells with fewer spots will be assigned a cell ID of 0.
-        """
-        cell_ids = self.cell_ids
-
-        if min_spots is not None:
-            # Get rid of cells with fewer than min_spots
-            cell_ids = cell_ids.copy()
-            cids, counts = np.unique(cell_ids, return_counts=True)
-            for cid, count in zip(cids, counts):
-                if count < min_spots:
-                    mask = cell_ids == cid
-                    cell_ids[mask] = 0
-
-        return SegmentedSpotTable(self.input_spot_table, cell_ids)
-
-    def save(self, filename):
-        """Save the SegmentationResult to a pickle file.
-        """
-        pickle.dump(self, open(filename, 'wb'))
-
-
 class SegmentationMethod:
     """Base class defining segmentation methods.
 
@@ -361,6 +305,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
             - Any other string returns an image channel attached to the spot table
             - {'channel': channel, 'frame': int} can be used to select a single frame
             - {'channel': 'total_mrna', 'n_planes': int, 'frame': int, 'gauss_kernel': (1, 3, 3), 'median_kernel': (2, 10, 10)} can be ued to configure total mrna image generation
+            
         spot_table : sis.spot_table.SpotTable
             The spot table which is either used to create the image or already contains the image
         px_size : float
@@ -567,7 +512,61 @@ class CellposeSegmentationMethod(SegmentationMethod):
             
         return duplistacked_img_data
         
+class SegmentationResult:
+    """Base class defining a segmentation of SpotTable data--method, options, results
+        
+    Attributes
+    ----------
+    method : sis.segmentation.SegmentationMethod
+        The segmentation method used.
+    input_spot_table : sis.spot_table.SpotTable
+        The input spot table upon which segmentation was run
+    """
+    
+    def __init__(self, method: SegmentationMethod, input_spot_table: SpotTable):
+        """
+        Parameters
+        ----------
+        method : sis.segmentation.SegmentationMethod
+            The segmentation method used.
+        input_spot_table : sis.spot_table.SpotTable
+            The input spot table upon which segmentation was run
+        """
+        self.method = method
+        self.input_spot_table = input_spot_table
 
+    @property
+    def cell_ids(self):
+        """Array of segmented cell IDs for each spot in the table
+        """
+        raise NotImplementedError()        
+
+    def spot_table(self, min_spots: int|None=None):
+        """Return a SegmentedSpotTable with cell_ids determined by the segmentation.
+
+        Parameters
+        ----------
+        min_spots : int or None, optional
+            The minimum number of spots required for a cell to be considered valid. Cells with fewer spots will be assigned a cell ID of 0.
+        """
+        cell_ids = self.cell_ids
+
+        if min_spots is not None:
+            # Get rid of cells with fewer than min_spots
+            cell_ids = cell_ids.copy()
+            cids, counts = np.unique(cell_ids, return_counts=True)
+            for cid, count in zip(cids, counts):
+                if count < min_spots:
+                    mask = cell_ids == cid
+                    cell_ids[mask] = 0
+
+        return SegmentedSpotTable(self.input_spot_table, cell_ids)
+
+    def save(self, filename):
+        """Save the SegmentationResult to a pickle file.
+        """
+        pickle.dump(self, open(filename, 'wb'))
+        
 class CellposeSegmentationResult(SegmentationResult):
     """Class made for containing the result of running CellposeSegmentationMethod on a SpotTable
     
