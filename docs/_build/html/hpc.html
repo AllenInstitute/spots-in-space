@@ -1,0 +1,699 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>hpc &mdash; Spots-in-Space  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="spatialdata" href="spatialdata.html" />
+    <link rel="prev" title="segmentation" href="segmentation.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Spots-in-Space
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spot_table.html">spot_table</a></li>
+<li class="toctree-l1"><a class="reference internal" href="image.html">image</a></li>
+<li class="toctree-l1"><a class="reference internal" href="segmentation.html">segmentation</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">hpc</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#submitting-slurm-jobs">Submitting Slurm Jobs</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#sis.hpc.run_slurm_func"><code class="docutils literal notranslate"><span class="pre">run_slurm_func()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.hpc.run_slurm"><code class="docutils literal notranslate"><span class="pre">run_slurm()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#slurmjob">SlurmJob</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#sis.hpc.SlurmJob"><code class="docutils literal notranslate"><span class="pre">SlurmJob</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJob.args"><code class="docutils literal notranslate"><span class="pre">SlurmJob.args</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJob.sbatch_output"><code class="docutils literal notranslate"><span class="pre">SlurmJob.sbatch_output</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJob.array_id"><code class="docutils literal notranslate"><span class="pre">SlurmJob.array_id</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJob.job_array"><code class="docutils literal notranslate"><span class="pre">SlurmJob.job_array</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJob.job_file"><code class="docutils literal notranslate"><span class="pre">SlurmJob.job_file</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJob.host"><code class="docutils literal notranslate"><span class="pre">SlurmJob.host</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJob.start_time"><code class="docutils literal notranslate"><span class="pre">SlurmJob.start_time</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJob.__init__"><code class="docutils literal notranslate"><span class="pre">SlurmJob.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJob.state"><code class="docutils literal notranslate"><span class="pre">SlurmJob.state()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJob.is_done"><code class="docutils literal notranslate"><span class="pre">SlurmJob.is_done()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJob.output_file"><code class="docutils literal notranslate"><span class="pre">SlurmJob.output_file</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJob.error_file"><code class="docutils literal notranslate"><span class="pre">SlurmJob.error_file</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJob.output"><code class="docutils literal notranslate"><span class="pre">SlurmJob.output</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJob.error"><code class="docutils literal notranslate"><span class="pre">SlurmJob.error</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJob.cancel"><code class="docutils literal notranslate"><span class="pre">SlurmJob.cancel()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#slurmjobarray">SlurmJobArray</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#sis.hpc.SlurmJobArray"><code class="docutils literal notranslate"><span class="pre">SlurmJobArray</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJobArray.args"><code class="docutils literal notranslate"><span class="pre">SlurmJobArray.args</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJobArray.sbatch_output"><code class="docutils literal notranslate"><span class="pre">SlurmJobArray.sbatch_output</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJobArray.job_file"><code class="docutils literal notranslate"><span class="pre">SlurmJobArray.job_file</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJobArray.host"><code class="docutils literal notranslate"><span class="pre">SlurmJobArray.host</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJobArray.job_id"><code class="docutils literal notranslate"><span class="pre">SlurmJobArray.job_id</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJobArray.jobs"><code class="docutils literal notranslate"><span class="pre">SlurmJobArray.jobs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJobArray.__init__"><code class="docutils literal notranslate"><span class="pre">SlurmJobArray.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJobArray.state"><code class="docutils literal notranslate"><span class="pre">SlurmJobArray.state()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJobArray.is_done"><code class="docutils literal notranslate"><span class="pre">SlurmJobArray.is_done()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJobArray.cancel"><code class="docutils literal notranslate"><span class="pre">SlurmJobArray.cancel()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJobArray.finished_jobs"><code class="docutils literal notranslate"><span class="pre">SlurmJobArray.finished_jobs()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJobArray.unfinished_jobs"><code class="docutils literal notranslate"><span class="pre">SlurmJobArray.unfinished_jobs()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJobArray.wait_iter"><code class="docutils literal notranslate"><span class="pre">SlurmJobArray.wait_iter()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.SlurmJobArray.state_counts"><code class="docutils literal notranslate"><span class="pre">SlurmJobArray.state_counts()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#jobstate">JobState</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#sis.hpc.JobState"><code class="docutils literal notranslate"><span class="pre">JobState</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.JobState.state"><code class="docutils literal notranslate"><span class="pre">JobState.state</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.JobState.state_code"><code class="docutils literal notranslate"><span class="pre">JobState.state_code</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.JobState.description"><code class="docutils literal notranslate"><span class="pre">JobState.description</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.JobState.is_done"><code class="docutils literal notranslate"><span class="pre">JobState.is_done</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.JobState.state_codes"><code class="docutils literal notranslate"><span class="pre">JobState.state_codes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.JobState.state_descriptions"><code class="docutils literal notranslate"><span class="pre">JobState.state_descriptions</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.JobState.state_to_code"><code class="docutils literal notranslate"><span class="pre">JobState.state_to_code</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.hpc.JobState.__init__"><code class="docutils literal notranslate"><span class="pre">JobState.__init__()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="spatialdata.html">spatialdata</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Spots-in-Space</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">hpc</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/hpc.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="hpc">
+<h1>hpc<a class="headerlink" href="#hpc" title="Link to this heading"></a></h1>
+<section id="submitting-slurm-jobs">
+<h2>Submitting Slurm Jobs<a class="headerlink" href="#submitting-slurm-jobs" title="Link to this heading"></a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="sis.hpc.run_slurm_func">
+<span class="sig-prename descclassname"><span class="pre">sis.hpc.</span></span><span class="sig-name descname"><span class="pre">run_slurm_func</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">run_spec</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">conda_env</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwds</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.hpc.run_slurm_func" title="Link to this definition"></a></dt>
+<dd><p>Run a function on SLURM.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>run_spec</strong> (<em>tuple</em><em> or </em><em>dict</em>) – Either a tuple containing (func, args, kwargs) to be called in SLURM jobs, or a dict
+where the keys are array job IDs and the values are (func, args, kwargs) tuples.</p></li>
+<li><p><strong>conda_env</strong> (<em>str</em>) – Conda envronment from which to run <em>func</em></p></li>
+<li><p><strong>**kwds</strong> – All other keyword arguments are passed to run_slurm().</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="sis.hpc.run_slurm">
+<span class="sig-prename descclassname"><span class="pre">sis.hpc.</span></span><span class="sig-name descname"><span class="pre">run_slurm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">hpc_host</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">job_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">partition</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">job_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nodes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ntasks</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">array</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mincpus</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gpus_per_node</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mem</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">command</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mail_user</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mail_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'END,FAIL'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">error</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">job_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.hpc.run_slurm" title="Link to this definition"></a></dt>
+<dd><p>Call sbatch (locally or over ssh) and return a SlurmJob instance.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>hpc_host</strong> (<em>str</em>) – Host to call sbatch from. If not ‘localhost’, then commands are executed
+on <em>hpc_host</em> via ssh.</p></li>
+<li><p><strong>job_path</strong> (<em>str</em>) – Location to write slurm script file and output/error logs.
+Must be accessible from <em>hpc_host</em>.</p></li>
+<li><p><strong>partition</strong> (<em>str</em>) – SLURM partition to allocate job</p></li>
+<li><p><strong>job_name</strong> (<em>str</em>) – SLURM job name. This is also used to set default file names for the sbatch script,
+output log, and error log.</p></li>
+<li><p><strong>nodes</strong> (<em>int</em>) – Number of nodes to request</p></li>
+<li><p><strong>ntasks</strong> (<em>int</em>) – Number of tasks to launch per job.
+(Use multiple tasks when all must be scheduled to start simultaneously)</p></li>
+<li><p><strong>array</strong> (<em>str</em><em> or </em><em>None</em>) – Use array=”A-B” where A and B are the first and last index to start multiple,
+independent jobs. The output/error file names may include “%a” to reference the
+array index, and the command may use $SLURM_ARRAY_TASK_ID.</p></li>
+<li><p><strong>mincpus</strong> (<em>int</em><em> or </em><em>None</em>) – Minimum CPUs per node</p></li>
+<li><p><strong>gpus_per_node</strong> (<em>int</em><em> or </em><em>str</em><em> or </em><em>None</em>) – GPUs per node</p></li>
+<li><p><strong>mem</strong> (<em>str</em>) – Maximum memory to allocate per job (e.g. ‘100G’)</p></li>
+<li><p><strong>time</strong> (<em>str</em>) – Maximum job time (e.g. “4:00:00”)</p></li>
+<li><p><strong>command</strong> (<em>str</em>) – Command to run per job (e.g. “srun mycommand $SLURM_ARRAY_TASK_ID”)</p></li>
+<li><p><strong>mail_user</strong> (<em>str</em><em> or </em><em>None</em>) – Optional email address to notify upon completion</p></li>
+<li><p><strong>mail_type</strong> (<em>str</em>) – Events on which to send email (default=’END,FAIL’)</p></li>
+<li><p><strong>output</strong> (<em>str</em><em> or </em><em>None</em>) – Optional location of file to store command output (default is in job_path
+with automatically chosen name)</p></li>
+<li><p><strong>error</strong> (<em>str</em><em> or </em><em>None</em>) – Optional location of file to store error output (default is in job_path
+with automatically chosen name)</p></li>
+<li><p><strong>job_file</strong> (<em>str</em><em> or </em><em>None</em>) – Optional location to store sbatch script (default is in job_path
+with automatically chosen name)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>If no array is specified, returns a SlurmJob instance. Otherwise returns a SlurmJobArray instance</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#sis.hpc.SlurmJob" title="sis.hpc.SlurmJob">SlurmJob</a> or <a class="reference internal" href="#sis.hpc.SlurmJobArray" title="sis.hpc.SlurmJobArray">SlurmJobArray</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="slurmjob">
+<h2>SlurmJob<a class="headerlink" href="#slurmjob" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJob">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">sis.hpc.</span></span><span class="sig-name descname"><span class="pre">SlurmJob</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sbatch_output</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">job_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">host</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">array_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">job_array</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.hpc.SlurmJob" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Class representing a single SLURM job</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJob.args">
+<span class="sig-name descname"><span class="pre">args</span></span><a class="headerlink" href="#sis.hpc.SlurmJob.args" title="Link to this definition"></a></dt>
+<dd><p>Arguments used to create this job</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJob.sbatch_output">
+<span class="sig-name descname"><span class="pre">sbatch_output</span></span><a class="headerlink" href="#sis.hpc.SlurmJob.sbatch_output" title="Link to this definition"></a></dt>
+<dd><p>Output from sbatch command</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJob.array_id">
+<span class="sig-name descname"><span class="pre">array_id</span></span><a class="headerlink" href="#sis.hpc.SlurmJob.array_id" title="Link to this definition"></a></dt>
+<dd><p>Array index for this job (None if not an array job)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int or None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJob.job_array">
+<span class="sig-name descname"><span class="pre">job_array</span></span><a class="headerlink" href="#sis.hpc.SlurmJob.job_array" title="Link to this definition"></a></dt>
+<dd><p>SlurmJobArray instance if this is part of an array job, otherwise None</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#sis.hpc.SlurmJobArray" title="sis.hpc.SlurmJobArray">SlurmJobArray</a> or None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJob.job_file">
+<span class="sig-name descname"><span class="pre">job_file</span></span><a class="headerlink" href="#sis.hpc.SlurmJob.job_file" title="Link to this definition"></a></dt>
+<dd><p>Location of the sbatch script file</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJob.host">
+<span class="sig-name descname"><span class="pre">host</span></span><a class="headerlink" href="#sis.hpc.SlurmJob.host" title="Link to this definition"></a></dt>
+<dd><p>Host on which the job was submitted</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJob.start_time">
+<span class="sig-name descname"><span class="pre">start_time</span></span><a class="headerlink" href="#sis.hpc.SlurmJob.start_time" title="Link to this definition"></a></dt>
+<dd><p>Time at which the job was started</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>time.struct_time</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJob.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sbatch_output</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">job_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">host</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">array_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">job_array</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.hpc.SlurmJob.__init__" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>args</strong> (<em>dict</em>) – Arguments used to create this job</p></li>
+<li><p><strong>sbatch_output</strong> (<em>str</em>) – Output from sbatch command</p></li>
+<li><p><strong>job_file</strong> (<em>str</em>) – Location of the sbatch script file</p></li>
+<li><p><strong>host</strong> (<em>str</em>) – Host on which the job was submitted</p></li>
+<li><p><strong>array_id</strong> (<em>int</em><em> or </em><em>None</em>) – Array index for this job (None if not an array job)</p></li>
+<li><p><strong>job_array</strong> (<a class="reference internal" href="#sis.hpc.SlurmJobArray" title="sis.hpc.SlurmJobArray"><em>SlurmJobArray</em></a><em> or </em><em>None</em>) – SlurmJobArray instance if this is part of an array job, otherwise None</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJob.state">
+<span class="sig-name descname"><span class="pre">state</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.hpc.SlurmJob.state" title="Link to this definition"></a></dt>
+<dd><p>Return the state code for this job in the form of the JobState class.
+Which contains the state, state code, description, and whether the job is done</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>An instance of JobState representing the state of this job</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#sis.hpc.JobState" title="sis.hpc.JobState">JobState</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJob.is_done">
+<span class="sig-name descname"><span class="pre">is_done</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.hpc.SlurmJob.is_done" title="Link to this definition"></a></dt>
+<dd><p>Returns True if a job is done</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>True if the job is done (either completed, failed, or cancelled)</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJob.output_file">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">output_file</span></span><a class="headerlink" href="#sis.hpc.SlurmJob.output_file" title="Link to this definition"></a></dt>
+<dd><p>Returns the output file name for this job</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The output file name for this job, with any %j, %A, or %a replaced with the job ID, base job ID, or array ID</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJob.error_file">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">error_file</span></span><a class="headerlink" href="#sis.hpc.SlurmJob.error_file" title="Link to this definition"></a></dt>
+<dd><p>Returns the error file name for this job</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The error file name for this job, with any %j, %A, or %a replaced with the job ID, base job ID, or array ID</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJob.output">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">output</span></span><a class="headerlink" href="#sis.hpc.SlurmJob.output" title="Link to this definition"></a></dt>
+<dd><p>Returns the contents of the output file for this job</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJob.error">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">error</span></span><a class="headerlink" href="#sis.hpc.SlurmJob.error" title="Link to this definition"></a></dt>
+<dd><p>Returns the contents of the error file for this job</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJob.cancel">
+<span class="sig-name descname"><span class="pre">cancel</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.hpc.SlurmJob.cancel" title="Link to this definition"></a></dt>
+<dd><p>Cancels the job python subprocess to directly invoke SLURM’s scancel</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="slurmjobarray">
+<h2>SlurmJobArray<a class="headerlink" href="#slurmjobarray" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJobArray">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">sis.hpc.</span></span><span class="sig-name descname"><span class="pre">SlurmJobArray</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sbatch_output</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">job_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">host</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.hpc.SlurmJobArray" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#sis.hpc.SlurmJob" title="sis.hpc.SlurmJob"><code class="xref py py-class docutils literal notranslate"><span class="pre">SlurmJob</span></code></a></p>
+<p>Class representing a SLURM job array with a list of SlurmJob instances</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJobArray.args">
+<span class="sig-name descname"><span class="pre">args</span></span><a class="headerlink" href="#sis.hpc.SlurmJobArray.args" title="Link to this definition"></a></dt>
+<dd><p>Arguments used to create this job</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJobArray.sbatch_output">
+<span class="sig-name descname"><span class="pre">sbatch_output</span></span><a class="headerlink" href="#sis.hpc.SlurmJobArray.sbatch_output" title="Link to this definition"></a></dt>
+<dd><p>Output from sbatch command</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJobArray.job_file">
+<span class="sig-name descname"><span class="pre">job_file</span></span><a class="headerlink" href="#sis.hpc.SlurmJobArray.job_file" title="Link to this definition"></a></dt>
+<dd><p>Location of the sbatch script file</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJobArray.host">
+<span class="sig-name descname"><span class="pre">host</span></span><a class="headerlink" href="#sis.hpc.SlurmJobArray.host" title="Link to this definition"></a></dt>
+<dd><p>Host on which the job was submitted</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJobArray.job_id">
+<span class="sig-name descname"><span class="pre">job_id</span></span><a class="headerlink" href="#sis.hpc.SlurmJobArray.job_id" title="Link to this definition"></a></dt>
+<dd><p>Job ID of the job array</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJobArray.jobs">
+<span class="sig-name descname"><span class="pre">jobs</span></span><a class="headerlink" href="#sis.hpc.SlurmJobArray.jobs" title="Link to this definition"></a></dt>
+<dd><p>List of SlurmJob instances representing each job in the array</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list[<a class="reference internal" href="#sis.hpc.SlurmJob" title="sis.hpc.SlurmJob">SlurmJob</a>]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJobArray.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sbatch_output</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">job_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">host</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.hpc.SlurmJobArray.__init__" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>args</strong> (<em>dict</em>) – Arguments used to create this job</p></li>
+<li><p><strong>sbatch_output</strong> (<em>str</em>) – Output from sbatch command</p></li>
+<li><p><strong>job_file</strong> (<em>str</em>) – Location of the sbatch script file</p></li>
+<li><p><strong>host</strong> (<em>str</em>) – Host on which the job was submitted</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJobArray.state">
+<span class="sig-name descname"><span class="pre">state</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.hpc.SlurmJobArray.state" title="Link to this definition"></a></dt>
+<dd><p>Return a dictionary mapping job IDs to JobStates for every job in the array</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>job state for every job in the array</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJobArray.is_done">
+<span class="sig-name descname"><span class="pre">is_done</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.hpc.SlurmJobArray.is_done" title="Link to this definition"></a></dt>
+<dd><p>Returns True if all jobs in the array are done (either completed, failed, or cancelled)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJobArray.cancel">
+<span class="sig-name descname"><span class="pre">cancel</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.hpc.SlurmJobArray.cancel" title="Link to this definition"></a></dt>
+<dd><p>Cancels all jobs in the job array</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJobArray.finished_jobs">
+<span class="sig-name descname"><span class="pre">finished_jobs</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.hpc.SlurmJobArray.finished_jobs" title="Link to this definition"></a></dt>
+<dd><p>Returns a list of all finished jobs in the array (type=list[SlurmJob])</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>List of SlurmJob instances that are done (either completed, failed, or cancelled)</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>list[<a class="reference internal" href="#sis.hpc.SlurmJob" title="sis.hpc.SlurmJob">SlurmJob</a>]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJobArray.unfinished_jobs">
+<span class="sig-name descname"><span class="pre">unfinished_jobs</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.hpc.SlurmJobArray.unfinished_jobs" title="Link to this definition"></a></dt>
+<dd><p>Returns a list of all unfinished jobs in the array (type=list[SlurmJob])</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>List of SlurmJob instances that are not done</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>list[<a class="reference internal" href="#sis.hpc.SlurmJob" title="sis.hpc.SlurmJob">SlurmJob</a>]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJobArray.wait_iter">
+<span class="sig-name descname"><span class="pre">wait_iter</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.hpc.SlurmJobArray.wait_iter" title="Link to this definition"></a></dt>
+<dd><p>Iterator that returns jobs as they finish and does not finish until all jobs are done</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.hpc.SlurmJobArray.state_counts">
+<span class="sig-name descname"><span class="pre">state_counts</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.hpc.SlurmJobArray.state_counts" title="Link to this definition"></a></dt>
+<dd><p>Returns a dictionary mapping state codes to counts of jobs in that state</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>e.g. {‘R’: 5, ‘PD’: 3, …}</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="jobstate">
+<h2>JobState<a class="headerlink" href="#jobstate" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="sis.hpc.JobState">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">sis.hpc.</span></span><span class="sig-name descname"><span class="pre">JobState</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state_code</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.hpc.JobState" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Class representing the state of a SLURM job.
+One of state_code or state must be provided and the other is derived.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.hpc.JobState.state">
+<span class="sig-name descname"><span class="pre">state</span></span><a class="headerlink" href="#sis.hpc.JobState.state" title="Link to this definition"></a></dt>
+<dd><p>SLURM state (e.g. ‘RUNNING’)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.hpc.JobState.state_code">
+<span class="sig-name descname"><span class="pre">state_code</span></span><a class="headerlink" href="#sis.hpc.JobState.state_code" title="Link to this definition"></a></dt>
+<dd><p>SLURM state code (e.g. ‘R’ for running)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.hpc.JobState.description">
+<span class="sig-name descname"><span class="pre">description</span></span><a class="headerlink" href="#sis.hpc.JobState.description" title="Link to this definition"></a></dt>
+<dd><p>Description of the state (e.g. ‘Job currently has an allocation.’)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.hpc.JobState.is_done">
+<span class="sig-name descname"><span class="pre">is_done</span></span><a class="headerlink" href="#sis.hpc.JobState.is_done" title="Link to this definition"></a></dt>
+<dd><p>True if the job is done (either completed, failed, or cancelled)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.hpc.JobState.state_codes">
+<span class="sig-name descname"><span class="pre">state_codes</span></span><a class="headerlink" href="#sis.hpc.JobState.state_codes" title="Link to this definition"></a></dt>
+<dd><p>Dictionary containing all information about jobs. Maps state codes to full names and descriptions</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.hpc.JobState.state_descriptions">
+<span class="sig-name descname"><span class="pre">state_descriptions</span></span><a class="headerlink" href="#sis.hpc.JobState.state_descriptions" title="Link to this definition"></a></dt>
+<dd><p>Dictionary mapping job state names to their descriptions</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.hpc.JobState.state_to_code">
+<span class="sig-name descname"><span class="pre">state_to_code</span></span><a class="headerlink" href="#sis.hpc.JobState.state_to_code" title="Link to this definition"></a></dt>
+<dd><p>Dictionary mapping job state names to their state codes</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.hpc.JobState.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state_code</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.hpc.JobState.__init__" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state_code</strong> (<em>str</em><em> or </em><em>None</em>) – SLURM state code (e.g. ‘R’ for running)</p></li>
+<li><p><strong>state</strong> (<em>str</em><em> or </em><em>None</em>) – SLURM state (e.g. ‘RUNNING’)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="segmentation.html" class="btn btn-neutral float-left" title="segmentation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="spatialdata.html" class="btn btn-neutral float-right" title="spatialdata" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Jacob Quon, Madeleine Hewitt, Luke Campagnola, Stephanie Seeman, Brian Long, Emily Gelfand, Meghan Turner, Michael Kunst.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
