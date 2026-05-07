@@ -184,7 +184,10 @@ class Image(ImageBase):
     """An Image defined by 4D numpy array (frames, rows, cols, channels).
     
     Carries metadata about pixel transform and channel identity.
-    
+                  
+    .. rubric:: Attributes
+    .. raw:: html
+             
     Attributes
     ----------
     transform : sis.image.ImageTransform
@@ -372,13 +375,17 @@ class ImageFile(ImageBase):
 
 class MerscopeImageFile(ImageFile):
     """Represents a single image stored on disk, carrying metadata about:
-        - The file containing image data
-        - The transform that maps from pixel coordinates to spot table coordinates
-        - Which axes are which
-        - What is represented by each channel
+   
+    - The file containing image data
+    - The transform that maps from pixel coordinates to spot table coordinates
+    - Which axes are which
+    - What is represented by each channel
 
     Image data are lazy-loaded so that we can handle subregions without loading the entire image
-    
+              
+    .. rubric:: Attributes
+    .. raw:: html
+                
     Attributes
     ----------
     file : str
@@ -471,13 +478,17 @@ class MerscopeImageFile(ImageFile):
 
 class StereoSeqImageFile(ImageFile):
     """Represents a single image stored on disk, carrying metadata about:
-        - The file containing image data
-        - The transform that maps from pixel coordinates to spot table coordinates
-        - Which axes are which
-        - What is represented by each channel
+    
+    - The file containing image data
+    - The transform that maps from pixel coordinates to spot table coordinates
+    - Which axes are which
+    - What is represented by each channel
 
     Image data are lazy-loaded so that we can handle subregions without loading the entire image
-    
+                  
+    .. rubric:: Attributes
+    .. raw:: html
+             
     Attributes
     ----------
     file : str
@@ -571,13 +582,17 @@ class StereoSeqImageFile(ImageFile):
             
 class XeniumImageFile(ImageFile):
     """Represents a single image stored on disk, carrying metadata about:
-        - The file containing image data
-        - The transform that maps from pixel coordinates to spot table coordinates
-        - Which axes are which
-        - What is represented by each channel
+   
+    - The file containing image data
+    - The transform that maps from pixel coordinates to spot table coordinates
+    - Which axes are which
+    - What is represented by each channel
         
     Image data are lazy-loaded so that we can handle subregions without loading the entire image
-    
+                  
+    .. rubric:: Attributes
+    .. raw:: html
+             
     Attributes
     ----------
     file : str
@@ -790,7 +805,10 @@ class XeniumImageFile(ImageFile):
 
 class ImageTransform:
     """Transfomation mapping between (x, y) spot coordinates and (row, col) image pixels
-    
+                  
+    .. rubric:: Attributes
+    .. raw:: html
+             
     Attributes
     ----------
     matrix : numpy.ndarray
@@ -913,7 +931,10 @@ class ImageTransform:
 class ImageStack(ImageBase):
     """A stack of Image z-planes
     Assumes `images` are all the same shape and evenly spaced along the z axis.
-    
+                  
+    .. rubric:: Attributes
+    .. raw:: html
+             
     Attributes
     ----------
     images : list
@@ -1151,7 +1172,10 @@ class ImageView(ImageBase):
     """Represents a subset of data from an Image (a rectangular subregion or subset of channels)
     Tracking the view of the image along with the image allows us to serve up subregions accurately when loading images from disk
     (since we can't just store the subimaged data array in memory) 
-    
+                  
+    .. rubric:: Attributes
+    .. raw:: html
+             
     Attributes
     ----------
     image : sis.image.ImageBase
@@ -1309,7 +1333,10 @@ class ImageView(ImageBase):
 class SpatialDataImage(ImageBase):
     """Class for handling spatialdata images within SIS
     The data input is an xarray DataArray
-    
+                  
+    .. rubric:: Attributes
+    .. raw:: html
+             
     Attributes
     ----------
     transform : callable

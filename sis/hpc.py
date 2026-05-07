@@ -169,6 +169,9 @@ def run_slurm(*,
 
 class SlurmJob:
     """Class representing a single SLURM job
+      
+    .. rubric:: Attributes
+    .. raw:: html  
     
     Attributes
     ----------
@@ -315,7 +318,10 @@ class SlurmJob:
 
 class SlurmJobArray(SlurmJob):
     """Class representing a SLURM job array with a list of SlurmJob instances
-    
+                  
+    .. rubric:: Attributes
+    .. raw:: html
+             
     Attributes
     ----------
     args : dict
@@ -443,7 +449,10 @@ class SlurmJobArray(SlurmJob):
 class JobState:
     """Class representing the state of a SLURM job. 
     One of state_code or state must be provided and the other is derived.
-    
+                  
+    .. rubric:: Attributes
+    .. raw:: html
+             
     Attributes
     ----------
     state : str

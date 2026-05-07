@@ -62,7 +62,10 @@ class SegmentationMethod:
 
     Subclasses should initialize with a dictionary of options, then calling
     run(spot_table) will execute the segmentation method and return a SegmentationResult.
-    
+                  
+    .. rubric:: Attributes
+    .. raw:: html
+             
     Attributes
     ----------
     options : dict
@@ -109,29 +112,63 @@ class CellposeSegmentationMethod(SegmentationMethod):
 
     Will automatically segment from images attached to the SpotTable or
     generate an image from total mRNA.
-        
+                      
+    .. rubric:: Attributes
+    .. raw:: html
+             
     Attributes
     ----------
     options : dict
-        The options for the segmentation method. (example detailed above)
+        The options for the segmentation method. 
         
-        options = {
-            'region': ((xmin, xmax), (ymin, ymax)),  # or None for whole table
+        - region : tuple or str or None
+            The region to segment. Can be any of the following:
             
-            'cellpose_model': 'cyto2',
+            - Tuple of ((xmin, xmax), (ymin, ymax)) for a subregion
+            - String for an image channel in the spot table to use as bounds (e.g. 'DAPI')
+            - None to use the full bounds of the spot table.
+        - cellpose_model : str
+            The cellpose model to use. Can be any of the following:
             
-            'images': { 'nuclei': 'DAPI', 'cyto': 'total_mrna' },
+            - Path to a custom model file
+            - String for a pretrained model (e.g. 'cyto2')
+        - cellpose_gpu : bool or 'auto'
+            Whether to use GPU for cellpose segmentation. If 'auto', will use GPU if available.
+        - px_size : float
+            The size of pixels in the image in microns (i.e. the um / px value of your image).
+        - cell_dia : float or None
+            The estimated diameter of your cells in microns
+        - z_plane_thickness : float
+            The distance between z planes in microns (only used if segmenting in 3D)
+        - images : dict[str, dict]
+            The images channels to use for segmentation. Only supports 'nuclei' and 'cyto'
+            Values should be dictionaries with a channel key and optionally frames or frame key to specify which frames to use.
             
-            'px_size': 0.108,          # um / px
-            
-            'cell_dia': 10,            # um
-            
-            'z_plane_thickness': 1.5,  # um
-            
-            'cellpose_options': { 'gpu': True, 'batch_size': 8 },
-            
-            'dilate': 0,  # um - dilate segmentation after cellpose has finished
-        }
+            - channel should be a string corresponding to an image channel in the spot table, or 'total_mrna' to generate an image from spot density.
+            - n_planes must be used in conjunction with 'total_mrna' to specify the total number of z planes in the image channel
+            - frames should be a tuple of the first (inclusive) and last (exclusive) indices of the frames e.g. frames=(2,5) would create an image from z planes 2, 3, and 4.
+            - frame can be used instead of frames if only one frame is needed, and should be an int corresponding to the index of the frame to use.
+            - if neither frame nor frames is specified, all frames are used
+        - cellpose_options : dict
+            Dictionary of options to pass to cellpose. See https://cellpose.readthedocs.io/en/latest/api.html#cellpose.models.CellposeModel.eval for more details.
+        
+        Example::
+
+            options = {
+                'region': ((2000, 3000), (2000, 3000)), 
+                'cellpose_model': '/path/to/model', 
+                'cellpose_gpu': 'auto',
+                'px_size': 0.108,
+                'cell_dia': 10, 
+                'z_plane_thickness': 1.5,
+                'images': {
+                    'nuclei': {'channel': 'DAPI', 'frames': (2,5)},
+                    'cyto': {'channel': 'total_mrna', 'n_planes': 7, 'frames': (2,5)}
+                }, 
+                'cellpose_options': {
+                    'batch_size': 8,
+                }
+            }
     """
     
     def __init__(self, options):
@@ -514,7 +551,10 @@ class CellposeSegmentationMethod(SegmentationMethod):
         
 class SegmentationResult:
     """Base class defining a segmentation of SpotTable data--method, options, results
-        
+                      
+    .. rubric:: Attributes
+    .. raw:: html
+             
     Attributes
     ----------
     method : sis.segmentation.SegmentationMethod
@@ -569,7 +609,10 @@ class SegmentationResult:
         
 class CellposeSegmentationResult(SegmentationResult):
     """Class made for containing the result of running CellposeSegmentationMethod on a SpotTable
-    
+                  
+    .. rubric:: Attributes
+    .. raw:: html
+             
     Attributes
     ----------
     method : sis.segmentation.SegmentationMethod
@@ -745,7 +788,10 @@ class SegmentationPipeline:
     are not changed by the user. If you change them, be warned that the 
     metadata dictionary and spot table subregion may become outdated if the 
     appropriate methods are not called afterward.
-    
+                  
+    .. rubric:: Attributes
+    .. raw:: html
+             
     Attributes
     ----------
     image_path : Path or str
@@ -1890,7 +1936,10 @@ class SegmentationPipeline:
 
 class MerscopeSegmentationPipeline(SegmentationPipeline):
     """Class for running segmentation on Merscope data.
-    
+                  
+    .. rubric:: Attributes
+    .. raw:: html
+             
     Attributes
     ----------
     See sis.segmentation.SegmentationPipeline for inherited attributes.
@@ -1952,7 +2001,10 @@ class MerscopeSegmentationPipeline(SegmentationPipeline):
 
 class StereoSeqSegmentationPipeline(SegmentationPipeline):
     """Class for running segmentation on StereoSeq data.
-    
+                  
+    .. rubric:: Attributes
+    .. raw:: html
+             
     Attributes
     ----------
     See sis.segmentation.SegmentationPipeline for inherited attributes.
@@ -2014,7 +2066,10 @@ class StereoSeqSegmentationPipeline(SegmentationPipeline):
 
 class XeniumSegmentationPipeline(SegmentationPipeline):
     """Class for running segmentation on Xenium data.
-    
+                  
+    .. rubric:: Attributes
+    .. raw:: html
+             
     Attributes
     ----------
     See sis.segmentation.SegmentationPipeline for inherited attributes.
