@@ -2,7 +2,7 @@ Installation
 ============
 ------------
 
-To use Spots in Space, you need to have Python 3.10 or higher installed. Additionally, we recommend using conda to create a new environment in which SIS can be installed with no conflicts.
+To use Spots in Space, you need to have Python 3.12 or higher installed. Additionally, we recommend using conda to create a new environment in which SIS can be installed with no conflicts.
 
 .. code-block:: console
 
