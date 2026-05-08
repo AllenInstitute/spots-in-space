@@ -1,6 +1,7 @@
 from __future__ import annotations
 import warnings
 import os, glob, re
+from abc import abstractmethod
 import numpy as np
 from .optional_import import optional_import
 rasterio = optional_import('rasterio')
@@ -18,7 +19,42 @@ class ImageBase:
         """
         raise NotImplementedError()
 
+    @abstractmethod
     def get_data(self, channel=None):
+        """Return array of image data.
+        
+        Parameters
+        ----------
+        channel : str or None, optional
+            Name of channel to return data from
+                
+        Returns
+        -------
+        numpy.ndarray
+            Subregion of image data
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_sub_data(self, frames: tuple, rows: tuple, cols: tuple, channel: str|None=None):
+        """Get image data for a subregion (defined by frames, rows, and cols, NOT by spot coordinates)
+        
+        Parameters
+        ----------
+        frames : tuple
+            first frame is inclusive, last_frame is exclusive
+        rows : tuple
+            first row is inclusive, last_row is exclusive
+        cols : tuple
+            first col is inclusive, last_col is exclusive
+        channel : str or None, optional
+            Name of channel to return data from      
+            
+        Returns
+        -------
+        numpy.ndarray
+            3D array of image data (frames, rows, columns)
+        """
         raise NotImplementedError()
 
     def get_channel(self, channel: str):
@@ -200,7 +236,6 @@ class Image(ImageBase):
         4D array of image data
     """
     def __init__(self, data:np.ndarray, transform:ImageTransform, channels:list, name: str|None=None):
-        super().__init__()
         """
         Parameters
         ----------
@@ -213,6 +248,7 @@ class Image(ImageBase):
         name : str or None, optional
             Optional unique identifier for this image
         """
+        super().__init__()
         assert data.ndim == 4
         assert isinstance(transform, ImageTransform)
         self.transform = transform
