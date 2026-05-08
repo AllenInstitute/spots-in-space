@@ -1649,6 +1649,8 @@ class SpotTable:
     
     def show_image(self, ax=None, name=None, channel=None, frames:tuple|int|None=None):
         """
+        Use matplotlib imshow to show the image with the given name or channel name
+        
         Parameters
         ----------
         ax : matplotlib.axes.Axes or None, optional
@@ -2694,7 +2696,7 @@ class SegmentedSpotTable:
     
     
     def calculate_all_cell_features(self, z_plane_thickness=1.5, use_cell_labels: bool=False, use_both_tags: bool=False, disable_tqdm=False):
-        """Calculate the cell features for each cell with polygons. Return them in a pandas DataFrame
+        """Calculate the cell features (area and centroid) for each cell with polygons. Return them in a pandas DataFrame
         
         Parameters
         ----------
