@@ -244,8 +244,8 @@ class CellposeSegmentationMethod(SegmentationMethod):
 
             # If the number of z-planes is too small we want to double the z-planes while still maintaining order
             if self.options.get('duplistack', False):
-                cyto_data = CellposeSegmentationMethod.duplistack_image(images['cyto'])
-                nuclei_data = CellposeSegmentationMethod.duplistack_image(images['nuclei'])
+                cyto_data = CellposeSegmentationMethod._duplistack_image(images['cyto'])
+                nuclei_data = CellposeSegmentationMethod._duplistack_image(images['nuclei'])
             else:
                 cyto_data = images['cyto'].get_data()
                 nuclei_data = images['nuclei'].get_data()
@@ -258,7 +258,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
         else:
             # If the number of z-planes is too small we want to double the z-planes while still maintaining order
             if self.options.get('duplistack', False):
-                image_data = CellposeSegmentationMethod.duplistack_image(list(images.values())[0]) # Since there is only one image, we just take the first value
+                image_data = CellposeSegmentationMethod._duplistack_image(list(images.values())[0]) # Since there is only one image, we just take the first value
             else:
                 image_data = list(images.values())[0].get_data()
             channels = [0, 0]
@@ -529,7 +529,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
         return np.hstack([spot_px_z[:, np.newaxis], spot_px_rc])
 
     @staticmethod
-    def duplistack_image(image: Image):
+    def _duplistack_image(image: Image):
         """This method takes an image and creates a numpy array of its data duplicated in place
         
         e.g. an image with frames 1,2,3 would become an array with frames 1,1,2,2,3,3
@@ -911,7 +911,7 @@ class SegmentationPipeline:
         self.polygon_jobs = None
         
         # intermediate file paths
-        self.set_intermediate_file_paths()
+        self._set_intermediate_file_paths()
 
         # metadata dict of initial parameters
         self.meta_path = output_dir.joinpath('seg_meta.json')
@@ -1023,16 +1023,16 @@ class SegmentationPipeline:
         return cls(**config)
 
     @abstractmethod
-    def get_load_func(self):
+    def _get_load_func(self):
         """Get the function to load a spot table."""
         return
 
     @abstractmethod
-    def get_load_args(self):
+    def _get_load_args(self):
         """Get args to pass to loading function (e.g. when submitting jobs to hpc)."""
         return
 
-    def set_intermediate_file_paths(self):
+    def _set_intermediate_file_paths(self):
         """Define locations within the output directory to save intermediate and output files.
         If you add a step to this pipeline that generates a file, specify its 
         path here.
@@ -1109,12 +1109,12 @@ class SegmentationPipeline:
         return meta
     
     def load_raw_spot_table(self):
-        """Load the raw spot table [self.get_load_func(), self.get_load_args()], 
+        """Load the raw spot table [self._get_load_func(), self._get_load_args()], 
         crop it by subregion `subrgn`,
         and set as an attribute. `raw_spot_table`
         """
-        load_func = self.get_load_func()
-        load_args = self.get_load_args()
+        load_func = self._get_load_func()
+        load_args = self._get_load_args()
         table = load_func(**load_args)
         
         # Subregion can be a channel name or tuple. If it's a channel name, get the bounds of the channel
@@ -1156,11 +1156,11 @@ class SegmentationPipeline:
         regions = [tile.parent_region for tile in tiles]
 
         # save regions
-        self.save_regions(regions, overwrite)
+        self._save_regions(regions, overwrite)
 
         return tiles, regions
 
-    def save_regions(self, regions: list, overwrite: bool=False):
+    def _save_regions(self, regions: list, overwrite: bool=False):
         """Save the segmentation tile subregion coordinates into the `regions_path` attribute.
 
         Parameters
@@ -1228,7 +1228,7 @@ class SegmentationPipeline:
             If no tiles generated output files, indicating an issue with the segmentation process.
         """
         if run_spec is None:
-            run_spec = self.load_run_spec(self.seg_run_spec_path)
+            run_spec = self._load_run_spec(self.seg_run_spec_path)
 
         print('Merging tiles...')
         truncated_meta = {
@@ -1273,7 +1273,7 @@ class SegmentationPipeline:
             tiles[i] = tile
         # padding removes cells which are close to edge and may be poorly segmented
         # padding is set to half the user defined cell seize
-        merge_results = self.seg_spot_table.set_cell_ids_from_tiles(tiles, padding=self.seg_opts['cell_dia'] / 2)
+        merge_results = self.seg_spot_table._set_cell_ids_from_tiles(tiles, padding=self.seg_opts['cell_dia'] / 2)
 
         cell_ids = self.seg_spot_table.cell_ids
 
@@ -1284,11 +1284,11 @@ class SegmentationPipeline:
             print('Warning: Some tiles were skipped.')
 
         # save cell_ids
-        self.save_cell_ids(cell_ids, overwrite)
+        self._save_cell_ids(cell_ids, overwrite)
 
         return cell_ids, merge_results, skipped
 
-    def save_cell_ids(self, cell_ids: np.ndarray, overwrite: bool=False):
+    def _save_cell_ids(self, cell_ids: np.ndarray, overwrite: bool=False):
         """Save array of cell_ids to the `cid_path` attribute.
         
         Parameters
@@ -1372,7 +1372,7 @@ class SegmentationPipeline:
             If the polygons file already exists and overwrite is False.
         """
         if run_spec is None:
-            run_spec = self.load_run_spec(self.polygon_run_spec_path)
+            run_spec = self._load_run_spec(self.polygon_run_spec_path)
 
         print('Merging cell polygons...')
         skipped = []
@@ -1426,11 +1426,11 @@ class SegmentationPipeline:
         """
         self.seg_spot_table.generate_cell_labels(prefix=prefix, suffix=suffix)
         cell_by_gene = self.seg_spot_table.cell_by_gene_anndata(x_format=x_format, x_dtype=x_dtype, additional_obs=additional_obs)
-        self.save_cbg(cell_by_gene, overwrite)
+        self._save_cbg(cell_by_gene, overwrite)
 
         return cell_by_gene
 
-    def save_cbg(self, cell_by_gene: ad.AnnData, overwrite: bool=False):
+    def _save_cbg(self, cell_by_gene: ad.AnnData, overwrite: bool=False):
         """Save the cell by gene anndata object to the `cbg_path` attribute.
         
         Parameters
@@ -1538,8 +1538,8 @@ class SegmentationPipeline:
                 run_segmentation,
                 (),
                 dict(
-                    load_func=self.get_load_func(),
-                    load_args=self.get_load_args(),
+                    load_func=self._get_load_func(),
+                    load_args=self._get_load_args(),
                     subregion=region,
                     method_class=self.seg_method,
                     method_args=self.seg_opts,
@@ -1549,7 +1549,7 @@ class SegmentationPipeline:
             )
         
         # save run_spec
-        self.save_run_spec(run_spec, self.seg_run_spec_path, overwrite)
+        self._save_run_spec(run_spec, self.seg_run_spec_path, overwrite)
 
         return run_spec
 
@@ -1601,8 +1601,8 @@ class SegmentationPipeline:
                 sis.spot_table.run_cell_polygon_calculation,
                 (),
                 dict(
-                    load_func=self.get_load_func(),
-                    load_args=self.get_load_args(),
+                    load_func=self._get_load_func(),
+                    load_args=self._get_load_args(),
                     subregion=self.subrgn,
                     cell_id_file=self.cid_path.as_posix(),
                     cell_subset_file=self.polygon_subsets_path.joinpath(f'cell_id_subset_{i}.npy').as_posix(),
@@ -1612,11 +1612,11 @@ class SegmentationPipeline:
                 )
             )
 
-        self.save_run_spec(run_spec, self.polygon_run_spec_path, overwrite)
+        self._save_run_spec(run_spec, self.polygon_run_spec_path, overwrite)
 
         return run_spec
     
-    def save_run_spec(self, run_spec: dict, run_spec_path: Path, overwrite: bool=False):
+    def _save_run_spec(self, run_spec: dict, run_spec_path: Path, overwrite: bool=False):
         """Save run specifications for a job on the HPC as a pkl file.
 
         Parameters
@@ -1639,7 +1639,7 @@ class SegmentationPipeline:
             with open(run_spec_path, 'wb') as f:
                 pickle.dump(run_spec, f)
 
-    def load_run_spec(self, run_spec_path: Path|str):
+    def _load_run_spec(self, run_spec_path: Path|str):
         """Load run specifications for a job on the HPC.
 
         Parameters
@@ -1681,7 +1681,7 @@ class SegmentationPipeline:
         # Check job type and set variables
         if 'segmentation' in job_type:
             if run_spec is None:
-                run_spec = self.load_run_spec(self.seg_run_spec_path)
+                run_spec = self._load_run_spec(self.seg_run_spec_path)
             hpc_opts = self.seg_hpc_opts
             self._check_overwrite_files(run_spec, ['result_file', 'cell_id_file'], overwrite)
             # Set defaults
@@ -1691,7 +1691,7 @@ class SegmentationPipeline:
             status_str = 'Segmenting tiles...'
         elif 'cell_polygons' in job_type:
             if run_spec is None:
-                run_spec = self.load_run_spec(self.polygon_run_spec_path)
+                run_spec = self._load_run_spec(self.polygon_run_spec_path)
             hpc_opts = self.polygon_hpc_opts
             self._check_overwrite_files(run_spec, ['result_file'], overwrite)
             # Set defaults
@@ -1977,12 +1977,12 @@ class MerscopeSegmentationPipeline(SegmentationPipeline):
         """
         super().__init__(dt_file, image_path, output_dir, dt_cache, subrgn, seg_method, seg_opts, polygon_opts, seg_hpc_opts=seg_hpc_opts, polygon_hpc_opts=polygon_hpc_opts, hpc_opts=hpc_opts)
 
-    def get_load_func(self):
+    def _get_load_func(self):
         """Returns sis.SpotTable.load_merscope
         """
         return SpotTable.load_merscope
 
-    def get_load_args(self):
+    def _get_load_args(self):
         """Get args to pass to sis.SpotTable.load_merscope
         """
         load_args = {
@@ -2042,12 +2042,12 @@ class StereoSeqSegmentationPipeline(SegmentationPipeline):
         """
         super().__init__(dt_file, image_path, output_dir, dt_cache, subrgn, seg_method, seg_opts, polygon_opts, seg_hpc_opts=seg_hpc_opts, polygon_hpc_opts=polygon_hpc_opts, hpc_opts=hpc_opts)
 
-    def get_load_func(self):
+    def _get_load_func(self):
         """Returns sis.SpotTable.load_stereoseq.
         """
         return SpotTable.load_stereoseq
 
-    def get_load_args(self):
+    def _get_load_args(self):
         """Get args to pass to sis.SpotTable.load_stereoseq.
         """
         load_args = {
@@ -2125,12 +2125,12 @@ class XeniumSegmentationPipeline(SegmentationPipeline):
         self.z_depth = seg_opts['z_plane_thickness'] # This is used for binning z-locations to image planes
         self.cache_image = cache_image
 
-    def get_load_func(self):
+    def _get_load_func(self):
         """Returns sis.SpotTable.load_xenium
         """
         return SpotTable.load_xenium
 
-    def get_load_args(self):
+    def _get_load_args(self):
         """Get args to pass to sis.SpotTable.load_xenium
         """
         load_args = {

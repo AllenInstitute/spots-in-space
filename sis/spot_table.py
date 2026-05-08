@@ -686,7 +686,7 @@ class SpotTable:
         return table
 
     @staticmethod
-    def read_merscope_csv(csv_file, cols_to_use=('x', 'y', 'z', 'gene'), max_rows=None):
+    def _read_merscope_csv(csv_file, cols_to_use=('x', 'y', 'z', 'gene'), max_rows=None):
         """Helper function to read a MERSCOPE csv file.
         Intended to reduce duplicated code between SpotTable.load_merscope()
         and SegmentedSpotTable.load_merscope().
@@ -768,7 +768,7 @@ class SpotTable:
         if cache_file is None or not os.path.exists(cache_file):
             print("Loading csv..")
 
-            raw_data, pos, gene_names = SpotTable.read_merscope_csv(csv_file=csv_file, max_rows=max_rows)
+            raw_data, pos, gene_names = SpotTable._read_merscope_csv(csv_file=csv_file, max_rows=max_rows)
 
             if cache_file is not None:                
                 print("Recompressing to npz..")
@@ -781,7 +781,7 @@ class SpotTable:
             return cls.load_npz(cache_file, images=images)
 
     @staticmethod
-    def read_stereoseq_gem(gem_file: str, gem_cols: dict|tuple, cell_col: int|None=None, skiprows: int|None=None, max_rows: int|None=None):
+    def _read_stereoseq_gem(gem_file: str, gem_cols: dict|tuple, cell_col: int|None=None, skiprows: int|None=None, max_rows: int|None=None):
         """Helper function to read raw data from a StereoSeq dataset.
         
         Parameters
@@ -921,7 +921,7 @@ class SpotTable:
 
         if cache_file is None or not os.path.exists(cache_file):
             print('Loading gem...')
-            pos, gene_ids, gene_id_to_name = SpotTable.read_stereoseq_gem(gem_file, gem_cols, cell_col=cell_col, skiprows=skiprows, max_rows=max_rows)
+            pos, gene_ids, gene_id_to_name = SpotTable._read_stereoseq_gem(gem_file, gem_cols, cell_col=cell_col, skiprows=skiprows, max_rows=max_rows)
                 
             if cache_file is not None:                
                 print("Recompressing to npz..")
@@ -935,7 +935,7 @@ class SpotTable:
 
 
     @staticmethod
-    def read_xenium_transcripts(transcript_file, max_rows=None, z_depth: float=3.0, min_qv: float|None=20):
+    def _read_xenium_transcripts(transcript_file, max_rows=None, z_depth: float=3.0, min_qv: float|None=20):
         """Helper function to read a Xenium transcripts file. (currently supports only csv and parquet)
         Intended to reduce duplicated code between SpotTable.load_xenium()
         and SegmentedSpotTable.load_xenium().
@@ -1028,7 +1028,7 @@ class SpotTable:
 
         if (cache_file is None) or (not Path(cache_file).exists()):
             print("Loading transcripts...")
-            pos, gene_names = SpotTable.read_xenium_transcripts(transcript_file=transcript_file, max_rows=max_rows, z_depth=z_depth, min_qv=min_qv)
+            pos, gene_names = SpotTable._read_xenium_transcripts(transcript_file=transcript_file, max_rows=max_rows, z_depth=z_depth, min_qv=min_qv)
 
             if cache_file is not None:
                 print("Recompressing to npz..")
@@ -2497,7 +2497,7 @@ class SegmentedSpotTable:
         return pandas.DataFrame(data=centroids, index=df_idx, columns=['x', 'y', 'z'])
 
     @staticmethod
-    def cell_polygon(cell_points_array, alpha_inv):
+    def _cell_polygon(cell_points_array, alpha_inv):
         """Get 2D alpha shape from a set of points, modified slightly from 
         http://blog.thehumangeo.com/2014/05/12/drawing-boundaries-in-python/
 
@@ -2566,7 +2566,7 @@ class SegmentedSpotTable:
         return tp
 
     @staticmethod
-    def calculate_optimal_polygon(xy_pos, alpha_inv, alpha_inv_coeff: float=4/3):
+    def _calculate_optimal_polygon(xy_pos, alpha_inv, alpha_inv_coeff: float=4/3):
         """Calculate the optimal polygon for a set of points by increasing alpha_inv until a single polygon containing all points is generated.
         After the alpha_inv is decided, the alpha_inv_coeff is applied to get promote a more natural cell shape.
         
@@ -2600,22 +2600,22 @@ class SegmentedSpotTable:
         xy_pos = np.unique(xy_pos, axis=0)
 
         if xy_pos.shape[0] > 3: # If there are <= 3 points cannot do delaunay
-            putative_polygon = SegmentedSpotTable.cell_polygon(xy_pos, alpha_inv)
+            putative_polygon = SegmentedSpotTable._cell_polygon(xy_pos, alpha_inv)
             # increase alpha_inv until we only have 1 polygon which contains all points
             tries = 0
             flex_alpha_inv = alpha_inv
             while tries < 200 and not _test_polygon(xy_pos, putative_polygon):
                 flex_alpha_inv += .5
                 tries += 1
-                putative_polygon = SegmentedSpotTable.cell_polygon(xy_pos, flex_alpha_inv)
+                putative_polygon = SegmentedSpotTable._cell_polygon(xy_pos, flex_alpha_inv)
 
             # Final check to see if we got it in the number of tries
             if _test_polygon(xy_pos, putative_polygon):
                 if alpha_inv_coeff != 1:
-                    putative_polygon = SegmentedSpotTable.cell_polygon(xy_pos, alpha_inv_coeff * flex_alpha_inv)
+                    putative_polygon = SegmentedSpotTable._cell_polygon(xy_pos, alpha_inv_coeff * flex_alpha_inv)
                 return putative_polygon
             else: # If not, we return the convex hull (only approximately by using massive alpha_inv)
-                return SegmentedSpotTable.cell_polygon(xy_pos, 1000000)
+                return SegmentedSpotTable._cell_polygon(xy_pos, 1000000)
         else:    
             return None
 
@@ -2651,13 +2651,13 @@ class SegmentedSpotTable:
                 xyz_pos = self.pos[inds]
                 for z_plane in np.unique(xyz_pos[:, 2]):
                     xy_pos = xyz_pos[xyz_pos[:, 2] == z_plane][:, :2]
-                    optimal_poly = self.calculate_optimal_polygon(xy_pos, alpha_inv, alpha_inv_coeff=alpha_inv_coeff)
+                    optimal_poly = self._calculate_optimal_polygon(xy_pos, alpha_inv, alpha_inv_coeff=alpha_inv_coeff)
                     if optimal_poly: # Only record a polygon if a plane had a polygon (i.e. don't store None)
                         self.cell_polygons.setdefault(cid, {})[z_plane] = optimal_poly
                 self.cell_polygons.setdefault(cid, None) # If none of the z-planes had a polygon, set to None
             else:
                 xy_pos = self.pos[inds][:, :2]
-                self.cell_polygons[cid] = self.calculate_optimal_polygon(xy_pos, alpha_inv, alpha_inv_coeff=alpha_inv_coeff)
+                self.cell_polygons[cid] = self._calculate_optimal_polygon(xy_pos, alpha_inv, alpha_inv_coeff=alpha_inv_coeff)
 
 
     @staticmethod
@@ -2992,7 +2992,7 @@ class SegmentedSpotTable:
 
         return mask
 
-    def cell_indices_within_padding(self, padding=5.0):
+    def _cell_indices_within_padding(self, padding=5.0):
         """Return spot indices all cells that do not come within *padding* distance of the `parent_region` bounds.
         This is used to exclude cells near the edge of a tile, where the segmentation becomes unreliable.
         
@@ -3013,7 +3013,7 @@ class SegmentedSpotTable:
         include_inds = self.cell_indices(include_cells)
         return include_inds
 
-    def merge_cells(self, other, padding=5, union_threshold=0.5):
+    def _merge_cells(self, other, padding=5, union_threshold=0.5):
         """Merge cell IDs from SpotTable *other* into self.
         Returns a structure describing merge conflicts.
         
@@ -3039,7 +3039,7 @@ class SegmentedSpotTable:
         other.cell_ids_changed()
 
         # get indices of all cells that are not close to the edge of the tile partial cells from edge of tile
-        tile_inds = other.cell_indices_within_padding(padding=padding)
+        tile_inds = other._cell_indices_within_padding(padding=padding)
         self_inds = other.map_indices_to_parent(tile_inds)
 
         # keep track of state before merge so we can look for conflicts afterward
@@ -3103,7 +3103,7 @@ class SegmentedSpotTable:
 
         return conflicts
 
-    def set_cell_ids_from_tiles(self, tiles, padding=5):
+    def _set_cell_ids_from_tiles(self, tiles, padding=5):
         """Overwrite all cell IDs by merging from *tiles*, which may be a list of SegmentedSpotTable
         or SegmentationResult instances.
         
@@ -3127,12 +3127,12 @@ class SegmentedSpotTable:
         for tile in tqdm(tiles):
             if isinstance(tile, SegmentationResult):
                 tile = tile.spot_table()            
-            result = self.merge_cells(tile.copy(), padding=padding)
+            result = self._merge_cells(tile.copy(), padding=padding)
             merge_results.append(result)
         return merge_results
 
     @staticmethod
-    def load_merscope_cell_ids(csv_file: str, max_rows: int|None=None):
+    def _load_merscope_cell_ids(csv_file: str, max_rows: int|None=None):
         """Load the original segmentation for a MERSCOPE dataset.
 
         Parameters
@@ -3182,7 +3182,7 @@ class SegmentedSpotTable:
         sis.spot_table.SegmentedSpotTable
         """
         raw_spot_table = SpotTable.load_merscope(csv_file=csv_file, cache_file=cache_file, image_path=image_path, max_rows=max_rows)
-        cell_ids = SegmentedSpotTable.load_merscope_cell_ids(csv_file, max_rows=max_rows)
+        cell_ids = SegmentedSpotTable._load_merscope_cell_ids(csv_file, max_rows=max_rows)
 
         return cls(spot_table=raw_spot_table, cell_ids=cell_ids, seg_metadata={'seg_method': 'MERSCOPE'})
 
