@@ -64,7 +64,6 @@ class SegmentationMethod:
     run(spot_table) will execute the segmentation method and return a SegmentationResult.
                   
     .. rubric:: Attributes
-    .. raw:: html
              
     Attributes
     ----------
@@ -114,7 +113,6 @@ class CellposeSegmentationMethod(SegmentationMethod):
     generate an image from total mRNA.
                       
     .. rubric:: Attributes
-    .. raw:: html
              
     Attributes
     ----------
@@ -553,7 +551,6 @@ class SegmentationResult:
     """Base class defining a segmentation of SpotTable data--method, options, results
                       
     .. rubric:: Attributes
-    .. raw:: html
              
     Attributes
     ----------
@@ -611,7 +608,6 @@ class CellposeSegmentationResult(SegmentationResult):
     """Class made for containing the result of running CellposeSegmentationMethod on a SpotTable
                   
     .. rubric:: Attributes
-    .. raw:: html
              
     Attributes
     ----------
@@ -790,7 +786,6 @@ class SegmentationPipeline:
     appropriate methods are not called afterward.
                   
     .. rubric:: Attributes
-    .. raw:: html
              
     Attributes
     ----------
@@ -1938,7 +1933,6 @@ class MerscopeSegmentationPipeline(SegmentationPipeline):
     """Class for running segmentation on Merscope data.
                   
     .. rubric:: Attributes
-    .. raw:: html
              
     Attributes
     ----------
@@ -2003,7 +1997,6 @@ class StereoSeqSegmentationPipeline(SegmentationPipeline):
     """Class for running segmentation on StereoSeq data.
                   
     .. rubric:: Attributes
-    .. raw:: html
              
     Attributes
     ----------
@@ -2068,7 +2061,6 @@ class XeniumSegmentationPipeline(SegmentationPipeline):
     """Class for running segmentation on Xenium data.
                   
     .. rubric:: Attributes
-    .. raw:: html
              
     Attributes
     ----------

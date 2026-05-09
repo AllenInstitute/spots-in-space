@@ -87,7 +87,6 @@ class SpotTable:
     This class represents a spatial transcriptomics spot table, which contains information about the position of each detected transcript, the associated gene, and other optional attributes. It can be used to manipulate and analyze spatial transcriptomics data.
               
     .. rubric:: Attributes
-    .. raw:: html
              
     Attributes
     ----------
@@ -1859,7 +1858,6 @@ class SegmentedSpotTable:
     - May contain segmentation metadata
               
     .. rubric:: Attributes
-    .. raw:: html
              
     Attributes
     ----------

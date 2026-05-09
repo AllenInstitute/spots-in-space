@@ -171,7 +171,6 @@ class SlurmJob:
     """Class representing a single SLURM job
       
     .. rubric:: Attributes
-    .. raw:: html  
     
     Attributes
     ----------
@@ -320,7 +319,6 @@ class SlurmJobArray(SlurmJob):
     """Class representing a SLURM job array with a list of SlurmJob instances
                   
     .. rubric:: Attributes
-    .. raw:: html
              
     Attributes
     ----------
@@ -451,7 +449,6 @@ class JobState:
     One of state_code or state must be provided and the other is derived.
                   
     .. rubric:: Attributes
-    .. raw:: html
              
     Attributes
     ----------

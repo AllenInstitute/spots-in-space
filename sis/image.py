@@ -222,7 +222,6 @@ class Image(ImageBase):
     Carries metadata about pixel transform and channel identity.
                   
     .. rubric:: Attributes
-    .. raw:: html
              
     Attributes
     ----------
@@ -420,7 +419,6 @@ class MerscopeImageFile(ImageFile):
     Image data are lazy-loaded so that we can handle subregions without loading the entire image
               
     .. rubric:: Attributes
-    .. raw:: html
                 
     Attributes
     ----------
@@ -523,7 +521,6 @@ class StereoSeqImageFile(ImageFile):
     Image data are lazy-loaded so that we can handle subregions without loading the entire image
                   
     .. rubric:: Attributes
-    .. raw:: html
              
     Attributes
     ----------
@@ -627,7 +624,6 @@ class XeniumImageFile(ImageFile):
     Image data are lazy-loaded so that we can handle subregions without loading the entire image
                   
     .. rubric:: Attributes
-    .. raw:: html
              
     Attributes
     ----------
@@ -843,7 +839,6 @@ class ImageTransform:
     """Transfomation mapping between (x, y) spot coordinates and (row, col) image pixels
                   
     .. rubric:: Attributes
-    .. raw:: html
              
     Attributes
     ----------
@@ -969,7 +964,6 @@ class ImageStack(ImageBase):
     Assumes `images` are all the same shape and evenly spaced along the z axis.
                   
     .. rubric:: Attributes
-    .. raw:: html
              
     Attributes
     ----------
@@ -1210,7 +1204,6 @@ class ImageView(ImageBase):
     (since we can't just store the subimaged data array in memory) 
                   
     .. rubric:: Attributes
-    .. raw:: html
              
     Attributes
     ----------
@@ -1371,7 +1364,6 @@ class SpatialDataImage(ImageBase):
     The data input is an xarray DataArray
                   
     .. rubric:: Attributes
-    .. raw:: html
              
     Attributes
     ----------
