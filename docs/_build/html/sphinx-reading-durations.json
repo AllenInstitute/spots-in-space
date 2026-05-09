@@ -1,9 +1,8 @@
 {
-    "hpc": 3.089,
-    "image": 0.229,
-    "index": 0.002,
+    "hpc": 0.077,
+    "image": 0.239,
     "installation": 0.001,
-    "segmentation": 0.349,
-    "spatialdata": 0.037,
-    "spot_table": 2.081
+    "segmentation": 0.155,
+    "spatialdata": 0.027,
+    "spot_table": 0.248
 }

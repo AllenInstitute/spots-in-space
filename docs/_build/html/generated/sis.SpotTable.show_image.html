@@ -1,0 +1,184 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>sis.SpotTable.show_image &mdash; Spots-in-Space  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=50c4ed46" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="sis.SpotTable.plot_rect" href="sis.SpotTable.plot_rect.html" />
+    <link rel="prev" title="sis.SpotTable.scatter_plot" href="sis.SpotTable.scatter_plot.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            Spots-in-Space
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../spot_table.html">sis.spot_table</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="../spot_table.html#spottable">SpotTable</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="../spot_table.html#sis.spot_table.SpotTable"><code class="docutils literal notranslate"><span class="pre">SpotTable</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.__init__.html">sis.SpotTable.__init__</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.load_merscope.html">sis.SpotTable.load_merscope</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.load_stereoseq.html">sis.SpotTable.load_stereoseq</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.load_xenium.html">sis.SpotTable.load_xenium</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.load_npz.html">sis.SpotTable.load_npz</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.load_pickle.html">sis.SpotTable.load_pickle</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.load_merscope_spatialdata.html">sis.SpotTable.load_merscope_spatialdata</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.load_xenium_spatialdata.html">sis.SpotTable.load_xenium_spatialdata</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.x.html">sis.SpotTable.x</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.y.html">sis.SpotTable.y</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.z.html">sis.SpotTable.z</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.gene_names.html">sis.SpotTable.gene_names</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.save_csv.html">sis.SpotTable.save_csv</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.save_npz.html">sis.SpotTable.save_npz</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.dataframe.html">sis.SpotTable.dataframe</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.scatter_plot.html">sis.SpotTable.scatter_plot</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">sis.SpotTable.show_image</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#sis.SpotTable.show_image"><code class="docutils literal notranslate"><span class="pre">SpotTable.show_image()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.plot_rect.html">sis.SpotTable.plot_rect</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.reduced_expression_map.html">sis.SpotTable.reduced_expression_map</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.show_binned_heatmap.html">sis.SpotTable.show_binned_heatmap</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.__len__.html">sis.SpotTable.__len__</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.__getitem__.html">sis.SpotTable.__getitem__</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.copy.html">sis.SpotTable.copy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.bounds.html">sis.SpotTable.bounds</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.get_subregion.html">sis.SpotTable.get_subregion</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.map_gene_names_to_ids.html">sis.SpotTable.map_gene_names_to_ids</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.map_gene_ids_to_names.html">sis.SpotTable.map_gene_ids_to_names</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.get_genes.html">sis.SpotTable.get_genes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.detect_z_planes.html">sis.SpotTable.detect_z_planes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.z_plane_mask.html">sis.SpotTable.z_plane_mask</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.gene_indices.html">sis.SpotTable.gene_indices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.map_indices_to_parent.html">sis.SpotTable.map_indices_to_parent</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.map_indices_from_parent.html">sis.SpotTable.map_indices_from_parent</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.map_mask_to_parent.html">sis.SpotTable.map_mask_to_parent</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.split_tiles.html">sis.SpotTable.split_tiles</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.grid_tiles.html">sis.SpotTable.grid_tiles</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.add_image.html">sis.SpotTable.add_image</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.get_image.html">sis.SpotTable.get_image</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.save_json.html">sis.SpotTable.save_json</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.load_json.html">sis.SpotTable.load_json</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.binned_expression_counts.html">sis.SpotTable.binned_expression_counts</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../spot_table.html#segmentedspottable">SegmentedSpotTable</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../image.html">sis.image</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../segmentation.html">sis.segmentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../hpc.html">sis.hpc</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../spatialdata.html">sis.spatialdata</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Spots-in-Space</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../spot_table.html">sis.spot_table</a></li>
+      <li class="breadcrumb-item active">sis.SpotTable.show_image</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/generated/sis.SpotTable.show_image.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="sis-spottable-show-image">
+<h1>sis.SpotTable.show_image<a class="headerlink" href="#sis-spottable-show-image" title="Link to this heading"></a></h1>
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.SpotTable.show_image">
+<span class="sig-prename descclassname"><span class="pre">SpotTable.</span></span><span class="sig-name descname"><span class="pre">show_image</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frames</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.SpotTable.show_image" title="Link to this definition"></a></dt>
+<dd><p>Use matplotlib imshow to show the image with the given name or channel name</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ax</strong> (<em>matplotlib.axes.Axes</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The axes to plot the image on. If None, a new figure is created.</p></li>
+<li><p><strong>name</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The name of the image to return.</p></li>
+<li><p><strong>channel</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The channel name of the image to return.</p></li>
+<li><p><strong>frames</strong> (<em>tuple</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – A tuple of the first (inclusive) and last (exclusive) indices of the frames (specific z planes) used to create the image, e.g. frames=(2,5) would create an image from z planes 2, 3, and 4.
+else, if an int is provided, that specific z plane is used.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="sis.SpotTable.scatter_plot.html" class="btn btn-neutral float-left" title="sis.SpotTable.scatter_plot" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="sis.SpotTable.plot_rect.html" class="btn btn-neutral float-right" title="sis.SpotTable.plot_rect" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Jacob Quon, Madeleine Hewitt, Luke Campagnola, Stephanie Seeman, Brian Long, Emily Gelfand, Meghan Turner, Michael Kunst.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

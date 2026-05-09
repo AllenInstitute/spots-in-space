@@ -1,5 +1,5 @@
-spatialdata
-===========
+sis.spatialdata
+===============
 
 .. autofunction:: sis.spatialdata.merscope_to_spatialdata
 

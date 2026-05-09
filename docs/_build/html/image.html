@@ -6,9 +6,10 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>image &mdash; Spots-in-Space  documentation</title>
+  <title>sis.image &mdash; Spots-in-Space  documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="_static/custom.css?v=50c4ed46" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
@@ -19,8 +20,8 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="segmentation" href="segmentation.html" />
-    <link rel="prev" title="spot_table" href="spot_table.html" /> 
+    <link rel="next" title="sis.image.ImageBase.bounds" href="generated/sis.image.ImageBase.bounds.html" />
+    <link rel="prev" title="sis.SegmentedSpotTable.calculate_all_cell_features" href="generated/sis.SegmentedSpotTable.calculate_all_cell_features.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -45,43 +46,40 @@
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="spot_table.html">spot_table</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">image</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="spot_table.html">sis.spot_table</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">sis.image</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#imagebase">ImageBase</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageBase"><code class="docutils literal notranslate"><span class="pre">ImageBase</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageBase.shape"><code class="docutils literal notranslate"><span class="pre">ImageBase.shape</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageBase.get_channel"><code class="docutils literal notranslate"><span class="pre">ImageBase.get_channel()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageBase.get_subregion"><code class="docutils literal notranslate"><span class="pre">ImageBase.get_subregion()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageBase.bounds"><code class="docutils literal notranslate"><span class="pre">ImageBase.bounds()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageBase.get_frame"><code class="docutils literal notranslate"><span class="pre">ImageBase.get_frame()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageBase.get_frames"><code class="docutils literal notranslate"><span class="pre">ImageBase.get_frames()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageBase.show"><code class="docutils literal notranslate"><span class="pre">ImageBase.show()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageBase.__weakref__"><code class="docutils literal notranslate"><span class="pre">ImageBase.__weakref__</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageBase"><code class="docutils literal notranslate"><span class="pre">ImageBase</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageBase.shape"><code class="docutils literal notranslate"><span class="pre">ImageBase.shape</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageBase.show"><code class="docutils literal notranslate"><span class="pre">ImageBase.show()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.ImageBase.bounds.html">sis.image.ImageBase.bounds</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.ImageBase.get_channel.html">sis.image.ImageBase.get_channel</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.ImageBase.get_frame.html">sis.image.ImageBase.get_frame</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.ImageBase.get_frames.html">sis.image.ImageBase.get_frames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.ImageBase.get_subregion.html">sis.image.ImageBase.get_subregion</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.ImageBase.get_data.html">sis.image.ImageBase.get_data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.ImageBase.get_sub_data.html">sis.image.ImageBase.get_sub_data</a></li>
 </ul>
 </li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#id1">Image</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#image">Image</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#sis.image.Image"><code class="docutils literal notranslate"><span class="pre">Image</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#sis.image.Image.transform"><code class="docutils literal notranslate"><span class="pre">Image.transform</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#sis.image.Image.channels"><code class="docutils literal notranslate"><span class="pre">Image.channels</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#sis.image.Image.name"><code class="docutils literal notranslate"><span class="pre">Image.name</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#sis.image.Image._data"><code class="docutils literal notranslate"><span class="pre">Image._data</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.Image.__init__"><code class="docutils literal notranslate"><span class="pre">Image.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.Image.shape"><code class="docutils literal notranslate"><span class="pre">Image.shape</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.Image.get_data"><code class="docutils literal notranslate"><span class="pre">Image.get_data()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.Image.get_sub_data"><code class="docutils literal notranslate"><span class="pre">Image.get_sub_data()</span></code></a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.Image.__init__"><code class="docutils literal notranslate"><span class="pre">Image.__init__()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.Image.shape"><code class="docutils literal notranslate"><span class="pre">Image.shape</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.Image.get_data"><code class="docutils literal notranslate"><span class="pre">Image.get_data()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.Image.get_sub_data"><code class="docutils literal notranslate"><span class="pre">Image.get_sub_data()</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#imagefile">ImageFile</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageFile"><code class="docutils literal notranslate"><span class="pre">ImageFile</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageFile.shape"><code class="docutils literal notranslate"><span class="pre">ImageFile.shape</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageFile.get_data"><code class="docutils literal notranslate"><span class="pre">ImageFile.get_data()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageFile.get_sub_data"><code class="docutils literal notranslate"><span class="pre">ImageFile.get_sub_data()</span></code></a></li>
-</ul>
-</li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageFile"><code class="docutils literal notranslate"><span class="pre">ImageFile</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageFile.shape"><code class="docutils literal notranslate"><span class="pre">ImageFile.shape</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageFile.get_data"><code class="docutils literal notranslate"><span class="pre">ImageFile.get_data()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageFile.get_sub_data"><code class="docutils literal notranslate"><span class="pre">ImageFile.get_sub_data()</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#merscopeimagefile">MerscopeImageFile</a><ul>
@@ -92,11 +90,13 @@
 <li class="toctree-l4"><a class="reference internal" href="#sis.image.MerscopeImageFile.channels"><code class="docutils literal notranslate"><span class="pre">MerscopeImageFile.channels</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#sis.image.MerscopeImageFile.name"><code class="docutils literal notranslate"><span class="pre">MerscopeImageFile.name</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#sis.image.MerscopeImageFile._shape"><code class="docutils literal notranslate"><span class="pre">MerscopeImageFile._shape</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.MerscopeImageFile.__init__"><code class="docutils literal notranslate"><span class="pre">MerscopeImageFile.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.MerscopeImageFile.load"><code class="docutils literal notranslate"><span class="pre">MerscopeImageFile.load()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.MerscopeImageFile.get_sub_data"><code class="docutils literal notranslate"><span class="pre">MerscopeImageFile.get_sub_data()</span></code></a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.MerscopeImageFile.__init__"><code class="docutils literal notranslate"><span class="pre">MerscopeImageFile.__init__()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.MerscopeImageFile.load"><code class="docutils literal notranslate"><span class="pre">MerscopeImageFile.load()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.MerscopeImageFile.shape"><code class="docutils literal notranslate"><span class="pre">MerscopeImageFile.shape</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.MerscopeImageFile.get_data"><code class="docutils literal notranslate"><span class="pre">MerscopeImageFile.get_data()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.MerscopeImageFile.get_sub_data"><code class="docutils literal notranslate"><span class="pre">MerscopeImageFile.get_sub_data()</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#stereoseqimagefile">StereoSeqImageFile</a><ul>
@@ -107,11 +107,13 @@
 <li class="toctree-l4"><a class="reference internal" href="#sis.image.StereoSeqImageFile.channels"><code class="docutils literal notranslate"><span class="pre">StereoSeqImageFile.channels</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#sis.image.StereoSeqImageFile.name"><code class="docutils literal notranslate"><span class="pre">StereoSeqImageFile.name</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#sis.image.StereoSeqImageFile._shape"><code class="docutils literal notranslate"><span class="pre">StereoSeqImageFile._shape</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.StereoSeqImageFile.__init__"><code class="docutils literal notranslate"><span class="pre">StereoSeqImageFile.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.StereoSeqImageFile.load"><code class="docutils literal notranslate"><span class="pre">StereoSeqImageFile.load()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.StereoSeqImageFile.get_sub_data"><code class="docutils literal notranslate"><span class="pre">StereoSeqImageFile.get_sub_data()</span></code></a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.StereoSeqImageFile.__init__"><code class="docutils literal notranslate"><span class="pre">StereoSeqImageFile.__init__()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.StereoSeqImageFile.load"><code class="docutils literal notranslate"><span class="pre">StereoSeqImageFile.load()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.StereoSeqImageFile.shape"><code class="docutils literal notranslate"><span class="pre">StereoSeqImageFile.shape</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.StereoSeqImageFile.get_data"><code class="docutils literal notranslate"><span class="pre">StereoSeqImageFile.get_data()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.StereoSeqImageFile.get_sub_data"><code class="docutils literal notranslate"><span class="pre">StereoSeqImageFile.get_sub_data()</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#xeniumimagefile">XeniumImageFile</a><ul>
@@ -125,43 +127,49 @@
 <li class="toctree-l4"><a class="reference internal" href="#sis.image.XeniumImageFile.whole_image_array"><code class="docutils literal notranslate"><span class="pre">XeniumImageFile.whole_image_array</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#sis.image.XeniumImageFile.cache_image"><code class="docutils literal notranslate"><span class="pre">XeniumImageFile.cache_image</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#sis.image.XeniumImageFile._shape"><code class="docutils literal notranslate"><span class="pre">XeniumImageFile._shape</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.XeniumImageFile.__init__"><code class="docutils literal notranslate"><span class="pre">XeniumImageFile.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.XeniumImageFile.load"><code class="docutils literal notranslate"><span class="pre">XeniumImageFile.load()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.XeniumImageFile.shape"><code class="docutils literal notranslate"><span class="pre">XeniumImageFile.shape</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.XeniumImageFile.get_data"><code class="docutils literal notranslate"><span class="pre">XeniumImageFile.get_data()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.XeniumImageFile.get_sub_data"><code class="docutils literal notranslate"><span class="pre">XeniumImageFile.get_sub_data()</span></code></a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.XeniumImageFile.__init__"><code class="docutils literal notranslate"><span class="pre">XeniumImageFile.__init__()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.XeniumImageFile.load"><code class="docutils literal notranslate"><span class="pre">XeniumImageFile.load()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.XeniumImageFile.shape"><code class="docutils literal notranslate"><span class="pre">XeniumImageFile.shape</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.XeniumImageFile.get_data"><code class="docutils literal notranslate"><span class="pre">XeniumImageFile.get_data()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.XeniumImageFile.get_sub_data"><code class="docutils literal notranslate"><span class="pre">XeniumImageFile.get_sub_data()</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#imagetransform">ImageTransform</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageTransform"><code class="docutils literal notranslate"><span class="pre">ImageTransform</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageTransform.matrix"><code class="docutils literal notranslate"><span class="pre">ImageTransform.matrix</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageTransform._inverse"><code class="docutils literal notranslate"><span class="pre">ImageTransform._inverse</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageTransform.__init__"><code class="docutils literal notranslate"><span class="pre">ImageTransform.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageTransform.map_to_pixels"><code class="docutils literal notranslate"><span class="pre">ImageTransform.map_to_pixels()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageTransform.inverse_matrix"><code class="docutils literal notranslate"><span class="pre">ImageTransform.inverse_matrix</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageTransform.map_from_pixels"><code class="docutils literal notranslate"><span class="pre">ImageTransform.map_from_pixels()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageTransform.translated"><code class="docutils literal notranslate"><span class="pre">ImageTransform.translated()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageTransform.load_spatialdata_transformation"><code class="docutils literal notranslate"><span class="pre">ImageTransform.load_spatialdata_transformation()</span></code></a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageTransform.__init__"><code class="docutils literal notranslate"><span class="pre">ImageTransform.__init__()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageTransform.load_spatialdata_transformation"><code class="docutils literal notranslate"><span class="pre">ImageTransform.load_spatialdata_transformation()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageTransform.inverse_matrix"><code class="docutils literal notranslate"><span class="pre">ImageTransform.inverse_matrix</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageTransform.map_to_pixels"><code class="docutils literal notranslate"><span class="pre">ImageTransform.map_to_pixels()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageTransform.map_from_pixels"><code class="docutils literal notranslate"><span class="pre">ImageTransform.map_from_pixels()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageTransform.translated"><code class="docutils literal notranslate"><span class="pre">ImageTransform.translated()</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#imagestack">ImageStack</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageStack"><code class="docutils literal notranslate"><span class="pre">ImageStack</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageStack.images"><code class="docutils literal notranslate"><span class="pre">ImageStack.images</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageStack.name"><code class="docutils literal notranslate"><span class="pre">ImageStack.name</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageStack.__init__"><code class="docutils literal notranslate"><span class="pre">ImageStack.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageStack.load_merscope_stacks"><code class="docutils literal notranslate"><span class="pre">ImageStack.load_merscope_stacks()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageStack.load_spatialdata_stacks"><code class="docutils literal notranslate"><span class="pre">ImageStack.load_spatialdata_stacks()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageStack.shape"><code class="docutils literal notranslate"><span class="pre">ImageStack.shape</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageStack.channels"><code class="docutils literal notranslate"><span class="pre">ImageStack.channels</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageStack.transform"><code class="docutils literal notranslate"><span class="pre">ImageStack.transform</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageStack.get_data"><code class="docutils literal notranslate"><span class="pre">ImageStack.get_data()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageStack.get_sub_data"><code class="docutils literal notranslate"><span class="pre">ImageStack.get_sub_data()</span></code></a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageStack.__init__"><code class="docutils literal notranslate"><span class="pre">ImageStack.__init__()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageStack.load_merscope_stacks"><code class="docutils literal notranslate"><span class="pre">ImageStack.load_merscope_stacks()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageStack.load_spatialdata_stacks"><code class="docutils literal notranslate"><span class="pre">ImageStack.load_spatialdata_stacks()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageStack.shape"><code class="docutils literal notranslate"><span class="pre">ImageStack.shape</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageStack.channels"><code class="docutils literal notranslate"><span class="pre">ImageStack.channels</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageStack.transform"><code class="docutils literal notranslate"><span class="pre">ImageStack.transform</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageStack.show"><code class="docutils literal notranslate"><span class="pre">ImageStack.show()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.ImageStack.bounds.html">sis.image.ImageStack.bounds</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.ImageStack.get_channel.html">sis.image.ImageStack.get_channel</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.ImageStack.get_frame.html">sis.image.ImageStack.get_frame</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.ImageStack.get_frames.html">sis.image.ImageStack.get_frames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.ImageStack.get_subregion.html">sis.image.ImageStack.get_subregion</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.ImageStack.get_data.html">sis.image.ImageStack.get_data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.ImageStack.get_sub_data.html">sis.image.ImageStack.get_sub_data</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#imageview">ImageView</a><ul>
@@ -172,14 +180,20 @@
 <li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageView.view_cols"><code class="docutils literal notranslate"><span class="pre">ImageView.view_cols</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageView.view_channels"><code class="docutils literal notranslate"><span class="pre">ImageView.view_channels</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageView.transform"><code class="docutils literal notranslate"><span class="pre">ImageView.transform</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageView.__init__"><code class="docutils literal notranslate"><span class="pre">ImageView.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageView.name"><code class="docutils literal notranslate"><span class="pre">ImageView.name</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageView.shape"><code class="docutils literal notranslate"><span class="pre">ImageView.shape</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageView.channels"><code class="docutils literal notranslate"><span class="pre">ImageView.channels</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageView.get_data"><code class="docutils literal notranslate"><span class="pre">ImageView.get_data()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.ImageView.get_sub_data"><code class="docutils literal notranslate"><span class="pre">ImageView.get_sub_data()</span></code></a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageView.__init__"><code class="docutils literal notranslate"><span class="pre">ImageView.__init__()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageView.name"><code class="docutils literal notranslate"><span class="pre">ImageView.name</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageView.shape"><code class="docutils literal notranslate"><span class="pre">ImageView.shape</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageView.channels"><code class="docutils literal notranslate"><span class="pre">ImageView.channels</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.ImageView.show"><code class="docutils literal notranslate"><span class="pre">ImageView.show()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.ImageView.bounds.html">sis.image.ImageView.bounds</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.ImageView.get_channel.html">sis.image.ImageView.get_channel</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.ImageView.get_frame.html">sis.image.ImageView.get_frame</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.ImageView.get_frames.html">sis.image.ImageView.get_frames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.ImageView.get_subregion.html">sis.image.ImageView.get_subregion</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.ImageView.get_data.html">sis.image.ImageView.get_data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.ImageView.get_sub_data.html">sis.image.ImageView.get_sub_data</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#spatialdataimage">SpatialDataImage</a><ul>
@@ -189,19 +203,25 @@
 <li class="toctree-l4"><a class="reference internal" href="#sis.image.SpatialDataImage.channels"><code class="docutils literal notranslate"><span class="pre">SpatialDataImage.channels</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#sis.image.SpatialDataImage.name"><code class="docutils literal notranslate"><span class="pre">SpatialDataImage.name</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#sis.image.SpatialDataImage.shape"><code class="docutils literal notranslate"><span class="pre">SpatialDataImage.shape</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.SpatialDataImage.__init__"><code class="docutils literal notranslate"><span class="pre">SpatialDataImage.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#id0"><code class="docutils literal notranslate"><span class="pre">SpatialDataImage.shape</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.SpatialDataImage.get_data"><code class="docutils literal notranslate"><span class="pre">SpatialDataImage.get_data()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sis.image.SpatialDataImage.get_sub_data"><code class="docutils literal notranslate"><span class="pre">SpatialDataImage.get_sub_data()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#sis.image.SpatialDataImage.__init__"><code class="docutils literal notranslate"><span class="pre">SpatialDataImage.__init__()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id0"><code class="docutils literal notranslate"><span class="pre">SpatialDataImage.shape</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id1"><code class="docutils literal notranslate"><span class="pre">ImageBase.show()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.SpatialDataImage.bounds.html">sis.image.SpatialDataImage.bounds</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.SpatialDataImage.get_channel.html">sis.image.SpatialDataImage.get_channel</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.SpatialDataImage.get_frame.html">sis.image.SpatialDataImage.get_frame</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.SpatialDataImage.get_frames.html">sis.image.SpatialDataImage.get_frames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.SpatialDataImage.get_subregion.html">sis.image.SpatialDataImage.get_subregion</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.SpatialDataImage.get_data.html">sis.image.SpatialDataImage.get_data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.image.SpatialDataImage.get_sub_data.html">sis.image.SpatialDataImage.get_sub_data</a></li>
 </ul>
 </li>
 </ul>
 </li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="segmentation.html">segmentation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="hpc.html">hpc</a></li>
-<li class="toctree-l1"><a class="reference internal" href="spatialdata.html">spatialdata</a></li>
+<li class="toctree-l1"><a class="reference internal" href="segmentation.html">sis.segmentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="hpc.html">sis.hpc</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spatialdata.html">sis.spatialdata</a></li>
 </ul>
 
         </div>
@@ -218,7 +238,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">image</li>
+      <li class="breadcrumb-item active">sis.image</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/image.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -228,8 +248,8 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="image">
-<h1>image<a class="headerlink" href="#image" title="Link to this heading"></a></h1>
+  <section id="sis-image">
+<h1>sis.image<a class="headerlink" href="#sis-image" title="Link to this heading"></a></h1>
 <section id="imagebase">
 <h2>ImageBase<a class="headerlink" href="#imagebase" title="Link to this heading"></a></h2>
 <dl class="py class">
@@ -238,102 +258,19 @@
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Base class representing a 4D image (frames, rows, columns, channels)</p>
 <p>Defines basic methods for navigating and displaying the underlying data, but does not define how it should be read in or stored.</p>
+</dd></dl>
+
+<p class="rubric">Properties</p>
 <dl class="py property">
 <dt class="sig sig-object py" id="sis.image.ImageBase.shape">
-<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">shape</span></span><a class="headerlink" href="#sis.image.ImageBase.shape" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">ImageBase.</span></span><span class="sig-name descname"><span class="pre">shape</span></span><a class="headerlink" href="#sis.image.ImageBase.shape" title="Link to this definition"></a></dt>
 <dd><p>Return 4D shape (frames, rows, columns, channels)</p>
 </dd></dl>
 
-<dl class="py method">
-<dt class="sig sig-object py" id="sis.image.ImageBase.get_channel">
-<span class="sig-name descname"><span class="pre">get_channel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageBase.get_channel" title="Link to this definition"></a></dt>
-<dd><p>Return a view of this image limited to the given channel (e.g.: ‘DAPI’ or ‘PolyT’)</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>channel</strong> (<em>str</em>) – Name of channel to return data from</p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>A view of this image limited to the channel</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference internal" href="#sis.image.ImageView" title="sis.image.ImageView">sis.image.ImageView</a></p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="sis.image.ImageBase.get_subregion">
-<span class="sig-name descname"><span class="pre">get_subregion</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">region</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">tuple</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">list</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">incl_end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageBase.get_subregion" title="Link to this definition"></a></dt>
-<dd><p>Return a view of this image limited to the spot coordinate-defined region ((xmin, xmax), (ymin, ymax))</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>region</strong> (<em>tuple</em><em> or </em><em>list</em><em>[</em><em>tuple</em><em>] or </em><em>list</em><em>[</em><em>list</em><em>]</em>) – Region to return data from</p></li>
-<li><p><strong>incl_end</strong> (<em>bool</em>) – Include all pixels of the image that overlap with the region, rather than just those inside the region.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>A view of this image limited to the region</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference internal" href="#sis.image.ImageView" title="sis.image.ImageView">sis.image.ImageView</a></p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="sis.image.ImageBase.bounds">
-<span class="sig-name descname"><span class="pre">bounds</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageBase.bounds" title="Link to this definition"></a></dt>
-<dd><p>Return (xlim, ylim) bounds of the image in spot coordinates</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>(xlim, ylim) bounds of the image in spot coordinates</p>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>tuple</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="sis.image.ImageBase.get_frame">
-<span class="sig-name descname"><span class="pre">get_frame</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frame</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageBase.get_frame" title="Link to this definition"></a></dt>
-<dd><p>Return a view of this image limited to the given frame</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>frame</strong> (<em>int</em><em> or </em><em>None</em>) – Frame to return data from</p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>image limited to the given frame</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference internal" href="#sis.image.ImageView" title="sis.image.ImageView">sis.image.ImageView</a></p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="sis.image.ImageBase.get_frames">
-<span class="sig-name descname"><span class="pre">get_frames</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageBase.get_frames" title="Link to this definition"></a></dt>
-<dd><p>Return a view of this image limited to the given frames</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>frames</strong> (<em>tuple</em><em> or </em><em>int</em><em> or </em><em>None</em>) – if tuple: first_frame is inclusive, last_frame is exclusive
-if int: single frame to return
-if None: return full image</p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>image limited to the given frames</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference internal" href="#sis.image.ImageView" title="sis.image.ImageView">sis.image.ImageView</a></p>
-</dd>
-</dl>
-</dd></dl>
-
+<p class="rubric">Plotting</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="sis.image.ImageBase.show">
-<span class="sig-name descname"><span class="pre">show</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frame</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwds</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageBase.show" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">ImageBase.</span></span><span class="sig-name descname"><span class="pre">show</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frame</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwds</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageBase.show" title="Link to this definition"></a></dt>
 <dd><p>Show the image in a matplotlib axis</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -347,23 +284,42 @@ if None: return full image</p>
 </dl>
 </dd></dl>
 
-<dl class="py attribute">
-<dt class="sig sig-object py" id="sis.image.ImageBase.__weakref__">
-<span class="sig-name descname"><span class="pre">__weakref__</span></span><a class="headerlink" href="#sis.image.ImageBase.__weakref__" title="Link to this definition"></a></dt>
-<dd><p>list of weak references to the object</p>
-</dd></dl>
-
-</dd></dl>
-
+<p class="rubric">Methods</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.ImageBase.bounds</span></code>()</p></td>
+<td><p>Return (xlim, ylim) bounds of the image in spot coordinates</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.ImageBase.get_channel</span></code>(channel)</p></td>
+<td><p>Return a view of this image limited to the given channel (e.g.: 'DAPI' or 'PolyT')</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.ImageBase.get_frame</span></code>(frame)</p></td>
+<td><p>Return a view of this image limited to the given frame</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.ImageBase.get_frames</span></code>(frames)</p></td>
+<td><p>Return a view of this image limited to the given frames</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.ImageBase.get_subregion</span></code>(region[, ...])</p></td>
+<td><p>Return a view of this image limited to the spot coordinate-defined region ((xmin, xmax), (ymin, ymax))</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.ImageBase.get_data</span></code>([channel])</p></td>
+<td><p>Return array of image data.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.ImageBase.get_sub_data</span></code>(frames, ...)</p></td>
+<td><p>Get image data for a subregion (defined by frames, rows, and cols, NOT by spot coordinates)</p></td>
+</tr>
+</tbody>
+</table>
 </section>
-<section id="id1">
-<h2>Image<a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
+<section id="image">
+<h2>Image<a class="headerlink" href="#image" title="Link to this heading"></a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="sis.image.Image">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">sis.image.</span></span><span class="sig-name descname"><span class="pre">Image</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#sis.image.ImageTransform" title="sis.image.ImageTransform"><span class="pre">ImageTransform</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.Image" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">sis.image.</span></span><span class="sig-name descname"><span class="pre">Image</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.Image" title="Link to this definition"></a></dt>
 <dd><p>Bases: <a class="reference internal" href="#sis.image.ImageBase" title="sis.image.ImageBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">ImageBase</span></code></a></p>
 <p>An Image defined by 4D numpy array (frames, rows, cols, channels).</p>
 <p>Carries metadata about pixel transform and channel identity.</p>
+<p class="rubric">Attributes</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="sis.image.Image.transform">
 <span class="sig-name descname"><span class="pre">transform</span></span><a class="headerlink" href="#sis.image.Image.transform" title="Link to this definition"></a></dt>
@@ -408,14 +364,28 @@ if None: return full image</p>
 </dl>
 </dd></dl>
 
+</dd></dl>
+
+<p class="rubric">Initialization</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="sis.image.Image.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#sis.image.ImageTransform" title="sis.image.ImageTransform"><span class="pre">ImageTransform</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.Image.__init__" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<span class="sig-prename descclassname"><span class="pre">Image.</span></span><span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.Image.__init__" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data</strong> (<em>numpy.ndarray</em>) – 4D array of image data</p></li>
+<li><p><strong>transform</strong> (<a class="reference internal" href="#sis.image.ImageTransform" title="sis.image.ImageTransform"><em>sis.image.ImageTransform</em></a>) – Transformation mapping from pixel coordinates to spot coordinates</p></li>
+<li><p><strong>channels</strong> (<em>list</em>) – List of names given to each channel (e.g.: ‘dapi’)</p></li>
+<li><p><strong>name</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Optional unique identifier for this image</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
 
+<p class="rubric">Properties</p>
 <dl class="py property">
 <dt class="sig sig-object py" id="sis.image.Image.shape">
-<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">shape</span></span><a class="headerlink" href="#sis.image.Image.shape" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">Image.</span></span><span class="sig-name descname"><span class="pre">shape</span></span><a class="headerlink" href="#sis.image.Image.shape" title="Link to this definition"></a></dt>
 <dd><p>Return 4D shape (frames, rows, columns, channels)</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
@@ -427,9 +397,10 @@ if None: return full image</p>
 </dl>
 </dd></dl>
 
+<p class="rubric">Methods</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="sis.image.Image.get_data">
-<span class="sig-name descname"><span class="pre">get_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.Image.get_data" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">Image.</span></span><span class="sig-name descname"><span class="pre">get_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.Image.get_data" title="Link to this definition"></a></dt>
 <dd><p>Return array of image data.</p>
 <p>If the image has multiple channels, then the name of the channel to return must be given.</p>
 <dl class="field-list simple">
@@ -441,7 +412,7 @@ if None: return full image</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="sis.image.Image.get_sub_data">
-<span class="sig-name descname"><span class="pre">get_sub_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rows</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cols</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.Image.get_sub_data" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">Image.</span></span><span class="sig-name descname"><span class="pre">get_sub_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rows</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cols</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.Image.get_sub_data" title="Link to this definition"></a></dt>
 <dd><p>Get image data for a subregion (defined by frames, rows, and cols, NOT by spot coordinates)</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -455,8 +426,6 @@ if None: return full image</p>
 </dl>
 </dd></dl>
 
-</dd></dl>
-
 </section>
 <section id="imagefile">
 <h2>ImageFile<a class="headerlink" href="#imagefile" title="Link to this heading"></a></h2>
@@ -465,9 +434,12 @@ if None: return full image</p>
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">sis.image.</span></span><span class="sig-name descname"><span class="pre">ImageFile</span></span><a class="headerlink" href="#sis.image.ImageFile" title="Link to this definition"></a></dt>
 <dd><p>Bases: <a class="reference internal" href="#sis.image.ImageBase" title="sis.image.ImageBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">ImageBase</span></code></a></p>
 <p>Base class for accessing image files on disk.</p>
+</dd></dl>
+
+<p class="rubric">Properties</p>
 <dl class="py property">
 <dt class="sig sig-object py" id="sis.image.ImageFile.shape">
-<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">shape</span></span><a class="headerlink" href="#sis.image.ImageFile.shape" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">ImageFile.</span></span><span class="sig-name descname"><span class="pre">shape</span></span><a class="headerlink" href="#sis.image.ImageFile.shape" title="Link to this definition"></a></dt>
 <dd><p>Return 4D shape (frames, rows, columns, channels)</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
@@ -479,9 +451,10 @@ if None: return full image</p>
 </dl>
 </dd></dl>
 
+<p class="rubric">Methods</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="sis.image.ImageFile.get_data">
-<span class="sig-name descname"><span class="pre">get_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageFile.get_data" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">ImageFile.</span></span><span class="sig-name descname"><span class="pre">get_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageFile.get_data" title="Link to this definition"></a></dt>
 <dd><p>Return array of image data.
 If the image has multiple channels, then the name of the channel to return must be given.</p>
 <dl class="field-list simple">
@@ -496,7 +469,7 @@ If the image has multiple channels, then the name of the channel to return must 
 
 <dl class="py method">
 <dt class="sig sig-object py" id="sis.image.ImageFile.get_sub_data">
-<span class="sig-name descname"><span class="pre">get_sub_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rows</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cols</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageFile.get_sub_data" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">ImageFile.</span></span><span class="sig-name descname"><span class="pre">get_sub_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rows</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cols</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageFile.get_sub_data" title="Link to this definition"></a></dt>
 <dd><p>Return a subset of the ImageData</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -516,25 +489,22 @@ If the image has multiple channels, then the name of the channel to return must 
 </dl>
 </dd></dl>
 
-</dd></dl>
-
 </section>
 <section id="merscopeimagefile">
 <h2>MerscopeImageFile<a class="headerlink" href="#merscopeimagefile" title="Link to this heading"></a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="sis.image.MerscopeImageFile">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">sis.image.</span></span><span class="sig-name descname"><span class="pre">MerscopeImageFile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#sis.image.ImageTransform" title="sis.image.ImageTransform"><span class="pre">ImageTransform</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">axes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.MerscopeImageFile" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">sis.image.</span></span><span class="sig-name descname"><span class="pre">MerscopeImageFile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">axes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.MerscopeImageFile" title="Link to this definition"></a></dt>
 <dd><p>Bases: <a class="reference internal" href="#sis.image.ImageFile" title="sis.image.ImageFile"><code class="xref py py-class docutils literal notranslate"><span class="pre">ImageFile</span></code></a></p>
-<dl class="simple">
-<dt>Represents a single image stored on disk, carrying metadata about:</dt><dd><ul class="simple">
+<p>Represents a single image stored on disk, carrying metadata about:</p>
+<ul class="simple">
 <li><p>The file containing image data</p></li>
 <li><p>The transform that maps from pixel coordinates to spot table coordinates</p></li>
 <li><p>Which axes are which</p></li>
 <li><p>What is represented by each channel</p></li>
 </ul>
-</dd>
-</dl>
 <p>Image data are lazy-loaded so that we can handle subregions without loading the entire image</p>
+<p class="rubric">Attributes</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="sis.image.MerscopeImageFile.file">
 <span class="sig-name descname"><span class="pre">file</span></span><a class="headerlink" href="#sis.image.MerscopeImageFile.file" title="Link to this definition"></a></dt>
@@ -601,9 +571,12 @@ If the image has multiple channels, then the name of the channel to return must 
 </dl>
 </dd></dl>
 
+</dd></dl>
+
+<p class="rubric">Initialization</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="sis.image.MerscopeImageFile.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#sis.image.ImageTransform" title="sis.image.ImageTransform"><span class="pre">ImageTransform</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">axes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.MerscopeImageFile.__init__" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">MerscopeImageFile.</span></span><span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">axes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.MerscopeImageFile.__init__" title="Link to this definition"></a></dt>
 <dd><dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -619,7 +592,7 @@ If the image has multiple channels, then the name of the channel to return must 
 
 <dl class="py method">
 <dt class="sig sig-object py" id="sis.image.MerscopeImageFile.load">
-<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">load</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">image_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.MerscopeImageFile.load" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">MerscopeImageFile.</span></span><span class="sig-name descname"><span class="pre">load</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">image_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.MerscopeImageFile.load" title="Link to this definition"></a></dt>
 <dd><p>Read a Merscope image file and return an ImageFile object</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -636,9 +609,40 @@ If the image has multiple channels, then the name of the channel to return must 
 </dl>
 </dd></dl>
 
+<p class="rubric">Properties</p>
+<dl class="py property">
+<dt class="sig sig-object py" id="sis.image.MerscopeImageFile.shape">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">MerscopeImageFile.</span></span><span class="sig-name descname"><span class="pre">shape</span></span><a class="headerlink" href="#sis.image.MerscopeImageFile.shape" title="Link to this definition"></a></dt>
+<dd><p>Return 4D shape (frames, rows, columns, channels)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>This images (frames, rows, columns, channels) values</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<p class="rubric">Methods</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.image.MerscopeImageFile.get_data">
+<span class="sig-prename descclassname"><span class="pre">MerscopeImageFile.</span></span><span class="sig-name descname"><span class="pre">get_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.MerscopeImageFile.get_data" title="Link to this definition"></a></dt>
+<dd><p>Return array of image data.
+If the image has multiple channels, then the name of the channel to return must be given.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>channel</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Name of channel to return data from</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="py method">
 <dt class="sig sig-object py" id="sis.image.MerscopeImageFile.get_sub_data">
-<span class="sig-name descname"><span class="pre">get_sub_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rows</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cols</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.MerscopeImageFile.get_sub_data" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">MerscopeImageFile.</span></span><span class="sig-name descname"><span class="pre">get_sub_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rows</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cols</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.MerscopeImageFile.get_sub_data" title="Link to this definition"></a></dt>
 <dd><p>Get image data for a subregion (defined by frames, rows, and cols, NOT by spot coordinates)</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -658,25 +662,22 @@ If the image has multiple channels, then the name of the channel to return must 
 </dl>
 </dd></dl>
 
-</dd></dl>
-
 </section>
 <section id="stereoseqimagefile">
 <h2>StereoSeqImageFile<a class="headerlink" href="#stereoseqimagefile" title="Link to this heading"></a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="sis.image.StereoSeqImageFile">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">sis.image.</span></span><span class="sig-name descname"><span class="pre">StereoSeqImageFile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#sis.image.ImageTransform" title="sis.image.ImageTransform"><span class="pre">ImageTransform</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">axes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.StereoSeqImageFile" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">sis.image.</span></span><span class="sig-name descname"><span class="pre">StereoSeqImageFile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">axes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.StereoSeqImageFile" title="Link to this definition"></a></dt>
 <dd><p>Bases: <a class="reference internal" href="#sis.image.ImageFile" title="sis.image.ImageFile"><code class="xref py py-class docutils literal notranslate"><span class="pre">ImageFile</span></code></a></p>
-<dl class="simple">
-<dt>Represents a single image stored on disk, carrying metadata about:</dt><dd><ul class="simple">
+<p>Represents a single image stored on disk, carrying metadata about:</p>
+<ul class="simple">
 <li><p>The file containing image data</p></li>
 <li><p>The transform that maps from pixel coordinates to spot table coordinates</p></li>
 <li><p>Which axes are which</p></li>
 <li><p>What is represented by each channel</p></li>
 </ul>
-</dd>
-</dl>
 <p>Image data are lazy-loaded so that we can handle subregions without loading the entire image</p>
+<p class="rubric">Attributes</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="sis.image.StereoSeqImageFile.file">
 <span class="sig-name descname"><span class="pre">file</span></span><a class="headerlink" href="#sis.image.StereoSeqImageFile.file" title="Link to this definition"></a></dt>
@@ -743,9 +744,12 @@ If the image has multiple channels, then the name of the channel to return must 
 </dl>
 </dd></dl>
 
+</dd></dl>
+
+<p class="rubric">Initialization</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="sis.image.StereoSeqImageFile.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#sis.image.ImageTransform" title="sis.image.ImageTransform"><span class="pre">ImageTransform</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">axes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.StereoSeqImageFile.__init__" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">StereoSeqImageFile.</span></span><span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">axes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.StereoSeqImageFile.__init__" title="Link to this definition"></a></dt>
 <dd><dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -761,7 +765,7 @@ If the image has multiple channels, then the name of the channel to return must 
 
 <dl class="py method">
 <dt class="sig sig-object py" id="sis.image.StereoSeqImageFile.load">
-<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">load</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">image_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xyscale</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.StereoSeqImageFile.load" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">StereoSeqImageFile.</span></span><span class="sig-name descname"><span class="pre">load</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">image_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xyscale</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.StereoSeqImageFile.load" title="Link to this definition"></a></dt>
 <dd><p>Read a StereoSeq image file and return an ImageFile object</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -778,9 +782,40 @@ If the image has multiple channels, then the name of the channel to return must 
 </dl>
 </dd></dl>
 
+<p class="rubric">Properties</p>
+<dl class="py property">
+<dt class="sig sig-object py" id="sis.image.StereoSeqImageFile.shape">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">StereoSeqImageFile.</span></span><span class="sig-name descname"><span class="pre">shape</span></span><a class="headerlink" href="#sis.image.StereoSeqImageFile.shape" title="Link to this definition"></a></dt>
+<dd><p>Return 4D shape (frames, rows, columns, channels)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>This images (frames, rows, columns, channels) values</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<p class="rubric">Methods</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.image.StereoSeqImageFile.get_data">
+<span class="sig-prename descclassname"><span class="pre">StereoSeqImageFile.</span></span><span class="sig-name descname"><span class="pre">get_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.StereoSeqImageFile.get_data" title="Link to this definition"></a></dt>
+<dd><p>Return array of image data.
+If the image has multiple channels, then the name of the channel to return must be given.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>channel</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Name of channel to return data from</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="py method">
 <dt class="sig sig-object py" id="sis.image.StereoSeqImageFile.get_sub_data">
-<span class="sig-name descname"><span class="pre">get_sub_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rows</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cols</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.StereoSeqImageFile.get_sub_data" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">StereoSeqImageFile.</span></span><span class="sig-name descname"><span class="pre">get_sub_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rows</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cols</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.StereoSeqImageFile.get_sub_data" title="Link to this definition"></a></dt>
 <dd><p>Get image data for a subregion (defined by frames, rows, and cols, NOT by spot coordinates)</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -800,25 +835,22 @@ If the image has multiple channels, then the name of the channel to return must 
 </dl>
 </dd></dl>
 
-</dd></dl>
-
 </section>
 <section id="xeniumimagefile">
 <h2>XeniumImageFile<a class="headerlink" href="#xeniumimagefile" title="Link to this heading"></a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="sis.image.XeniumImageFile">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">sis.image.</span></span><span class="sig-name descname"><span class="pre">XeniumImageFile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#sis.image.ImageTransform" title="sis.image.ImageTransform"><span class="pre">ImageTransform</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">axes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pyramid_level</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cache_image</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.XeniumImageFile" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">sis.image.</span></span><span class="sig-name descname"><span class="pre">XeniumImageFile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">axes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pyramid_level</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cache_image</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.XeniumImageFile" title="Link to this definition"></a></dt>
 <dd><p>Bases: <a class="reference internal" href="#sis.image.ImageFile" title="sis.image.ImageFile"><code class="xref py py-class docutils literal notranslate"><span class="pre">ImageFile</span></code></a></p>
-<dl class="simple">
-<dt>Represents a single image stored on disk, carrying metadata about:</dt><dd><ul class="simple">
+<p>Represents a single image stored on disk, carrying metadata about:</p>
+<ul class="simple">
 <li><p>The file containing image data</p></li>
 <li><p>The transform that maps from pixel coordinates to spot table coordinates</p></li>
 <li><p>Which axes are which</p></li>
 <li><p>What is represented by each channel</p></li>
 </ul>
-</dd>
-</dl>
 <p>Image data are lazy-loaded so that we can handle subregions without loading the entire image</p>
+<p class="rubric">Attributes</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="sis.image.XeniumImageFile.file">
 <span class="sig-name descname"><span class="pre">file</span></span><a class="headerlink" href="#sis.image.XeniumImageFile.file" title="Link to this definition"></a></dt>
@@ -919,9 +951,12 @@ This is not currently utilized anywhere, but included for potential future use.<
 </dl>
 </dd></dl>
 
+</dd></dl>
+
+<p class="rubric">Initialization</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="sis.image.XeniumImageFile.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#sis.image.ImageTransform" title="sis.image.ImageTransform"><span class="pre">ImageTransform</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">axes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pyramid_level</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cache_image</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.XeniumImageFile.__init__" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">XeniumImageFile.</span></span><span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">axes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pyramid_level</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cache_image</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.XeniumImageFile.__init__" title="Link to this definition"></a></dt>
 <dd><dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -940,7 +975,7 @@ This is not currently utilized anywhere, but included for potential future use.<
 
 <dl class="py method">
 <dt class="sig sig-object py" id="sis.image.XeniumImageFile.load">
-<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">load</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xenium_image_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pyramid_level</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cache_image</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.XeniumImageFile.load" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">XeniumImageFile.</span></span><span class="sig-name descname"><span class="pre">load</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xenium_image_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pyramid_level</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cache_image</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.XeniumImageFile.load" title="Link to this definition"></a></dt>
 <dd><p>Read standard Xenium image mosaic tiff file, returning list of XeniumImageFiles</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -962,9 +997,10 @@ The trade off is speed vs memory.</p></li>
 </dl>
 </dd></dl>
 
+<p class="rubric">Properties</p>
 <dl class="py property">
 <dt class="sig sig-object py" id="sis.image.XeniumImageFile.shape">
-<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">shape</span></span><a class="headerlink" href="#sis.image.XeniumImageFile.shape" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">XeniumImageFile.</span></span><span class="sig-name descname"><span class="pre">shape</span></span><a class="headerlink" href="#sis.image.XeniumImageFile.shape" title="Link to this definition"></a></dt>
 <dd><p>Return 4D shape (frames, rows, columns, channels)</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
@@ -976,9 +1012,10 @@ The trade off is speed vs memory.</p></li>
 </dl>
 </dd></dl>
 
+<p class="rubric">Methods</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="sis.image.XeniumImageFile.get_data">
-<span class="sig-name descname"><span class="pre">get_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pyramid_level</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.XeniumImageFile.get_data" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">XeniumImageFile.</span></span><span class="sig-name descname"><span class="pre">get_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pyramid_level</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.XeniumImageFile.get_data" title="Link to this definition"></a></dt>
 <dd><p>Return array of image data.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -996,7 +1033,7 @@ This parameter specifies which level of the pyramid to load.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="sis.image.XeniumImageFile.get_sub_data">
-<span class="sig-name descname"><span class="pre">get_sub_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rows</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cols</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pyramid_level</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.XeniumImageFile.get_sub_data" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">XeniumImageFile.</span></span><span class="sig-name descname"><span class="pre">get_sub_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rows</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cols</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pyramid_level</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.XeniumImageFile.get_sub_data" title="Link to this definition"></a></dt>
 <dd><p>Get image data for a subregion (defined by frames, rows, and cols, NOT by spot coordinates)</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1018,8 +1055,6 @@ This parameter specifies which level of the pyramid to load.</p></li>
 </dl>
 </dd></dl>
 
-</dd></dl>
-
 </section>
 <section id="imagetransform">
 <h2>ImageTransform<a class="headerlink" href="#imagetransform" title="Link to this heading"></a></h2>
@@ -1028,6 +1063,7 @@ This parameter specifies which level of the pyramid to load.</p></li>
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">sis.image.</span></span><span class="sig-name descname"><span class="pre">ImageTransform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">matrix</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageTransform" title="Link to this definition"></a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Transfomation mapping between (x, y) spot coordinates and (row, col) image pixels</p>
+<p class="rubric">Attributes</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="sis.image.ImageTransform.matrix">
 <span class="sig-name descname"><span class="pre">matrix</span></span><a class="headerlink" href="#sis.image.ImageTransform.matrix" title="Link to this definition"></a></dt>
@@ -1050,9 +1086,12 @@ This parameter specifies which level of the pyramid to load.</p></li>
 </dl>
 </dd></dl>
 
+</dd></dl>
+
+<p class="rubric">Initialization</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="sis.image.ImageTransform.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">matrix</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageTransform.__init__" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">ImageTransform.</span></span><span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">matrix</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageTransform.__init__" title="Link to this definition"></a></dt>
 <dd><dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>matrix</strong> (<em>numpy.ndarray</em>) – 2x3 affine transformation matrix mapping from spots to pixels</p>
@@ -1061,64 +1100,8 @@ This parameter specifies which level of the pyramid to load.</p></li>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="sis.image.ImageTransform.map_to_pixels">
-<span class="sig-name descname"><span class="pre">map_to_pixels</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">points</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageTransform.map_to_pixels" title="Link to this definition"></a></dt>
-<dd><p>Map (x, y) positions to image pixels (row, col).</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>points</strong> (<em>numpy.ndarray</em>) – Points to map. Must be of shape (N, 2)</p>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>numpy.ndarray</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="sis.image.ImageTransform.inverse_matrix">
-<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">inverse_matrix</span></span><a class="headerlink" href="#sis.image.ImageTransform.inverse_matrix" title="Link to this definition"></a></dt>
-<dd><p>Returns the inverse of the transformation matrix</p>
-<dl class="field-list simple">
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>numpy.ndarray</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="sis.image.ImageTransform.map_from_pixels">
-<span class="sig-name descname"><span class="pre">map_from_pixels</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pixels</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageTransform.map_from_pixels" title="Link to this definition"></a></dt>
-<dd><p>Map (row, col) image pixels to positions (x, y).</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>pixels</strong> (<em>numpy.ndarray</em>) – Pixels to map. Must be of shape (N, 2)</p>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>numpy.ndarray</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="sis.image.ImageTransform.translated">
-<span class="sig-name descname"><span class="pre">translated</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">offset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageTransform.translated" title="Link to this definition"></a></dt>
-<dd><p>Return a new transform that is translated by <em>offset</em> (where offset is expressed in pixels)</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>offset</strong> (<em>numpy.ndarray</em>) – Offset to translate by. Must be of shape (2,)</p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>New transform that is translated by <em>offset</em></p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference internal" href="#sis.image.ImageTransform" title="sis.image.ImageTransform">sis.image.ImageTransform</a></p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
 <dt class="sig sig-object py" id="sis.image.ImageTransform.load_spatialdata_transformation">
-<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">load_spatialdata_transformation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">transformation</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">sd.transformations.BaseTransformation</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageTransform.load_spatialdata_transformation" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">ImageTransform.</span></span><span class="sig-name descname"><span class="pre">load_spatialdata_transformation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">transformation</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageTransform.load_spatialdata_transformation" title="Link to this definition"></a></dt>
 <dd><p>Load a spatial data transformation and convert it to an ImageTransform.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1139,6 +1122,62 @@ This parameter specifies which level of the pyramid to load.</p></li>
 </dl>
 </dd></dl>
 
+<p class="rubric">Properties</p>
+<dl class="py property">
+<dt class="sig sig-object py" id="sis.image.ImageTransform.inverse_matrix">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">ImageTransform.</span></span><span class="sig-name descname"><span class="pre">inverse_matrix</span></span><a class="headerlink" href="#sis.image.ImageTransform.inverse_matrix" title="Link to this definition"></a></dt>
+<dd><p>Returns the inverse of the transformation matrix</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<p class="rubric">Methods</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.image.ImageTransform.map_to_pixels">
+<span class="sig-prename descclassname"><span class="pre">ImageTransform.</span></span><span class="sig-name descname"><span class="pre">map_to_pixels</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">points</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageTransform.map_to_pixels" title="Link to this definition"></a></dt>
+<dd><p>Map (x, y) positions to image pixels (row, col).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>points</strong> (<em>numpy.ndarray</em>) – Points to map. Must be of shape (N, 2)</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.image.ImageTransform.map_from_pixels">
+<span class="sig-prename descclassname"><span class="pre">ImageTransform.</span></span><span class="sig-name descname"><span class="pre">map_from_pixels</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pixels</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageTransform.map_from_pixels" title="Link to this definition"></a></dt>
+<dd><p>Map (row, col) image pixels to positions (x, y).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>pixels</strong> (<em>numpy.ndarray</em>) – Pixels to map. Must be of shape (N, 2)</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sis.image.ImageTransform.translated">
+<span class="sig-prename descclassname"><span class="pre">ImageTransform.</span></span><span class="sig-name descname"><span class="pre">translated</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">offset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageTransform.translated" title="Link to this definition"></a></dt>
+<dd><p>Return a new transform that is translated by <em>offset</em> (where offset is expressed in pixels)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>offset</strong> (<em>numpy.ndarray</em>) – Offset to translate by. Must be of shape (2,)</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>New transform that is translated by <em>offset</em></p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#sis.image.ImageTransform" title="sis.image.ImageTransform">sis.image.ImageTransform</a></p>
+</dd>
+</dl>
 </dd></dl>
 
 </section>
@@ -1150,6 +1189,7 @@ This parameter specifies which level of the pyramid to load.</p></li>
 <dd><p>Bases: <a class="reference internal" href="#sis.image.ImageBase" title="sis.image.ImageBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">ImageBase</span></code></a></p>
 <p>A stack of Image z-planes
 Assumes <cite>images</cite> are all the same shape and evenly spaced along the z axis.</p>
+<p class="rubric">Attributes</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="sis.image.ImageStack.images">
 <span class="sig-name descname"><span class="pre">images</span></span><a class="headerlink" href="#sis.image.ImageStack.images" title="Link to this definition"></a></dt>
@@ -1172,9 +1212,12 @@ Assumes <cite>images</cite> are all the same shape and evenly spaced along the z
 </dl>
 </dd></dl>
 
+</dd></dl>
+
+<p class="rubric">Initialization</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="sis.image.ImageStack.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">images</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageStack.__init__" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">ImageStack.</span></span><span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">images</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageStack.__init__" title="Link to this definition"></a></dt>
 <dd><dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -1187,7 +1230,7 @@ Assumes <cite>images</cite> are all the same shape and evenly spaced along the z
 
 <dl class="py method">
 <dt class="sig sig-object py" id="sis.image.ImageStack.load_merscope_stacks">
-<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">load_merscope_stacks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageStack.load_merscope_stacks" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">ImageStack.</span></span><span class="sig-name descname"><span class="pre">load_merscope_stacks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageStack.load_merscope_stacks" title="Link to this definition"></a></dt>
 <dd><p>Read standard merscope image mosaic format, returning multiple image stacks
 We read merscope into ImageStacks because z-planes are stored across different files.</p>
 <dl class="field-list simple">
@@ -1205,7 +1248,7 @@ We read merscope into ImageStacks because z-planes are stored across different f
 
 <dl class="py method">
 <dt class="sig sig-object py" id="sis.image.ImageStack.load_spatialdata_stacks">
-<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">load_spatialdata_stacks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sd_object</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">points_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageStack.load_spatialdata_stacks" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">ImageStack.</span></span><span class="sig-name descname"><span class="pre">load_spatialdata_stacks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sd_object</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">points_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageStack.load_spatialdata_stacks" title="Link to this definition"></a></dt>
 <dd><p>Load images from a spatialdata object into an ImageStack</p>
 <p>Requires that images are named with _z{index} suffixes to indicate z-layer.</p>
 <dl class="field-list simple">
@@ -1232,9 +1275,10 @@ Defaults to the first points value</p></li>
 </dl>
 </dd></dl>
 
+<p class="rubric">Properties</p>
 <dl class="py property">
 <dt class="sig sig-object py" id="sis.image.ImageStack.shape">
-<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">shape</span></span><a class="headerlink" href="#sis.image.ImageStack.shape" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">ImageStack.</span></span><span class="sig-name descname"><span class="pre">shape</span></span><a class="headerlink" href="#sis.image.ImageStack.shape" title="Link to this definition"></a></dt>
 <dd><p>Return 4D shape (frames, rows, columns, channels)</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
@@ -1248,7 +1292,7 @@ Defaults to the first points value</p></li>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="sis.image.ImageStack.channels">
-<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">channels</span></span><a class="headerlink" href="#sis.image.ImageStack.channels" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">ImageStack.</span></span><span class="sig-name descname"><span class="pre">channels</span></span><a class="headerlink" href="#sis.image.ImageStack.channels" title="Link to this definition"></a></dt>
 <dd><p>Return list of channel names</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
@@ -1262,7 +1306,7 @@ Defaults to the first points value</p></li>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="sis.image.ImageStack.transform">
-<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">transform</span></span><a class="headerlink" href="#sis.image.ImageStack.transform" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">ImageStack.</span></span><span class="sig-name descname"><span class="pre">transform</span></span><a class="headerlink" href="#sis.image.ImageStack.transform" title="Link to this definition"></a></dt>
 <dd><p>Return transform mapping from pixel coordinates to spot coordinates</p>
 <dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
@@ -1271,47 +1315,49 @@ Defaults to the first points value</p></li>
 </dl>
 </dd></dl>
 
+<p class="rubric">Plotting</p>
 <dl class="py method">
-<dt class="sig sig-object py" id="sis.image.ImageStack.get_data">
-<span class="sig-name descname"><span class="pre">get_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageStack.get_data" title="Link to this definition"></a></dt>
-<dd><p>Return array of image data.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>channel</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Name of channel to return data from</p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>3D array of image data (frames, rows, columns)</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>numpy.ndarray</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="sis.image.ImageStack.get_sub_data">
-<span class="sig-name descname"><span class="pre">get_sub_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rows</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cols</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageStack.get_sub_data" title="Link to this definition"></a></dt>
-<dd><p>Get image data for a subregion (defined by frames, rows, and cols, NOT by spot coordinates)</p>
+<dt class="sig sig-object py" id="sis.image.ImageStack.show">
+<span class="sig-prename descclassname"><span class="pre">ImageStack.</span></span><span class="sig-name descname"><span class="pre">show</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frame</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwds</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageStack.show" title="Link to this definition"></a></dt>
+<dd><p>Show the image in a matplotlib axis</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>frames</strong> (<em>tuple</em>) – first frame is inclusive, last_frame is exclusive</p></li>
-<li><p><strong>rows</strong> (<em>tuple</em>) – first row is inclusive, last_row is exclusive</p></li>
-<li><p><strong>cols</strong> (<em>tuple</em>) – first col is inclusive, last_col is exclusive</p></li>
-<li><p><strong>channel</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Name of channel to return data from</p></li>
+<li><p><strong>ax</strong> (<em>matplotlib.axes.Axes</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Axis to show image in</p></li>
+<li><p><strong>frame</strong> (<em>int</em><em> or </em><em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Single frame to show. Can be ‘mean’ to show the mean of all frames</p></li>
+<li><p><strong>channel</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Channel to show</p></li>
+<li><p><strong>**kwds</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>Any</em><em>]</em>) – Additional keyword arguments to pass to imshow()</p></li>
 </ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>3D array of image data (frames, rows, columns)</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>numpy.ndarray</p>
 </dd>
 </dl>
 </dd></dl>
 
-</dd></dl>
-
+<p class="rubric">Methods</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/sis.image.ImageStack.bounds.html#sis.image.ImageStack.bounds" title="sis.image.ImageStack.bounds"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.ImageStack.bounds</span></code></a>()</p></td>
+<td><p>Return (xlim, ylim) bounds of the image in spot coordinates</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/sis.image.ImageStack.get_channel.html#sis.image.ImageStack.get_channel" title="sis.image.ImageStack.get_channel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.ImageStack.get_channel</span></code></a>(channel)</p></td>
+<td><p>Return a view of this image limited to the given channel (e.g.: 'DAPI' or 'PolyT')</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/sis.image.ImageStack.get_frame.html#sis.image.ImageStack.get_frame" title="sis.image.ImageStack.get_frame"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.ImageStack.get_frame</span></code></a>(frame)</p></td>
+<td><p>Return a view of this image limited to the given frame</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/sis.image.ImageStack.get_frames.html#sis.image.ImageStack.get_frames" title="sis.image.ImageStack.get_frames"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.ImageStack.get_frames</span></code></a>(frames)</p></td>
+<td><p>Return a view of this image limited to the given frames</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/sis.image.ImageStack.get_subregion.html#sis.image.ImageStack.get_subregion" title="sis.image.ImageStack.get_subregion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.ImageStack.get_subregion</span></code></a>(region[, ...])</p></td>
+<td><p>Return a view of this image limited to the spot coordinate-defined region ((xmin, xmax), (ymin, ymax))</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/sis.image.ImageStack.get_data.html#sis.image.ImageStack.get_data" title="sis.image.ImageStack.get_data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.ImageStack.get_data</span></code></a>([channel])</p></td>
+<td><p>Return array of image data.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/sis.image.ImageStack.get_sub_data.html#sis.image.ImageStack.get_sub_data" title="sis.image.ImageStack.get_sub_data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.ImageStack.get_sub_data</span></code></a>(frames, ...)</p></td>
+<td><p>Get image data for a subregion (defined by frames, rows, and cols, NOT by spot coordinates)</p></td>
+</tr>
+</tbody>
+</table>
 </section>
 <section id="imageview">
 <h2>ImageView<a class="headerlink" href="#imageview" title="Link to this heading"></a></h2>
@@ -1322,6 +1368,7 @@ Defaults to the first points value</p></li>
 <p>Represents a subset of data from an Image (a rectangular subregion or subset of channels)
 Tracking the view of the image along with the image allows us to serve up subregions accurately when loading images from disk
 (since we can’t just store the subimaged data array in memory)</p>
+<p class="rubric">Attributes</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="sis.image.ImageView.image">
 <span class="sig-name descname"><span class="pre">image</span></span><a class="headerlink" href="#sis.image.ImageView.image" title="Link to this definition"></a></dt>
@@ -1388,9 +1435,12 @@ Tracking the view of the image along with the image allows us to serve up subreg
 </dl>
 </dd></dl>
 
+</dd></dl>
+
+<p class="rubric">Initialization</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="sis.image.ImageView.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">image</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frames</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rows</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cols</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageView.__init__" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">ImageView.</span></span><span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">image</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frames</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rows</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cols</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageView.__init__" title="Link to this definition"></a></dt>
 <dd><dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -1404,9 +1454,10 @@ Tracking the view of the image along with the image allows us to serve up subreg
 </dl>
 </dd></dl>
 
+<p class="rubric">Properties</p>
 <dl class="py property">
 <dt class="sig sig-object py" id="sis.image.ImageView.name">
-<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">name</span></span><a class="headerlink" href="#sis.image.ImageView.name" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">ImageView.</span></span><span class="sig-name descname"><span class="pre">name</span></span><a class="headerlink" href="#sis.image.ImageView.name" title="Link to this definition"></a></dt>
 <dd><p>Return optional unique identifier for image</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
@@ -1420,7 +1471,7 @@ Tracking the view of the image along with the image allows us to serve up subreg
 
 <dl class="py property">
 <dt class="sig sig-object py" id="sis.image.ImageView.shape">
-<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">shape</span></span><a class="headerlink" href="#sis.image.ImageView.shape" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">ImageView.</span></span><span class="sig-name descname"><span class="pre">shape</span></span><a class="headerlink" href="#sis.image.ImageView.shape" title="Link to this definition"></a></dt>
 <dd><p>Return 4D shape (frames, rows, columns, channels) of the view as a tuple</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
@@ -1434,7 +1485,7 @@ Tracking the view of the image along with the image allows us to serve up subreg
 
 <dl class="py property">
 <dt class="sig sig-object py" id="sis.image.ImageView.channels">
-<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">channels</span></span><a class="headerlink" href="#sis.image.ImageView.channels" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">ImageView.</span></span><span class="sig-name descname"><span class="pre">channels</span></span><a class="headerlink" href="#sis.image.ImageView.channels" title="Link to this definition"></a></dt>
 <dd><p>channels is equal to the number of channels in the underlying image unless specified</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
@@ -1446,47 +1497,49 @@ Tracking the view of the image along with the image allows us to serve up subreg
 </dl>
 </dd></dl>
 
+<p class="rubric">Plotting</p>
 <dl class="py method">
-<dt class="sig sig-object py" id="sis.image.ImageView.get_data">
-<span class="sig-name descname"><span class="pre">get_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageView.get_data" title="Link to this definition"></a></dt>
-<dd><p>Return array of image data.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>channel</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Name of channel to return data from</p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Subregion of image data</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>numpy.ndarray</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="sis.image.ImageView.get_sub_data">
-<span class="sig-name descname"><span class="pre">get_sub_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rows</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cols</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageView.get_sub_data" title="Link to this definition"></a></dt>
-<dd><p>Return a view of this image limited to the given frames, rows, and cols</p>
+<dt class="sig sig-object py" id="sis.image.ImageView.show">
+<span class="sig-prename descclassname"><span class="pre">ImageView.</span></span><span class="sig-name descname"><span class="pre">show</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frame</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwds</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.ImageView.show" title="Link to this definition"></a></dt>
+<dd><p>Show the image in a matplotlib axis</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>frames</strong> (<em>tuple</em>) – first_frame is inclusive, last_frame is exclusive</p></li>
-<li><p><strong>rows</strong> (<em>tuple</em>) – first_row is inclusive, last_row is exclusive</p></li>
-<li><p><strong>cols</strong> (<em>tuple</em>) – first_col is inclusive, last_col is exclusive</p></li>
-<li><p><strong>channel</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Name of channel to return data from</p></li>
+<li><p><strong>ax</strong> (<em>matplotlib.axes.Axes</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Axis to show image in</p></li>
+<li><p><strong>frame</strong> (<em>int</em><em> or </em><em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Single frame to show. Can be ‘mean’ to show the mean of all frames</p></li>
+<li><p><strong>channel</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Channel to show</p></li>
+<li><p><strong>**kwds</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>Any</em><em>]</em>) – Additional keyword arguments to pass to imshow()</p></li>
 </ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Subregion of image data</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>numpy.ndarray</p>
 </dd>
 </dl>
 </dd></dl>
 
-</dd></dl>
-
+<p class="rubric">Methods</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/sis.image.ImageView.bounds.html#sis.image.ImageView.bounds" title="sis.image.ImageView.bounds"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.ImageView.bounds</span></code></a>()</p></td>
+<td><p>Return (xlim, ylim) bounds of the image in spot coordinates</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/sis.image.ImageView.get_channel.html#sis.image.ImageView.get_channel" title="sis.image.ImageView.get_channel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.ImageView.get_channel</span></code></a>(channel)</p></td>
+<td><p>Return a view of this image limited to the given channel (e.g.: 'DAPI' or 'PolyT')</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/sis.image.ImageView.get_frame.html#sis.image.ImageView.get_frame" title="sis.image.ImageView.get_frame"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.ImageView.get_frame</span></code></a>(frame)</p></td>
+<td><p>Return a view of this image limited to the given frame</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/sis.image.ImageView.get_frames.html#sis.image.ImageView.get_frames" title="sis.image.ImageView.get_frames"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.ImageView.get_frames</span></code></a>(frames)</p></td>
+<td><p>Return a view of this image limited to the given frames</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/sis.image.ImageView.get_subregion.html#sis.image.ImageView.get_subregion" title="sis.image.ImageView.get_subregion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.ImageView.get_subregion</span></code></a>(region[, ...])</p></td>
+<td><p>Return a view of this image limited to the spot coordinate-defined region ((xmin, xmax), (ymin, ymax))</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/sis.image.ImageView.get_data.html#sis.image.ImageView.get_data" title="sis.image.ImageView.get_data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.ImageView.get_data</span></code></a>([channel])</p></td>
+<td><p>Return array of image data.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/sis.image.ImageView.get_sub_data.html#sis.image.ImageView.get_sub_data" title="sis.image.ImageView.get_sub_data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.ImageView.get_sub_data</span></code></a>(frames, ...)</p></td>
+<td><p>Return a view of this image limited to the given frames, rows, and cols</p></td>
+</tr>
+</tbody>
+</table>
 </section>
 <section id="spatialdataimage">
 <h2>SpatialDataImage<a class="headerlink" href="#spatialdataimage" title="Link to this heading"></a></h2>
@@ -1496,6 +1549,7 @@ Tracking the view of the image along with the image allows us to serve up subreg
 <dd><p>Bases: <a class="reference internal" href="#sis.image.ImageBase" title="sis.image.ImageBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">ImageBase</span></code></a></p>
 <p>Class for handling spatialdata images within SIS
 The data input is an xarray DataArray</p>
+<p class="rubric">Attributes</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="sis.image.SpatialDataImage.transform">
 <span class="sig-name descname"><span class="pre">transform</span></span><a class="headerlink" href="#sis.image.SpatialDataImage.transform" title="Link to this definition"></a></dt>
@@ -1551,9 +1605,12 @@ The data input is an xarray DataArray</p>
 </dl>
 </dd></dl>
 
+</dd></dl>
+
+<p class="rubric">Initialization</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="sis.image.SpatialDataImage.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">axes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.SpatialDataImage.__init__" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">SpatialDataImage.</span></span><span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">axes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.SpatialDataImage.__init__" title="Link to this definition"></a></dt>
 <dd><dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -1567,9 +1624,10 @@ The data input is an xarray DataArray</p>
 </dl>
 </dd></dl>
 
+<p class="rubric">Properties</p>
 <dl class="py property">
 <dt class="sig sig-object py" id="id0">
-<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">shape</span></span><a class="headerlink" href="#id0" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">SpatialDataImage.</span></span><span class="sig-name descname"><span class="pre">shape</span></span><a class="headerlink" href="#id0" title="Link to this definition"></a></dt>
 <dd><p>Returns the shape of the image data in standard SIS order:
 (frames, rows, columns, channels) (z, y, x, c)</p>
 <dl class="field-list simple">
@@ -1585,53 +1643,49 @@ The data input is an xarray DataArray</p>
 </dl>
 </dd></dl>
 
+<p class="rubric">Plotting</p>
 <dl class="py method">
-<dt class="sig sig-object py" id="sis.image.SpatialDataImage.get_data">
-<span class="sig-name descname"><span class="pre">get_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.SpatialDataImage.get_data" title="Link to this definition"></a></dt>
-<dd><p>Return one channel of the image data.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>channel</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Name of channel to return data from</p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Subregion of image data (frames, rows, columns)</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>numpy.ndarray</p>
-</dd>
-<dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>AssertionError</strong> – If there is more than one channel user must specify which channel to return.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="sis.image.SpatialDataImage.get_sub_data">
-<span class="sig-name descname"><span class="pre">get_sub_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rows</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cols</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.image.SpatialDataImage.get_sub_data" title="Link to this definition"></a></dt>
-<dd><p>Return a view of this image limited to the given frames, rows, and cols</p>
+<dt class="sig sig-object py" id="id1">
+<span class="sig-prename descclassname"><span class="pre">ImageBase.</span></span><span class="sig-name descname"><span class="pre">show</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frame</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwds</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id1" title="Link to this definition"></a></dt>
+<dd><p>Show the image in a matplotlib axis</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>frames</strong> (<em>tuple</em>) – first_frame is inclusive, last_frame is exclusive</p></li>
-<li><p><strong>rows</strong> (<em>tuple</em>) – first_row is inclusive, last_row is exclusive</p></li>
-<li><p><strong>cols</strong> (<em>tuple</em>) – first_col is inclusive, last_col is exclusive</p></li>
-<li><p><strong>channel</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Name of channel to return data from</p></li>
+<li><p><strong>ax</strong> (<em>matplotlib.axes.Axes</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Axis to show image in</p></li>
+<li><p><strong>frame</strong> (<em>int</em><em> or </em><em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Single frame to show. Can be ‘mean’ to show the mean of all frames</p></li>
+<li><p><strong>channel</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Channel to show</p></li>
+<li><p><strong>**kwds</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>Any</em><em>]</em>) – Additional keyword arguments to pass to imshow()</p></li>
 </ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Subregion of image data</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>numpy.ndarray</p>
-</dd>
-<dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>AssertionError</strong> – If there is more than one channel user must specify which channel to return.</p>
 </dd>
 </dl>
 </dd></dl>
 
-</dd></dl>
-
+<p class="rubric">Methods</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/sis.image.SpatialDataImage.bounds.html#sis.image.SpatialDataImage.bounds" title="sis.image.SpatialDataImage.bounds"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.SpatialDataImage.bounds</span></code></a>()</p></td>
+<td><p>Return (xlim, ylim) bounds of the image in spot coordinates</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/sis.image.SpatialDataImage.get_channel.html#sis.image.SpatialDataImage.get_channel" title="sis.image.SpatialDataImage.get_channel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.SpatialDataImage.get_channel</span></code></a>(channel)</p></td>
+<td><p>Return a view of this image limited to the given channel (e.g.: 'DAPI' or 'PolyT')</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/sis.image.SpatialDataImage.get_frame.html#sis.image.SpatialDataImage.get_frame" title="sis.image.SpatialDataImage.get_frame"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.SpatialDataImage.get_frame</span></code></a>(frame)</p></td>
+<td><p>Return a view of this image limited to the given frame</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/sis.image.SpatialDataImage.get_frames.html#sis.image.SpatialDataImage.get_frames" title="sis.image.SpatialDataImage.get_frames"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.SpatialDataImage.get_frames</span></code></a>(frames)</p></td>
+<td><p>Return a view of this image limited to the given frames</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/sis.image.SpatialDataImage.get_subregion.html#sis.image.SpatialDataImage.get_subregion" title="sis.image.SpatialDataImage.get_subregion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.SpatialDataImage.get_subregion</span></code></a>(region)</p></td>
+<td><p>Return a view of this image limited to the spot coordinate-defined region ((xmin, xmax), (ymin, ymax))</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/sis.image.SpatialDataImage.get_data.html#sis.image.SpatialDataImage.get_data" title="sis.image.SpatialDataImage.get_data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.SpatialDataImage.get_data</span></code></a>([channel])</p></td>
+<td><p>Return one channel of the image data.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/sis.image.SpatialDataImage.get_sub_data.html#sis.image.SpatialDataImage.get_sub_data" title="sis.image.SpatialDataImage.get_sub_data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.image.SpatialDataImage.get_sub_data</span></code></a>(...)</p></td>
+<td><p>Return a view of this image limited to the given frames, rows, and cols</p></td>
+</tr>
+</tbody>
+</table>
 </section>
 </section>
 
@@ -1639,8 +1693,8 @@ The data input is an xarray DataArray</p>
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="spot_table.html" class="btn btn-neutral float-left" title="spot_table" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="segmentation.html" class="btn btn-neutral float-right" title="segmentation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="generated/sis.SegmentedSpotTable.calculate_all_cell_features.html" class="btn btn-neutral float-left" title="sis.SegmentedSpotTable.calculate_all_cell_features" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="generated/sis.image.ImageBase.bounds.html" class="btn btn-neutral float-right" title="sis.image.ImageBase.bounds" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
