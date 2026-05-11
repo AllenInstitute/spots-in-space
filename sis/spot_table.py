@@ -456,8 +456,11 @@ class SpotTable:
         -----
         The cell ID column is only present if cell IDs are available.
         """
+        # which columns to write?
+        if columns is None:
+            columns = ['x', 'y', 'z', 'gene_id']
+            
         # can't use np.savetext since columns are spread over multiple arrays.
-        
         # where to find data for each CSV column
         col_data = {
             'x': self.x,
@@ -477,10 +480,6 @@ class SpotTable:
             'gene_name': 's',
             'cell_id': 'd',
         }
-        
-        # which columns to write?
-        if columns is None:
-            columns = ['x', 'y', 'z', 'gene_id']
                 
         # write csv
         header = ','.join(columns)
