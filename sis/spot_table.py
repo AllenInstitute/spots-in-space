@@ -3369,7 +3369,7 @@ class SegmentedSpotTable:
 
         cell_by_gene = seg_spot_table.cell_by_gene_anndata(x_format=x_format, additional_obs=additional_obs)
         for col, dtype in cell_by_gene.obs.dtypes.items():
-            if dtype.kind == 'i' and col in additional_obs.keys() and cell_by_gene.obs[col].nunique() > 1:
+            if dtype.kind == 'i' and additional_obs is not None and col in additional_obs.keys() and cell_by_gene.obs[col].nunique() > 1:
                 # We make additional integer columns with dynamic values into pandas Int64 so they can handle nan types
                 # We don't have to do so for ones with singular values since those will get copied to the transcriptless cells
                 # Also don't have to do so for standard columns (that are integer) since the transcriptless cells get values for those
