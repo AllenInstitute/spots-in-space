@@ -105,6 +105,10 @@ class SpotTable:
         Cached array of gene names corresponding to the gene IDs in the SpotTable.
     images : list[ImageBase]
         Image(s) associated with the data (e.g. nuclei stain).
+    _xenium_min_qv : float or None
+        Minimum quality value (Q-Score) for transcripts stored in this spot table. 
+        Only relevant for Xenium data, where it corresponds to the 'qv' column in the transcripts file.
+        See https://www.10xgenomics.com/support/software/xenium-onboard-analysis/latest/analysis/xoa-output-understanding-outputs#transcript-file
 
     Methods
     -------
@@ -149,6 +153,7 @@ class SpotTable:
                  parent_inds: None|np.ndarray=None, 
                  parent_region: None|tuple=None,
                  images: None|list[ImageBase]|ImageBase=None,
+                 xenium_min_qv: None|float=None,
                  ):
         """
         Parameters
@@ -169,6 +174,10 @@ class SpotTable:
             X,Y boundaries ((xmin, xmax), (ymin, ymax)) used to select this table from the parent table.
         images : list[ImageBase] or ImageBase or None, optional
             Image(s) associated with the data (e.g. nuclei stain).
+        xenium_min_qv : float or None
+            Minimum quality value (Q-Score) for stored transcripts in this spot table.
+            Only relevant for Xenium data, where it corresponds to the 'qv' column in the transcripts file.
+            See https://www.10xgenomics.com/support/software/xenium-onboard-analysis/latest/analysis/xoa-output-understanding-outputs#transcript-file
         """
         self.pos = pos
         self.parent_table = parent_table
@@ -203,6 +212,8 @@ class SpotTable:
                 self.add_image(img)
         else:
             raise TypeError(f'Unsupported type for image(s). Images must be of type ImageBase or a list of ImageBase.')
+
+        self._xenium_min_qv = xenium_min_qv
 
     def __len__(self):
         return len(self.pos)
@@ -304,6 +315,14 @@ class SpotTable:
             return None
         else:
             return self.pos[:, 2]
+        
+    @property
+    def xenium_min_qv(self):
+        """Return the minimum quality value (Q-Score) for stored transcripts in this spot table.
+        Only relevant for Xenium data, where it corresponds to the 'qv' column in the transcripts file.
+        See https://www.10xgenomics.com/support/software/xenium-onboard-analysis/latest/analysis/xoa-output-understanding-outputs#transcript-file
+        """
+        return self._xenium_min_qv
 
     def map_gene_names_to_ids(self, names):
         """Map gene names to gene IDs.
@@ -786,7 +805,7 @@ class SpotTable:
 
 
     @staticmethod
-    def read_xenium_transcripts(transcript_file, max_rows=None, z_depth: float=3.0):
+    def read_xenium_transcripts(transcript_file, max_rows=None, z_depth: float=3.0, min_qv: float|None=20):
         """Helper function to read a Xenium transcripts file. (currently supports only csv and parquet)
         Intended to reduce duplicated code between SpotTable.load_xenium()
         and SegmentedSpotTable.load_xenium().
@@ -800,6 +819,9 @@ class SpotTable:
         z_depth : float, optional
             Depth (in um) of a imaging layer i.e. z-plane
             Used to bin z-positiions into discrete planes
+        min_qv : float, optional
+            Minimum quality value (Q-Score) for transcripts to be kept
+            See qv in https://www.10xgenomics.com/support/software/xenium-onboard-analysis/latest/analysis/xoa-output-understanding-outputs#transcript-file
             
         Returns
         -------
@@ -816,6 +838,9 @@ class SpotTable:
         else:
             raise ValueError(f"Unsupported file type for transcript_file: {transcript_file}. Must be .csv, .csv.gz, or .parquet")
 
+        if min_qv is not None:
+            spot_dataframe = spot_dataframe[spot_dataframe['qv'] >= min_qv]
+        
         pos= spot_dataframe.loc[:,["x_location","y_location","z_location"]].values
         
         # Xenium z-values are continuous. For image operations, we bin float z locations to integers
@@ -828,7 +853,7 @@ class SpotTable:
     
     
     @classmethod
-    def load_xenium(cls, transcript_file: str, cache_file: str|None=None, image_path: str=None, max_rows: int=None, z_depth: float=3.0, pyramid_level: int=0, cache_image: bool=True):
+    def load_xenium(cls, transcript_file: str, cache_file: str|None=None, image_path: str=None, max_rows: int=None, z_depth: float=3.0, min_qv: float|None=20, pyramid_level: int=0, cache_image: bool=True):
         """Load Xenium data from a detected transcripts CSV file.
             This is the preferred method for resegmentation. If you want the original Xenium
             segmentation, use SegmentedSpotTable.load_xenium.
@@ -849,6 +874,9 @@ class SpotTable:
         z_depth : float, optional
             Depth (in um) of a imaging layer i.e. z-plane
             Used to bin z-positiions into discrete planes
+        min_qv : float, optional
+            Minimum quality value (Q-Score) for transcripts to be kept
+            See qv in https://www.10xgenomics.com/support/software/xenium-onboard-analysis/latest/analysis/xoa-output-understanding-outputs#transcript-file
         pyramid_level : int, optional
             Xenium images can have multiple resolutions stored in an image pyramid.
             This parameter specifies which level of the pyramid to load.
@@ -869,13 +897,13 @@ class SpotTable:
 
         if (cache_file is None) or (not Path(cache_file).exists()):
             print("Loading transcripts...")
-            pos, gene_names = SpotTable.read_xenium_transcripts(transcript_file=transcript_file, max_rows=max_rows, z_depth=z_depth)
+            pos, gene_names = SpotTable.read_xenium_transcripts(transcript_file=transcript_file, max_rows=max_rows, z_depth=z_depth, min_qv=min_qv)
 
-            if cache_file is not None:                
+            if cache_file is not None:
                 print("Recompressing to npz..")
-                cls(pos=pos, gene_names=gene_names, images=images).save_npz(cache_file)
+                cls(pos=pos, gene_names=gene_names, images=images, xenium_min_qv=min_qv).save_npz(cache_file)
 
-            return cls(pos=pos, gene_names=gene_names, images=images)
+            return cls(pos=pos, gene_names=gene_names, images=images, xenium_min_qv=min_qv)
 
         else:
             print("Loading from npz..")
@@ -894,7 +922,8 @@ class SpotTable:
         fields = {
             'pos': self.pos,
             'gene_ids': self.gene_ids,
-            'gene_id_to_name': self.gene_id_to_name
+            'gene_id_to_name': self.gene_id_to_name,
+            'xenium_min_qv': self.xenium_min_qv if self.xenium_min_qv is not None else "None"
         }
         
         np.savez_compressed(npz_file, **fields) 
@@ -922,7 +951,8 @@ class SpotTable:
         pos = fields['pos']
         gene_ids = fields['gene_ids'] 
         gene_id_to_name = fields['gene_id_to_name']
-        return cls(pos=pos, gene_ids=gene_ids, gene_id_to_name=gene_id_to_name, images=images)
+        xenium_min_qv = fields['xenium_min_qv'] if fields['xenium_min_qv'] != "None" else None
+        return cls(pos=pos, gene_ids=gene_ids, gene_id_to_name=gene_id_to_name, images=images, xenium_min_qv=xenium_min_qv)
 
     def _make_gene_index(cls, gene_names):
         """Given an array of gene names, return an array of integer gene IDs and dictionaries
@@ -1540,7 +1570,7 @@ class SpotTable:
         return cls(pos=pos, gene_names=gene_names, images=images)
 
     @classmethod
-    def load_xenium_spatialdata(cls, sd_file: str|Path|None=None, sd_object: spatialdata.SpatialData|None=None, morphology_path: str|Path|None=None, z_depth: float=3.0, image_name: str='morphology', points_name: str|None=None, gene_col: str='feature_name'):
+    def load_xenium_spatialdata(cls, sd_file: str|Path|None=None, sd_object: spatialdata.SpatialData|None=None, morphology_path: str|Path|None=None, z_depth: float=3.0, min_qv: float|None=None, image_name: str='morphology', points_name: str|None=None, gene_col: str='feature_name'):
         """Take a xenium spatialdata file or object and load its data into a SpotTable
         The spatialdata object should follow the xenium convention as defined in spatialdata-io.xenium()
         
@@ -1557,6 +1587,9 @@ class SpotTable:
         z_depth : float, optional
             The z depth to use when binning continuous z locations into integer z planes.
             Make sure to set this to 1.0 if your xenium data has already been binned to z planes.
+        min_qv : float or None, optional
+            The minimum quality value (Q-Score) for transcripts stored in this SpatialData object. 
+            If None, tries to pull from points table. If 'qv' column doesn't exist, will default to np.nan
         image_name : str, optional
             The name of the image to load from the spatial data. Or if morphology_path is provided, the name to assign to the morphology image.
         points_name : str, optional
@@ -1628,7 +1661,14 @@ class SpotTable:
             warnings.simplefilter("ignore")
             gene_names = sd_object[list(sd_object.points.keys())[0]][gene_col].to_dask_array().compute().astype(f'U{max_gene_len}')
 
-        return cls(pos=pos, gene_names=gene_names, images=image)
+        # read in the minimum QV if it exists, otherwise set to np.nan
+        if min_qv is None:
+            if 'qv' in sd_object[list(sd_object.points.keys())[0]].columns:
+                min_qv = sd_object[list(sd_object.points.keys())[0]]['qv'].min().compute()
+            else:
+                min_qv = np.nan
+
+        return cls(pos=pos, gene_names=gene_names, images=image, xenium_min_qv=min_qv)
 
 
 class SegmentedSpotTable:
@@ -2153,6 +2193,8 @@ class SegmentedSpotTable:
                     'cell_polygons': self.get_geojson_collection(use_cell_labels=True),
                     'SIS_repo_hash': _version.get_versions()['version'],
                     }
+        if self.xenium_min_qv is not None:
+            adata.uns['xenium_min_qv'] = self.xenium_min_qv
         return adata
 
 
@@ -2925,7 +2967,7 @@ class SegmentedSpotTable:
 
 
     @classmethod
-    def load_xenium(cls, transcript_file: str, cache_file: str|None=None, image_path: str|None=None, max_rows: int|None=None, z_depth: float=3.0, pyramid_level: int=0, cache_image: bool=True):
+    def load_xenium(cls, transcript_file: str, cache_file: str|None=None, image_path: str|None=None, max_rows: int|None=None, z_depth: float=3.0, min_qv: float|None=20, pyramid_level: int=0, cache_image: bool=True):
         """Load Xenium data from a detected transcripts CSV file, including
         the original segmentation. If you are resegmenting the data, prefer
         SpotTable.load_xenium.
@@ -2948,6 +2990,9 @@ class SegmentedSpotTable:
         z_depth : float, optional
             Depth (in um) of a imaging layer i.e. z-plane
             Used to bin z-positions into discrete planes
+        min_qv : float, optional
+            Minimum quality value (Q-Score) for transcripts to be kept
+            See qv in https://www.10xgenomics.com/support/software/xenium-onboard-analysis/latest/analysis/xoa-output-understanding-outputs#transcript-file
         pyramid_level : int, optional
             Xenium images can have multiple resolutions stored in an image pyramid.
             This parameter specifies which level of the pyramid to load.
@@ -2965,13 +3010,17 @@ class SegmentedSpotTable:
 
         # Read in the cell ids
         if str(transcript_file).endswith('.csv') or str(transcript_file).endswith('.csv.gz'):
-            cell_ids = pandas.read_csv(transcript_file, nrows=max_rows, usecols=['cell_id']).values
+            cell_ids = pandas.read_csv(transcript_file, nrows=max_rows, usecols=['cell_id', 'qv'])
         elif str(transcript_file).endswith('.parquet'):
             if max_rows:
                 raise ValueError('max_rows is not supported for parquet files as pandas does not allow partial reading')
-            cell_ids = pandas.read_parquet(transcript_file, columns=['cell_id']).values
+            cell_ids = pandas.read_parquet(transcript_file, columns=['cell_id', 'qv'])
 
-        cell_ids = np.squeeze(cell_ids).astype(str) # Sometimes xenium ids are read in as bytes so just convert them now
+        if min_qv is not None:
+            cell_ids = cell_ids[cell_ids['qv'] >= min_qv]
+        cell_ids = cell_ids['cell_id'].values
+        
+        cell_ids = cell_ids.astype(str) # Sometimes xenium ids are read in as bytes so just convert them now
         cell_ids, cell_labels = cls._default_cell_ids(cell_ids, bg_ids=set(['UNASSIGNED']))
 
         spottable = cls(spot_table=raw_spot_table, cell_ids=cell_ids, seg_metadata={'seg_method': 'Xenium'})
@@ -3064,6 +3113,7 @@ class SegmentedSpotTable:
                 gene_ids=fields['gene_ids'],
                 gene_id_to_name=fields['gene_id_to_name'],
                 images=images
+                xenium_min_qv=fields['xenium_min_qv'] if fields['xenium_min_qv'] != "None" else None
                 )
         
         # handle underscores and object arrays
@@ -3091,6 +3141,7 @@ class SegmentedSpotTable:
             'gene_ids': self.gene_ids, 
             'gene_id_to_name': self.gene_id_to_name,
             'cell_ids': self.cell_ids,
+            'xenium_min_qv': self.xenium_min_qv if self.xenium_min_qv is not None else "None"
         }
 
         kwds = ['seg_metadata', 'cell_labels', '_cl_to_cid', '_cid_to_cl', 'cell_polygons']
@@ -3304,7 +3355,7 @@ class SegmentedSpotTable:
         return seg_subtable
     
     @classmethod
-    def save_xenium_kit_cbg(cls, expt_dir, output_file, max_rows: int|None=None, z_depth: float=3.0, x_format: str='sparse', additional_obs: dict|None=None):
+    def save_xenium_kit_cbg(cls, expt_dir, output_file, max_rows: int|None=None, z_depth: float=3.0, min_qv: float|None=20, x_format: str='sparse', additional_obs: dict|None=None):
         """Takes the results of a xenium experiment segmented with the Xenium segmentation kit
         and saves them into the SIS standard format
         
@@ -3319,6 +3370,9 @@ class SegmentedSpotTable:
         z_depth : float, optional
             Depth (in um) of a imaging layer i.e. z-plane
             Used to bin z-positions into discrete planes
+        min_qv : float, optional
+            Minimum quality value (Q-Score) for transcripts to be kept
+            See qv in https://www.10xgenomics.com/support/software/xenium-onboard-analysis/latest/analysis/xoa-output-understanding-outputs#transcript-file
         x_format : str, optional
             The format of the data matrix (X in the anndata), either 'dense' or 'sparse'.
         additional_obs : dict or None, optional
@@ -3336,7 +3390,7 @@ class SegmentedSpotTable:
         expt_dir = Path(expt_dir)
         transcript_file = expt_dir / 'transcripts.parquet'
         
-        seg_spot_table = cls.load_xenium(transcript_file=transcript_file, cache_file=None, image_path=expt_dir / 'morphology.ome.tif', max_rows=max_rows, z_depth=z_depth)
+        seg_spot_table = cls.load_xenium(transcript_file=transcript_file, cache_file=None, image_path=expt_dir / 'morphology.ome.tif', max_rows=max_rows, z_depth=z_depth, min_qv=min_qv)
         
         # Want to read in experiment metadata
         with open(expt_dir / 'experiment.xenium', 'r') as f:
@@ -3479,7 +3533,7 @@ class SegmentedSpotTable:
         return cls._load_spatialdata_cids_polygons(raw_spot_table, sd_object, points_name, shapes_name, cell_id_col, seg_method, use_original_cell_ids, set(['-1']))
     
     @classmethod
-    def load_xenium_spatialdata(cls, sd_file: str|Path|None=None, sd_object: spatialdata.SpatialData|None=None, morphology_path: str|Path|None=None, z_depth: float=3.0, image_name: str='morphology', points_name: str|None=None, shapes_name: str|None=None, cell_id_col: str|None=None, gene_col: str|None='feature_name', seg_method: str|None=None, use_original_cell_ids: bool=False):
+    def load_xenium_spatialdata(cls, sd_file: str|Path|None=None, sd_object: spatialdata.SpatialData|None=None, morphology_path: str|Path|None=None, z_depth: float=3.0, min_qv: float|None=None, image_name: str='morphology', points_name: str|None=None, shapes_name: str|None=None, cell_id_col: str|None=None, gene_col: str|None='feature_name', seg_method: str|None=None, use_original_cell_ids: bool=False):
         """Take a xenium spatialdata file or object and load its data into a SegmentedSpotTable
         The spatialdata object should follow the Xenium convention as defined in spatialdata-io.xenium()
 
@@ -3496,6 +3550,9 @@ class SegmentedSpotTable:
         z_depth : float, optional
             The z depth to use when binning continuous z locations into integer z planes.
             Make sure to set this to 1.0 if your xenium data has already been binned to z planes.
+        xenium_min_qv : float or None, optional
+            The minimum quality value (Q-Score) for transcripts stored in this SpatialData object. 
+            If None, tries to pull from points table. If 'qv' column doesn't exist, will default to np.nan
         image_name : str, optional
             The name of the image to load from the spatial data. Or if morphology_path is provided, the name to assign to the morphology image.
         points_name : str, optional
@@ -3539,7 +3596,7 @@ class SegmentedSpotTable:
                 warnings.warn('Points name was left unspecified and there are multiple Points elements. Loading to the first listed by default')
             points_name = list(sd_object.points.keys())[0]
 
-        raw_spot_table = SpotTable.load_xenium_spatialdata(sd_object=sd_object, morphology_path=morphology_path, z_depth=z_depth, image_name=image_name, points_name=points_name, gene_col=gene_col)
+        raw_spot_table = SpotTable.load_xenium_spatialdata(sd_object=sd_object, morphology_path=morphology_path, z_depth=z_depth, min_qv=min_qv, image_name=image_name, points_name=points_name, gene_col=gene_col)
         
         return cls._load_spatialdata_cids_polygons(raw_spot_table, sd_object, points_name, shapes_name, cell_id_col, seg_method, use_original_cell_ids, set(['UNASSIGNED']))
     
