@@ -3101,9 +3101,10 @@ class SegmentedSpotTable:
 
         return conflicts
 
-    def _set_cell_ids_from_tiles(self, tiles, padding=5):
-        """Overwrite all cell IDs by merging from *tiles*, which may be a list of SegmentedSpotTable
-        or SegmentationResult instances.
+    def set_cell_ids_from_tiles(self, tiles, padding=5):
+        """Overwrite all cell IDs by merging from segmentation *tiles*, which may be a list of SegmentedSpotTable
+        or SegmentationResult instances. See `grid_tiles()` or `split_tiles()` for tiling help.
+        Returns a list of merge results describing any merge conflicts that were resolved in the process.
         
         Parameters
         ----------

@@ -1268,7 +1268,7 @@ class SegmentationPipeline:
             tiles[i] = tile
         # padding removes cells which are close to edge and may be poorly segmented
         # padding is set to half the user defined cell seize
-        merge_results = self.seg_spot_table._set_cell_ids_from_tiles(tiles, padding=self.seg_opts['cell_dia'] / 2)
+        merge_results = self.seg_spot_table.set_cell_ids_from_tiles(tiles, padding=self.seg_opts['cell_dia'] / 2)
 
         cell_ids = self.seg_spot_table.cell_ids
 
