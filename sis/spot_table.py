@@ -3112,7 +3112,7 @@ class SegmentedSpotTable:
                 pos=fields['pos'],
                 gene_ids=fields['gene_ids'],
                 gene_id_to_name=fields['gene_id_to_name'],
-                images=images
+                images=images,
                 xenium_min_qv=fields['xenium_min_qv'] if fields['xenium_min_qv'] != "None" else None
                 )
         
