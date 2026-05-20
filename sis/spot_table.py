@@ -1562,7 +1562,7 @@ class SpotTable:
         # 'global_x', 'global_y', and 'global_z' are already renamed to 'x', 'y', and 'z' by spatialdata_io's merscope() function
         pos = sd_object[points_name][['x', 'y', 'z']].to_dask_array().compute()
         
-        max_gene_len = max(map(len, sd_object[list(sd_object.points.keys())[0]]['gene']))
+        max_gene_len = max(map(len, sd_object[list(sd_object.points.keys())[0]]['gene'].compute()))
         with warnings.catch_warnings(): # Dask array throws an error about converting from dataframe
             warnings.simplefilter("ignore")
             gene_names = sd_object[list(sd_object.points.keys())[0]]['gene'].to_dask_array().compute().astype(f'U{max_gene_len}')
@@ -1656,7 +1656,7 @@ class SpotTable:
         z_bins = np.arange(0, np.max(pos[:, 2]) + z_depth, z_depth) 
         pos[:, 2] = (np.digitize(pos[:,2], z_bins) - 1).astype(int)
         
-        max_gene_len = max(map(len, sd_object[list(sd_object.points.keys())[0]][gene_col]))
+        max_gene_len = max(map(len, sd_object[list(sd_object.points.keys())[0]][gene_col].compute()))
         with warnings.catch_warnings(): # Dask array throws an error about converting from dataframe
             warnings.simplefilter("ignore")
             gene_names = sd_object[list(sd_object.points.keys())[0]][gene_col].to_dask_array().compute().astype(f'U{max_gene_len}')
