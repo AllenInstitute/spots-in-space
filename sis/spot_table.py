@@ -951,7 +951,7 @@ class SpotTable:
         pos = fields['pos']
         gene_ids = fields['gene_ids'] 
         gene_id_to_name = fields['gene_id_to_name']
-        xenium_min_qv = fields['xenium_min_qv'] if fields['xenium_min_qv'] != "None" else None
+        xenium_min_qv = fields['xenium_min_qv'].item() if fields['xenium_min_qv'].item() != "None" else None
         return cls(pos=pos, gene_ids=gene_ids, gene_id_to_name=gene_id_to_name, images=images, xenium_min_qv=xenium_min_qv)
 
     def _make_gene_index(cls, gene_names):
@@ -3113,7 +3113,7 @@ class SegmentedSpotTable:
                 gene_ids=fields['gene_ids'],
                 gene_id_to_name=fields['gene_id_to_name'],
                 images=images,
-                xenium_min_qv=fields['xenium_min_qv'] if fields['xenium_min_qv'] != "None" else None
+                xenium_min_qv=fields['xenium_min_qv'].item() if fields['xenium_min_qv'].item() != "None" else None
                 )
         
         # handle underscores and object arrays
