@@ -3006,7 +3006,7 @@ class SegmentedSpotTable:
         sis.spot_table.SegmentedSpotTable
         """
         # Read in the positions
-        raw_spot_table = SpotTable.load_xenium(transcript_file=transcript_file, cache_file=cache_file, image_path=image_path, max_rows=max_rows, z_depth=z_depth, pyramid_level=pyramid_level, cache_image=cache_image)
+        raw_spot_table = SpotTable.load_xenium(transcript_file=transcript_file, cache_file=cache_file, image_path=image_path, max_rows=max_rows, z_depth=z_depth, min_qv=min_qv, pyramid_level=pyramid_level, cache_image=cache_image)
 
         # Read in the cell ids
         if str(transcript_file).endswith('.csv') or str(transcript_file).endswith('.csv.gz'):
