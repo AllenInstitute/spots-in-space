@@ -1570,55 +1570,16 @@ class SpotTable:
         return cls(pos=pos, gene_names=gene_names, images=images)
 
     @classmethod
-    def load_xenium_spatialdata(cls, sd_file: str|Path|None=None, sd_object: spatialdata.SpatialData|None=None, morphology_path: str|Path|None=None, z_depth: float=3.0, min_qv: float|None=None, image_name: str='morphology', points_name: str|None=None, gene_col: str='feature_name'):
-        """Take a xenium spatialdata file or object and load its data into a SpotTable
-        The spatialdata object should follow the xenium convention as defined in spatialdata-io.xenium()
-        
-        Parameters
-        ----------
-        sd_file : str or Path, optional
-            The path to the spatial data file. If provided, `sd_object` should be None.
-        sd_object : spatialdata.SpatialData, optional
-            An instance of the SpatialData object. If provided, `sd_file` should be None.
-        morphology_path : str or Path, optional
-            spatialdata_io.xenium only loads the focus and mip images. Since SIS relies on the original morphology file,
-            we provide the ability to load the morphology file via the path.
-            If provided, it will be added to the spatialdata object under the name given by [image_name].
-        z_depth : float, optional
-            The z depth to use when binning continuous z locations into integer z planes.
-            Make sure to set this to 1.0 if your xenium data has already been binned to z planes.
-        min_qv : float or None, optional
-            The minimum quality value (Q-Score) for transcripts stored in this SpatialData object. 
-            If None, tries to pull from points table. If 'qv' column doesn't exist, will default to np.nan
-        image_name : str, optional
-            The name of the image to load from the spatial data. Or if morphology_path is provided, the name to assign to the morphology image.
-        points_name : str, optional
-            The name of the points to load from the spatial data. If None and multiple points are available, the first one will be used.
-        gene_col : str, optional
-            The name of the column in the points table that contains the gene names.
-
-        Raises
-        ------
-        ValueError
-            If both `sd_file` and `sd_object` are None or if both are provided
-            or if the transformation applied to the image is not supported (i.e. rotation or shear).
-
-        Returns
-        -------
-        SpotTable
-            A SpotTable containing the transcripts and images loaded from the spatial data object/file system
+    def _load_xenium_spatialdata_internal(cls, sd_object: spatialdata.SpatialData, morphology_path: str|Path|None=None, z_depth: float=3.0, min_qv: float|None=None, force_qv_store: bool=False, image_name: str='morphology', points_name: str|None=None, gene_col: str='feature_name'):
+        """Contains all the logic for load_xenium_spatialdata but returns a min_qv mask.
+        This reduces duplicate code while allowing _load_spatialdata_cids_polygons to access the min_qv mask
+        See load_xenium_spatialdata docstring for explanation of function
         """
         import warnings
-        import spatialdata as sd # Import in function so we don't throw error if spatialdata is not installed and this function is not used
         from spatialdata.transformations import get_transformation, Identity
         from .image import SpatialDataImage, ImageTransform
         from .spatialdata import _is_supported_transformation
         
-        if (sd_file is None) == (sd_object is None):
-            raise ValueError('One and exactly one of sd_file and sd_object should be defined')
-        if sd_file is not None:
-            sd_object = sd.read_zarr(sd_file)
-
         if points_name is None:
             if len(sd_object.points.keys()) > 1:
                 warnings.warn('Points name was left unspecified and there are multiple Points elements. Loading to the first listed by default')
@@ -1649,26 +1610,92 @@ class SpotTable:
                                 image_name)
         
         # Read in the transcripts
+        # read in the minimum QV if it exists, otherwise set to np.nan
+        if min_qv is None:
+            if 'qv' in sd_object[list(sd_object.points.keys())[0]].columns:
+                min_qv = sd_object[list(sd_object.points.keys())[0]]['qv'].min().compute()
+                mask = (sd_object[list(sd_object.points.keys())[0]]['qv'] >= min_qv).compute().to_numpy()
+            else:
+                min_qv = 0
+                mask = np.ones(len(sd_object[list(sd_object.points.keys())[0]]), dtype=bool)
+        else:
+            if 'qv' in sd_object[list(sd_object.points.keys())[0]].columns:
+                mask = (sd_object[list(sd_object.points.keys())[0]]['qv'] >= min_qv).compute().to_numpy()
+            else:
+                if not force_qv_store:
+                    warnings.warn('min_qv was specified but no "qv" column found in points table. Setting min_qv to 0 & keeping all values. If you still want to store the min_qv value, set force_qv_store=True')
+                    min_qv = 0
+                else:
+                    warnings.warn(f'min_qv was specified but no "qv" column found in points table. force_qv_store was set to True, so storing xenium_min_qv={min_qv} but keeping all transcripts')
+                mask = np.ones(len(sd_object[list(sd_object.points.keys())[0]]), dtype=bool)
+                
         # 'x_location', 'y_location', and 'z_location' are already renamed to 'x', 'y', and 'z' by spatialdata_io's xenium() funcytion
-        pos = sd_object[list(sd_object.points.keys())[0]][['x', 'y', 'z']].to_dask_array().compute()
+        pos = sd_object[list(sd_object.points.keys())[0]][['x', 'y', 'z']].to_dask_array().compute()[mask]
         
         # Xenium z-values are continuous. For image operations, we bin float z locations to integers
         z_bins = np.arange(0, np.max(pos[:, 2]) + z_depth, z_depth) 
         pos[:, 2] = (np.digitize(pos[:,2], z_bins) - 1).astype(int)
         
-        max_gene_len = max(map(len, sd_object[list(sd_object.points.keys())[0]][gene_col].compute()))
+        max_gene_len = max(map(len, sd_object[list(sd_object.points.keys())[0]][gene_col].compute()[mask]))
         with warnings.catch_warnings(): # Dask array throws an error about converting from dataframe
             warnings.simplefilter("ignore")
-            gene_names = sd_object[list(sd_object.points.keys())[0]][gene_col].to_dask_array().compute().astype(f'U{max_gene_len}')
+            gene_names = sd_object[list(sd_object.points.keys())[0]][gene_col].to_dask_array().compute()[mask].astype(f'U{max_gene_len}')
 
-        # read in the minimum QV if it exists, otherwise set to np.nan
-        if min_qv is None:
-            if 'qv' in sd_object[list(sd_object.points.keys())[0]].columns:
-                min_qv = sd_object[list(sd_object.points.keys())[0]]['qv'].min().compute()
-            else:
-                min_qv = np.nan
+        return cls(pos=pos, gene_names=gene_names, images=image, xenium_min_qv=min_qv), mask
 
-        return cls(pos=pos, gene_names=gene_names, images=image, xenium_min_qv=min_qv)
+    @classmethod
+    def load_xenium_spatialdata(cls, sd_file: str|Path|None=None, sd_object: spatialdata.SpatialData|None=None, morphology_path: str|Path|None=None, z_depth: float=3.0, min_qv: float|None=None, force_qv_store: bool=False, image_name: str='morphology', points_name: str|None=None, gene_col: str='feature_name'):
+        """Take a xenium spatialdata file or object and load its data into a SpotTable
+        The spatialdata object should follow the xenium convention as defined in spatialdata-io.xenium()
+        
+        Parameters
+        ----------
+        sd_file : str or Path, optional
+            The path to the spatial data file. If provided, `sd_object` should be None.
+        sd_object : spatialdata.SpatialData, optional
+            An instance of the SpatialData object. If provided, `sd_file` should be None.
+        morphology_path : str or Path, optional
+            spatialdata_io.xenium only loads the focus and mip images. Since SIS relies on the original morphology file,
+            we provide the ability to load the morphology file via the path.
+            If provided, it will be added to the spatialdata object under the name given by [image_name].
+        z_depth : float, optional
+            The z depth to use when binning continuous z locations into integer z planes.
+            Make sure to set this to 1.0 if your xenium data has already been binned to z planes.
+        min_qv : float or None, optional
+            The minimum quality value (Q-Score) for transcripts stored in this SpatialData object. 
+            If None, tries to pull from points table. If 'qv' column doesn't exist, will default to np.nan
+        force_qv_log : bool, optional
+            If the qv column cannot be found in the points data & min_qv was set load_xenium_spatialdata defaults to loading all transcripts & storing min_qv as 0.
+            Set force_qv_store=True if you want to override this behavior and store min_qv as set.
+            e.g. If you know what the qv filter was on the original data and want to store it.
+        image_name : str, optional
+            The name of the image to load from the spatial data. Or if morphology_path is provided, the name to assign to the morphology image.
+        points_name : str, optional
+            The name of the points to load from the spatial data. If None and multiple points are available, the first one will be used.
+        gene_col : str, optional
+            The name of the column in the points table that contains the gene names.
+
+        Raises
+        ------
+        ValueError
+            If both `sd_file` and `sd_object` are None or if both are provided
+            or if the transformation applied to the image is not supported (i.e. rotation or shear).
+
+        Returns
+        -------
+        SpotTable
+            A SpotTable containing the transcripts and images loaded from the spatial data object/file system
+        """
+        import spatialdata as sd # Import in function so we don't throw error if spatialdata is not installed and this function is not used
+
+        if (sd_file is None) == (sd_object is None):
+            raise ValueError('One and exactly one of sd_file and sd_object should be defined')
+        if sd_file is not None:
+            sd_object = sd.read_zarr(sd_file)
+
+        spot_table, _ = cls._load_xenium_spatialdata_internal(sd_object, morphology_path, z_depth, min_qv, force_qv_store, image_name, points_name, gene_col)
+
+        return spot_table
 
 
 class SegmentedSpotTable:
@@ -3533,7 +3560,7 @@ class SegmentedSpotTable:
         return cls._load_spatialdata_cids_polygons(raw_spot_table, sd_object, points_name, shapes_name, cell_id_col, seg_method, use_original_cell_ids, set(['-1']))
     
     @classmethod
-    def load_xenium_spatialdata(cls, sd_file: str|Path|None=None, sd_object: spatialdata.SpatialData|None=None, morphology_path: str|Path|None=None, z_depth: float=3.0, min_qv: float|None=None, image_name: str='morphology', points_name: str|None=None, shapes_name: str|None=None, cell_id_col: str|None=None, gene_col: str|None='feature_name', seg_method: str|None=None, use_original_cell_ids: bool=False):
+    def load_xenium_spatialdata(cls, sd_file: str|Path|None=None, sd_object: spatialdata.SpatialData|None=None, morphology_path: str|Path|None=None, z_depth: float=3.0, min_qv: float|None=None, force_qv_store: bool=False, image_name: str='morphology', points_name: str|None=None, shapes_name: str|None=None, cell_id_col: str|None=None, gene_col: str|None='feature_name', seg_method: str|None=None, use_original_cell_ids: bool=False):
         """Take a xenium spatialdata file or object and load its data into a SegmentedSpotTable
         The spatialdata object should follow the Xenium convention as defined in spatialdata-io.xenium()
 
@@ -3550,9 +3577,13 @@ class SegmentedSpotTable:
         z_depth : float, optional
             The z depth to use when binning continuous z locations into integer z planes.
             Make sure to set this to 1.0 if your xenium data has already been binned to z planes.
-        xenium_min_qv : float or None, optional
+        min_qv : float or None, optional
             The minimum quality value (Q-Score) for transcripts stored in this SpatialData object. 
             If None, tries to pull from points table. If 'qv' column doesn't exist, will default to np.nan
+        force_qv_log : bool, optional
+            If the qv column cannot be found in the points data & min_qv was set load_xenium_spatialdata defaults to loading all transcripts & storing min_qv as 0.
+            Set force_qv_store=True if you want to override this behavior and store min_qv as set.
+            e.g. If you know what the qv filter was on the original data and want to store it.
         image_name : str, optional
             The name of the image to load from the spatial data. Or if morphology_path is provided, the name to assign to the morphology image.
         points_name : str, optional
@@ -3596,12 +3627,12 @@ class SegmentedSpotTable:
                 warnings.warn('Points name was left unspecified and there are multiple Points elements. Loading to the first listed by default')
             points_name = list(sd_object.points.keys())[0]
 
-        raw_spot_table = SpotTable.load_xenium_spatialdata(sd_object=sd_object, morphology_path=morphology_path, z_depth=z_depth, min_qv=min_qv, image_name=image_name, points_name=points_name, gene_col=gene_col)
+        raw_spot_table, qv_mask = SpotTable._load_xenium_spatialdata_internal(sd_object, morphology_path, z_depth, min_qv, force_qv_store, image_name, points_name, gene_col)
         
-        return cls._load_spatialdata_cids_polygons(raw_spot_table, sd_object, points_name, shapes_name, cell_id_col, seg_method, use_original_cell_ids, set(['UNASSIGNED']))
+        return cls._load_spatialdata_cids_polygons(raw_spot_table, sd_object, points_name, qv_mask, shapes_name, cell_id_col, seg_method, use_original_cell_ids, set(['UNASSIGNED']))
     
     @classmethod
-    def _load_spatialdata_cids_polygons(cls, raw_spot_table, sd_object, points_name, shapes_name, cell_id_col, seg_method, use_original_cell_ids, bg_ids):
+    def _load_spatialdata_cids_polygons(cls, raw_spot_table, sd_object, points_name, qv_mask, shapes_name, cell_id_col, seg_method, use_original_cell_ids, bg_ids):
         """Helper function for loading spatial data cell IDs and polygons from a given spatial data object into a SegmentedSpotTable
         Called by load_merscope_spatialdata and load_xenium_spatialdata
 
@@ -3615,6 +3646,10 @@ class SegmentedSpotTable:
             The spatial data object containing points and shapes.
         points_name : str
             The name of the points in the spatial data object.
+        qv_mask : np.ndarray or None
+            Mask for which cell_ids to keep in order to match transcript count.
+            Used when loading xenium data with a quality value (Q-Score) filter for transcripts. 
+            If None, does not filter
         shapes_name : str, optional
             The name of the shapes in the spatial data object. If None and multiple shapes exist, the first shape will be used.
         cell_id_col : str, optional
@@ -3647,6 +3682,8 @@ class SegmentedSpotTable:
             cell_id_col = 'cell_id' if 'cell_id' in sd_object[points_name].columns else 'cell_ids'
         
         cell_ids = sd_object[points_name][cell_id_col].compute().values
+        if qv_mask is not None:
+            cell_ids = cell_ids[qv_mask]
         if use_original_cell_ids: 
             # Must ensure that cell_ids can be ints
             try: 
@@ -3658,7 +3695,7 @@ class SegmentedSpotTable:
             # If we aren't using the original cell ids, we will still put them into cell_labels to preserve them
             # We also generate new cell ids between [1, num_cells]
             cell_ids, cell_labels = cls._default_cell_ids(cell_ids, bg_ids=bg_ids)
-
+        
         # Allow the user to specify a segmentation method
         spot_table = cls(spot_table=raw_spot_table, cell_ids=cell_ids, seg_metadata={'seg_method': seg_method} if seg_method is not None else None)
         spot_table.cell_labels = cell_labels
