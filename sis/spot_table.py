@@ -1570,7 +1570,7 @@ class SpotTable:
         return cls(pos=pos, gene_names=gene_names, images=images)
 
     @classmethod
-    def _load_xenium_spatialdata_internal(cls, sd_object: spatialdata.SpatialData, morphology_path: str|Path|None=None, z_depth: float=3.0, min_qv: float|None=None, force_qv_store: bool=False, image_name: str='morphology', points_name: str|None=None, gene_col: str='feature_name'):
+    def _load_xenium_spatialdata_internal(cls, sd_object: spatialdata.SpatialData, morphology_path: str|Path|None=None, z_depth: float=3.0, min_qv: float|None=20, force_qv_store: bool=False, image_name: str='morphology', points_name: str|None=None, gene_col: str='feature_name'):
         """Contains all the logic for load_xenium_spatialdata but returns a min_qv mask.
         This reduces duplicate code while allowing _load_spatialdata_cids_polygons to access the min_qv mask
         See load_xenium_spatialdata docstring for explanation of function
@@ -1644,7 +1644,7 @@ class SpotTable:
         return cls(pos=pos, gene_names=gene_names, images=image, xenium_min_qv=min_qv), mask
 
     @classmethod
-    def load_xenium_spatialdata(cls, sd_file: str|Path|None=None, sd_object: spatialdata.SpatialData|None=None, morphology_path: str|Path|None=None, z_depth: float=3.0, min_qv: float|None=None, force_qv_store: bool=False, image_name: str='morphology', points_name: str|None=None, gene_col: str='feature_name'):
+    def load_xenium_spatialdata(cls, sd_file: str|Path|None=None, sd_object: spatialdata.SpatialData|None=None, morphology_path: str|Path|None=None, z_depth: float=3.0, min_qv: float|None=20, force_qv_store: bool=False, image_name: str='morphology', points_name: str|None=None, gene_col: str='feature_name'):
         """Take a xenium spatialdata file or object and load its data into a SpotTable
         The spatialdata object should follow the xenium convention as defined in spatialdata-io.xenium()
         
@@ -3560,7 +3560,7 @@ class SegmentedSpotTable:
         return cls._load_spatialdata_cids_polygons(raw_spot_table, sd_object, points_name, shapes_name, cell_id_col, seg_method, use_original_cell_ids, set(['-1']))
     
     @classmethod
-    def load_xenium_spatialdata(cls, sd_file: str|Path|None=None, sd_object: spatialdata.SpatialData|None=None, morphology_path: str|Path|None=None, z_depth: float=3.0, min_qv: float|None=None, force_qv_store: bool=False, image_name: str='morphology', points_name: str|None=None, shapes_name: str|None=None, cell_id_col: str|None=None, gene_col: str|None='feature_name', seg_method: str|None=None, use_original_cell_ids: bool=False):
+    def load_xenium_spatialdata(cls, sd_file: str|Path|None=None, sd_object: spatialdata.SpatialData|None=None, morphology_path: str|Path|None=None, z_depth: float=3.0, min_qv: float|None=20, force_qv_store: bool=False, image_name: str='morphology', points_name: str|None=None, shapes_name: str|None=None, cell_id_col: str|None=None, gene_col: str|None='feature_name', seg_method: str|None=None, use_original_cell_ids: bool=False):
         """Take a xenium spatialdata file or object and load its data into a SegmentedSpotTable
         The spatialdata object should follow the Xenium convention as defined in spatialdata-io.xenium()
 
