@@ -17,6 +17,7 @@ import seaborn as sns
 
 import zipfile
 
+
 def reduce_expression(data, umap_args):
     """Reduce the expression data using UMAP.
 
@@ -790,3 +791,55 @@ def get_cell_cmap(seg_spot_table, bg_color: str|None = None, remove_negatives: b
     cell_cmap = colors.ListedColormap(dict(sorted(cell_colors.items())).values())
 
     return cell_cmap
+
+def parse_polygon_geodataframe(gdf: gpd.GeoDataFrame, spot_table: SegmentedSpotTable, cell_id_col: str='id', z_plane_col: str='z_plane'):
+    """Parse a geopandas GeoDataFrame to extract polygon geometries and put them into a SIS polygon dict.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        A GeoDataFrame containing polygon geometries and associated cell IDs.
+    spot_table : sis.SegmentedSpotTable
+        The spottable that the polygons are associated with.
+    cell_id_col : str, optional
+        The name of the column in the GeoDataFrame that contains cell IDs (default is 'id').
+    z_plane_col : str, optional
+        The name of the column in the GeoDataFrame that contains z-plane values (default is 'z_plane').
+
+    Returns
+    -------
+    dict
+        A dictionary where keys are cell IDs and values are either None, polygons, or a dictionary mapping z-plane values to polygons.
+    """
+    # the 'z_plane' and 'id' column names are used in SIS generated dataframes
+    if cell_id_col in gdf.columns: # If the cell ids are not set 
+        gdf = gdf.set_index(cell_id_col)
+
+    # Need to distinguish cell_labels and cell_ids
+    try:
+        gdf.index = gdf.index.astype(int)
+        id_type = int
+    except ValueError:
+        id_type = str
+        
+    if z_plane_col not in gdf.columns:
+        geom_dict = gdf['geometry'].to_dict()
+        
+        # loop over the cells in the spot table and add their polygons a SIS polygon dict
+        # cell ids are converted to the appropriate type to query the geometry dict
+        # if the value doesn't exist in the geometry dict, we set it to None
+        result = {cid: geom_dict.get(spot_table.convert_cell_id(cid) if id_type == str else cid, None) for cid in spot_table.unique_cell_ids}
+    else:
+        result = {}
+        # we loop over the dataframe not a dictionary beceause the cell ids are not unique
+        for cid, z_plane, polygon in zip(gdf.index, gdf[z_plane_col], gdf['geometry']):
+            cid = spot_table.convert_cell_id(cid) if id_type == str else cid
+            if z_plane is None:
+                result[cid] = None
+            else:
+                result.setdefault(int(cid), {})[float(z_plane)] = polygon
+    # We add None values for cells without polygons to be consistent with SIS logic
+    for cid in spot_table.unique_cell_ids:
+        if cid not in result:
+            result[cid] = None
+    return result
