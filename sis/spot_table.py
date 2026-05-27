@@ -350,22 +350,22 @@ class SpotTable:
 
     @property
     def gene_name_to_id(self):
-        """Return a dictionary mapping from gene IDs to gene names.
+        """Return a dictionary mapping from gene names to gene IDs.
         
         Returns
         -------
-        self._gene_name_to_id : numpy.ndarray
+        self._gene_name_to_id : dict
         """
         return self._gene_name_to_id
     
     @gene_name_to_id.setter
     def gene_name_to_id(self, name_to_id):
-        """Set the mapping from gene IDs to gene names.
+        """Set the mapping from gene names to gene IDs.
         
         Parameters
         ----------
-        name_to_id : numpy.ndarray
-            Array mapping from gene names to gene IDs.
+        name_to_id : dict
+            Dictionary mapping from gene names to gene IDs.
         """
         # Check that all gene names in the table are present in the new mapping
         for gene in self.unique_gene_names:
