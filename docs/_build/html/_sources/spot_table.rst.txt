@@ -29,7 +29,12 @@ SpotTable
     sis.SpotTable.x
     sis.SpotTable.y
     sis.SpotTable.z
+    sis.SpotTable.gene_ids
     sis.SpotTable.gene_names
+    sis.SpotTable.unique_gene_names
+    sis.SpotTable.gene_id_to_name
+    sis.SpotTable.gene_name_to_id
+    sis.SpotTable.xenium_min_qv
 
 .. rubric:: Writing and saving
 .. autosummary::
@@ -134,6 +139,8 @@ SegmentedSpotTable
 
 	sis.SegmentedSpotTable.__len__
 	sis.SegmentedSpotTable.__getattr__
+	sis.SegmentedSpotTable.__setattr__
+	sis.SegmentedSpotTable.__delattr__
 	sis.SegmentedSpotTable.__getitem__
 	sis.SegmentedSpotTable.copy
 	sis.SegmentedSpotTable.get_subregion

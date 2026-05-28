@@ -100,7 +100,7 @@ class SpotTable:
         X,Y boundaries ((xmin, xmax), (ymin, ymax)) used to select this table from the parent table.
     gene_ids : numpy.ndarray
         Array of shape (N,) describing the gene detected in each transcript, as an index into *gene_id_to_name*.
-    gene_id_to_name: numpy.ndarray
+    gene_id_to_name : numpy.ndarray
         Array mapping from values in *gene_ids* to string names. 
         This attribute is not intended to be modified inplace via indexing, doing so may lead to unexpected behavior. 
         To modify the gene_id_to_name mapping, use the gene_id_to_name setter, which will also update
@@ -241,7 +241,9 @@ class SpotTable:
 
     @property
     def gene_names(self):
-        """Return an array of gene names corresponding to the gene IDs in the SpotTable.
+        """Get the array of gene names corresponding to the gene IDs in the SpotTable.
+        
+        Setter also sets underlying gene IDs.
         
         Returns
         -------
@@ -266,7 +268,9 @@ class SpotTable:
         
     @property
     def gene_ids(self):
-        """Return an array of gene IDs corresponding to the spots in the SpotTable.
+        """Get the array of gene IDs corresponding to the spots in the SpotTable.
+        
+        Setter also updates gene names.
         
         Returns
         -------
@@ -276,13 +280,6 @@ class SpotTable:
     
     @gene_ids.setter
     def gene_ids(self, ids):
-        """Set the gene IDs for the spots in the SpotTable.
-        
-        Parameters
-        ----------
-        ids : numpy.ndarray
-            Array of gene IDs to set.
-        """
         # Double check that the ids are valid
         assert len(ids) == len(self.pos), "length of gene_ids must match length of self.pos"
         assert np.max(ids) < len(self._gene_id_to_name), "One or more gene IDs not found in self.gene_id_to_name mapping."
@@ -293,7 +290,9 @@ class SpotTable:
     
     @property
     def gene_id_to_name(self):
-        """Return an array mapping from gene IDs to gene names.
+        """Get the array mapping from gene IDs to gene names.
+        
+        Setter automatically updates the stored gene_name_to_id mapping.
         
         Returns
         -------
@@ -303,13 +302,6 @@ class SpotTable:
     
     @gene_id_to_name.setter
     def gene_id_to_name(self, id_to_name):
-        """Set the mapping from gene IDs to gene names.
-        
-        Parameters
-        ----------
-        id_to_name : numpy.ndarray
-            Array mapping from gene IDs to gene names.
-        """
         # Check that all gene IDs in the table are present in the new mapping
         assert isinstance(id_to_name, np.ndarray), "gene_id_to_name must be a numpy array."
         assert np.max(self.gene_ids) < len(id_to_name), "One or more gene IDs not found in new id_to_name mapping."
@@ -321,7 +313,9 @@ class SpotTable:
 
     @property
     def gene_name_to_id(self):
-        """Return a dictionary mapping from gene names to gene IDs.
+        """Get the dictionary mapping from gene names to gene IDs.
+        
+        Setter automatically updates the stored gene_id_to_name mapping.
         
         Returns
         -------
@@ -331,13 +325,6 @@ class SpotTable:
     
     @gene_name_to_id.setter
     def gene_name_to_id(self, name_to_id):
-        """Set the mapping from gene names to gene IDs.
-        
-        Parameters
-        ----------
-        name_to_id : dict
-            Dictionary mapping from gene names to gene IDs.
-        """
         # Check that all gene names in the table are present in the new mapping
         for gene in self.unique_gene_names:
             assert gene in name_to_id, f"Gene name: {gene} not found in new name_to_id mapping."
@@ -356,7 +343,9 @@ class SpotTable:
 
     @property
     def unique_gene_names(self):
-        """Return the unique gene names in the SpotTable.
+        """Get the unique gene names in the SpotTable.
+        
+        Cannot be set directly, since it is generated from stored gene names
         
         Returns
         -------
@@ -369,13 +358,12 @@ class SpotTable:
     
     @unique_gene_names.setter
     def unique_gene_names(self, names):
-        """Setter to make sure we don't set unique_cell_ids directly.
-        """
+        # Setter to make sure we don't set unique_cell_ids directly.
         raise ValueError("unique_gene_names cannot be set directly. Use gene_names instead.")
 
     @property
     def x(self):
-        """Return the x-coordinates of the spots in the SpotTable.
+        """Get the x-coordinates of the spots in the SpotTable.
         
         Returns
         -------
@@ -386,24 +374,21 @@ class SpotTable:
     
     @x.setter
     def x(self, coords):
-        """Set the x-coordinates of the spots in the SpotTable.
-        
-        Parameters
-        ----------
-        coords : numpy.ndarray
-            Array of x-coordinates to set.
-        """
         self.pos[:, 0] = coords
 
     @property
     def y(self):
-        """Return the y-coordinates of the spots in the SpotTable.
+        """Get the y-coordinates of the spots in the SpotTable.
         
         Returns
         -------
         numpy.ndarray
             Array of y-coordinates of the spots in the SpotTable (self.pos[:, 1]).
             If no y-coordinates are available (i.e. SpotTable only has x coordinates), returns None.
+            
+        Notes
+        -----
+        The SpotTable's shape is set at initialization and cannot be modified to include y-coordinates with the setter if it didn't have any to start
         """
         if self.pos.shape[1] < 2:
             return None
@@ -412,26 +397,23 @@ class SpotTable:
 
     @y.setter
     def y(self, coords):
-        """Set the y-coordinates of the spots in the SpotTable.
-        
-        Parameters
-        ----------
-        coords : numpy.ndarray
-            Array of y-coordinates to set.
-        """
         if self.pos.shape[1] < 2:
             raise ValueError("Cannot set y-coordinates: SpotTable has no y-coordinates.")
         self.pos[:, 1] = coords
 
     @property
     def z(self):
-        """Return the z-coordinates of the spots in the SpotTable.
+        """Get the z-coordinates of the spots in the SpotTable.
         
         Returns
         -------
         numpy.ndarray
             Array of z-coordinates of the spots in the SpotTable (self.pos[:, 2]).
             If no z-coordinates are available (i.e. SpotTable only has x,y coordinates), returns None.
+            
+        Notes
+        -----
+        The SpotTable's shape is set at initialization and cannot be modified to include z-coordinates with the setter if it didn't have any to start
         """
         if self.pos.shape[1] < 3:
             return None
@@ -440,22 +422,20 @@ class SpotTable:
         
     @z.setter
     def z(self, coords):
-        """Set the z-coordinates of the spots in the SpotTable.
-        
-        Parameters
-        ----------
-        coords : numpy.ndarray
-            Array of z-coordinates to set.
-        """
         if self.pos.shape[1] < 3:
             raise ValueError("Cannot set z-coordinates: SpotTable has no z-coordinates.")
         self.pos[:, 2] = coords
         
     @property
     def xenium_min_qv(self):
-        """Return the minimum quality value (Q-Score) for stored transcripts in this spot table.
+        """Get the minimum quality value (Q-Score) for stored transcripts in this spot table.
         Only relevant for Xenium data, where it corresponds to the 'qv' column in the transcripts file.
         See https://www.10xgenomics.com/support/software/xenium-onboard-analysis/latest/analysis/xoa-output-understanding-outputs#transcript-file
+        
+        Returns
+        -------
+        self._xenium_min_qv : float
+            The minimum quality value (Q-Score) for stored transcripts in this spot table
         """
         return self._xenium_min_qv
 
@@ -1811,11 +1791,13 @@ class SpotTable:
             The z depth to use when binning continuous z locations into integer z planes.
             Make sure to set this to 1.0 if your xenium data has already been binned to z planes.
         min_qv : float or None, optional
-            The minimum quality value (Q-Score) for transcripts stored in this SpatialData object. 
-            If None, tries to pull from points table. If 'qv' column doesn't exist, will default to np.nan
-        force_qv_log : bool, optional
+            The minimum quality value (Q-Score) for transcripts in the returned SpotTable.
+            If this SpatialData object has a 'qv' column, it will be used to filter transcripts based on this threshold. 
+            If this SpatialData object does not have a 'qv' column, this parameter will be ignored, xenium_min_qv will be set to 0, and all transcripts will be kept.
+            If None, tries to pull the minimum qv value from points table to store. If 'qv' column doesn't exist, will default to 0
+        force_qv_store : bool, optional
             If the qv column cannot be found in the points data & min_qv was set load_xenium_spatialdata defaults to loading all transcripts & storing min_qv as 0.
-            Set force_qv_store=True if you want to override this behavior and store min_qv as set.
+            Set force_qv_store=True if you want to override this behavior and store the min_qv you input.
             e.g. If you know what the qv filter was on the original data and want to store it.
         image_name : str, optional
             The name of the image to load from the spatial data. Or if morphology_path is provided, the name to assign to the morphology image.
@@ -3160,9 +3142,6 @@ class SegmentedSpotTable:
         the original segmentation. If you are resegmenting the data, prefer
         SpotTable.load_merscope.
 
-        Note: If cache_file is set, only the raw spot table is cached, not the 
-        cell_ids. This is for consistency with SpotTable.load_merscope.
-
         Parameters
         ----------
         csv_file : str
@@ -3179,6 +3158,11 @@ class SegmentedSpotTable:
         Returns
         -------
         sis.spot_table.SegmentedSpotTable
+        
+        Notes
+        -----
+        If cache_file is set, only the raw spot table is cached, not the 
+        cell_ids. This is for consistency with SpotTable.load_merscope.
         """
         raw_spot_table = SpotTable.load_merscope(csv_file=csv_file, cache_file=cache_file, image_path=image_path, max_rows=max_rows)
         cell_ids = SegmentedSpotTable._load_merscope_cell_ids(csv_file, max_rows=max_rows)
@@ -3191,9 +3175,6 @@ class SegmentedSpotTable:
         """Load Xenium data from a detected transcripts CSV file, including
         the original segmentation. If you are resegmenting the data, prefer
         SpotTable.load_xenium.
-
-        Note: If cache_file is set, only the raw spot table is cached, not the 
-        cell_ids. This is for consistency with SpotTable.load_xenium.
 
         Parameters
         ----------
@@ -3224,6 +3205,11 @@ class SegmentedSpotTable:
         Returns
         -------
         sis.spot_table.SegmentedSpotTable
+        
+        Notes
+        -----
+        If cache_file is set, only the raw spot table is cached, not the 
+        cell_ids. This is for consistency with SpotTable.load_xenium.
         """
         # Read in the positions
         raw_spot_table = SpotTable.load_xenium(transcript_file=transcript_file, cache_file=cache_file, image_path=image_path, max_rows=max_rows, z_depth=z_depth, min_qv=min_qv, pyramid_level=pyramid_level, cache_image=cache_image)
@@ -3771,11 +3757,13 @@ class SegmentedSpotTable:
             The z depth to use when binning continuous z locations into integer z planes.
             Make sure to set this to 1.0 if your xenium data has already been binned to z planes.
         min_qv : float or None, optional
-            The minimum quality value (Q-Score) for transcripts stored in this SpatialData object. 
-            If None, tries to pull from points table. If 'qv' column doesn't exist, will default to np.nan
-        force_qv_log : bool, optional
+            The minimum quality value (Q-Score) for transcripts in the returned SpotTable.
+            If this SpatialData object has a 'qv' column, it will be used to filter transcripts based on this threshold. 
+            If this SpatialData object does not have a 'qv' column, this parameter will be ignored, xenium_min_qv will be set to 0, and all transcripts will be kept.
+            If None, tries to pull the minimum qv value from points table to store. If 'qv' column doesn't exist, will default to 0
+        force_qv_store : bool, optional
             If the qv column cannot be found in the points data & min_qv was set load_xenium_spatialdata defaults to loading all transcripts & storing min_qv as 0.
-            Set force_qv_store=True if you want to override this behavior and store min_qv as set.
+            Set force_qv_store=True if you want to override this behavior and store the min_qv you input.
             e.g. If you know what the qv filter was on the original data and want to store it.
         image_name : str, optional
             The name of the image to load from the spatial data. Or if morphology_path is provided, the name to assign to the morphology image.

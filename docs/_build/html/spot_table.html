@@ -58,6 +58,7 @@
 <li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.gene_name_to_id"><code class="docutils literal notranslate"><span class="pre">SpotTable.gene_name_to_id</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable.images"><code class="docutils literal notranslate"><span class="pre">SpotTable.images</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable._gene_names"><code class="docutils literal notranslate"><span class="pre">SpotTable._gene_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sis.spot_table.SpotTable._xenium_min_qv"><code class="docutils literal notranslate"><span class="pre">SpotTable._xenium_min_qv</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="generated/sis.SpotTable.__init__.html">sis.SpotTable.__init__</a></li>
@@ -71,7 +72,12 @@
 <li class="toctree-l3"><a class="reference internal" href="generated/sis.SpotTable.x.html">sis.SpotTable.x</a></li>
 <li class="toctree-l3"><a class="reference internal" href="generated/sis.SpotTable.y.html">sis.SpotTable.y</a></li>
 <li class="toctree-l3"><a class="reference internal" href="generated/sis.SpotTable.z.html">sis.SpotTable.z</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.SpotTable.gene_ids.html">sis.SpotTable.gene_ids</a></li>
 <li class="toctree-l3"><a class="reference internal" href="generated/sis.SpotTable.gene_names.html">sis.SpotTable.gene_names</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.SpotTable.unique_gene_names.html">sis.SpotTable.unique_gene_names</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.SpotTable.gene_id_to_name.html">sis.SpotTable.gene_id_to_name</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.SpotTable.gene_name_to_id.html">sis.SpotTable.gene_name_to_id</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.SpotTable.xenium_min_qv.html">sis.SpotTable.xenium_min_qv</a></li>
 <li class="toctree-l3"><a class="reference internal" href="generated/sis.SpotTable.save_csv.html">sis.SpotTable.save_csv</a></li>
 <li class="toctree-l3"><a class="reference internal" href="generated/sis.SpotTable.save_npz.html">sis.SpotTable.save_npz</a></li>
 <li class="toctree-l3"><a class="reference internal" href="generated/sis.SpotTable.dataframe.html">sis.SpotTable.dataframe</a></li>
@@ -143,6 +149,8 @@
 <li class="toctree-l3"><a class="reference internal" href="generated/sis.SegmentedSpotTable.cell_palette.html">sis.SegmentedSpotTable.cell_palette</a></li>
 <li class="toctree-l3"><a class="reference internal" href="generated/sis.SegmentedSpotTable.__len__.html">sis.SegmentedSpotTable.__len__</a></li>
 <li class="toctree-l3"><a class="reference internal" href="generated/sis.SegmentedSpotTable.__getattr__.html">sis.SegmentedSpotTable.__getattr__</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.SegmentedSpotTable.__setattr__.html">sis.SegmentedSpotTable.__setattr__</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/sis.SegmentedSpotTable.__delattr__.html">sis.SegmentedSpotTable.__delattr__</a></li>
 <li class="toctree-l3"><a class="reference internal" href="generated/sis.SegmentedSpotTable.__getitem__.html">sis.SegmentedSpotTable.__getitem__</a></li>
 <li class="toctree-l3"><a class="reference internal" href="generated/sis.SegmentedSpotTable.copy.html">sis.SegmentedSpotTable.copy</a></li>
 <li class="toctree-l3"><a class="reference internal" href="generated/sis.SegmentedSpotTable.get_subregion.html">sis.SegmentedSpotTable.get_subregion</a></li>
@@ -197,7 +205,7 @@
 <h2>SpotTable<a class="headerlink" href="#spottable" title="Link to this heading"></a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="sis.spot_table.SpotTable">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">sis.spot_table.</span></span><span class="sig-name descname"><span class="pre">SpotTable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pos</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gene_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gene_ids</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gene_id_to_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parent_table</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parent_inds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parent_region</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">images</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">sis.spot_table.</span></span><span class="sig-name descname"><span class="pre">SpotTable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pos</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gene_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gene_ids</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gene_id_to_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parent_table</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parent_inds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parent_region</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">images</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xenium_min_qv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sis.spot_table.SpotTable" title="Link to this definition"></a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Represents a spatial transcriptomics spot table.</p>
 <p>This class represents a spatial transcriptomics spot table, which contains information about the position of each detected transcript, the associated gene, and other optional attributes. It can be used to manipulate and analyze spatial transcriptomics data.</p>
@@ -260,7 +268,10 @@
 <dl class="py attribute">
 <dt class="sig sig-object py" id="sis.spot_table.SpotTable.gene_id_to_name">
 <span class="sig-name descname"><span class="pre">gene_id_to_name</span></span><a class="headerlink" href="#sis.spot_table.SpotTable.gene_id_to_name" title="Link to this definition"></a></dt>
-<dd><p>Array mapping from values in <em>gene_ids</em> to string names.</p>
+<dd><p>Array mapping from values in <em>gene_ids</em> to string names.
+This attribute is not intended to be modified inplace via indexing, doing so may lead to unexpected behavior.
+To modify the gene_id_to_name mapping, use the gene_id_to_name setter, which will also update
+the gene_name_to_id mapping and reset cached gene names.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>numpy.ndarray</p>
@@ -301,6 +312,19 @@
 </dl>
 </dd></dl>
 
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sis.spot_table.SpotTable._xenium_min_qv">
+<span class="sig-name descname"><span class="pre">_xenium_min_qv</span></span><a class="headerlink" href="#sis.spot_table.SpotTable._xenium_min_qv" title="Link to this definition"></a></dt>
+<dd><p>Minimum quality value (Q-Score) for transcripts stored in this spot table.
+Only relevant for Xenium data, where it corresponds to the ‘qv’ column in the transcripts file.
+See <a class="reference external" href="https://www.10xgenomics.com/support/software/xenium-onboard-analysis/latest/analysis/xoa-output-understanding-outputs#transcript-file">https://www.10xgenomics.com/support/software/xenium-onboard-analysis/latest/analysis/xoa-output-understanding-outputs#transcript-file</a></p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float or None</p>
+</dd>
+</dl>
+</dd></dl>
+
 </dd></dl>
 
 <p class="rubric">Initialization</p>
@@ -336,16 +360,31 @@
 <table class="autosummary longtable docutils align-default">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="generated/sis.SpotTable.x.html#sis.SpotTable.x" title="sis.SpotTable.x"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.SpotTable.x</span></code></a></p></td>
-<td><p>Return the x-coordinates of the spots in the SpotTable.</p></td>
+<td><p>Get the x-coordinates of the spots in the SpotTable.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="generated/sis.SpotTable.y.html#sis.SpotTable.y" title="sis.SpotTable.y"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.SpotTable.y</span></code></a></p></td>
-<td><p>Return the y-coordinates of the spots in the SpotTable.</p></td>
+<td><p>Get the y-coordinates of the spots in the SpotTable.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="generated/sis.SpotTable.z.html#sis.SpotTable.z" title="sis.SpotTable.z"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.SpotTable.z</span></code></a></p></td>
-<td><p>Return the z-coordinates of the spots in the SpotTable.</p></td>
+<td><p>Get the z-coordinates of the spots in the SpotTable.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="generated/sis.SpotTable.gene_names.html#sis.SpotTable.gene_names" title="sis.SpotTable.gene_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.SpotTable.gene_names</span></code></a></p></td>
-<td><p>Return an array of gene names corresponding to the gene IDs in the SpotTable.</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/sis.SpotTable.gene_ids.html#sis.SpotTable.gene_ids" title="sis.SpotTable.gene_ids"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.SpotTable.gene_ids</span></code></a></p></td>
+<td><p>Get the array of gene IDs corresponding to the spots in the SpotTable.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/sis.SpotTable.gene_names.html#sis.SpotTable.gene_names" title="sis.SpotTable.gene_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.SpotTable.gene_names</span></code></a></p></td>
+<td><p>Get the array of gene names corresponding to the gene IDs in the SpotTable.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/sis.SpotTable.unique_gene_names.html#sis.SpotTable.unique_gene_names" title="sis.SpotTable.unique_gene_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.SpotTable.unique_gene_names</span></code></a></p></td>
+<td><p>Get the unique gene names in the SpotTable.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/sis.SpotTable.gene_id_to_name.html#sis.SpotTable.gene_id_to_name" title="sis.SpotTable.gene_id_to_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.SpotTable.gene_id_to_name</span></code></a></p></td>
+<td><p>Get the array mapping from gene IDs to gene names.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/sis.SpotTable.gene_name_to_id.html#sis.SpotTable.gene_name_to_id" title="sis.SpotTable.gene_name_to_id"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.SpotTable.gene_name_to_id</span></code></a></p></td>
+<td><p>Get the dictionary mapping from gene names to gene IDs.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/sis.SpotTable.xenium_min_qv.html#sis.SpotTable.xenium_min_qv" title="sis.SpotTable.xenium_min_qv"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.SpotTable.xenium_min_qv</span></code></a></p></td>
+<td><p>Get the minimum quality value (Q-Score) for stored transcripts in this spot table.</p></td>
 </tr>
 </tbody>
 </table>
@@ -686,6 +725,12 @@ that has been segmented.</p>
 <td><p></p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="generated/sis.SegmentedSpotTable.__getattr__.html#sis.SegmentedSpotTable.__getattr__" title="sis.SegmentedSpotTable.__getattr__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.SegmentedSpotTable.__getattr__</span></code></a>(name)</p></td>
+<td><p>This method enables SegmentedSpotTable to act as a proxy for attributes in SpotTable.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/sis.SegmentedSpotTable.__setattr__.html#sis.SegmentedSpotTable.__setattr__" title="sis.SegmentedSpotTable.__setattr__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.SegmentedSpotTable.__setattr__</span></code></a>(name, value)</p></td>
+<td><p>This method enables SegmentedSpotTable to act as a proxy for attributes in SpotTable.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/sis.SegmentedSpotTable.__delattr__.html#sis.SegmentedSpotTable.__delattr__" title="sis.SegmentedSpotTable.__delattr__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.SegmentedSpotTable.__delattr__</span></code></a>(name)</p></td>
 <td><p>This method enables SegmentedSpotTable to act as a proxy for attributes in SpotTable.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="generated/sis.SegmentedSpotTable.__getitem__.html#sis.SegmentedSpotTable.__getitem__" title="sis.SegmentedSpotTable.__getitem__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sis.SegmentedSpotTable.__getitem__</span></code></a>(item)</p></td>

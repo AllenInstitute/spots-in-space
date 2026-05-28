@@ -20,8 +20,8 @@
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="sis.SpotTable.save_csv" href="sis.SpotTable.save_csv.html" />
-    <link rel="prev" title="sis.SpotTable.z" href="sis.SpotTable.z.html" /> 
+    <link rel="next" title="sis.SpotTable.unique_gene_names" href="sis.SpotTable.unique_gene_names.html" />
+    <link rel="prev" title="sis.SpotTable.gene_ids" href="sis.SpotTable.gene_ids.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -60,10 +60,15 @@
 <li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.x.html">sis.SpotTable.x</a></li>
 <li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.y.html">sis.SpotTable.y</a></li>
 <li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.z.html">sis.SpotTable.z</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.gene_ids.html">sis.SpotTable.gene_ids</a></li>
 <li class="toctree-l3 current"><a class="current reference internal" href="#">sis.SpotTable.gene_names</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#sis.SpotTable.gene_names"><code class="docutils literal notranslate"><span class="pre">SpotTable.gene_names</span></code></a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.unique_gene_names.html">sis.SpotTable.unique_gene_names</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.gene_id_to_name.html">sis.SpotTable.gene_id_to_name</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.gene_name_to_id.html">sis.SpotTable.gene_name_to_id</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.xenium_min_qv.html">sis.SpotTable.xenium_min_qv</a></li>
 <li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.save_csv.html">sis.SpotTable.save_csv</a></li>
 <li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.save_npz.html">sis.SpotTable.save_npz</a></li>
 <li class="toctree-l3"><a class="reference internal" href="sis.SpotTable.dataframe.html">sis.SpotTable.dataframe</a></li>
@@ -134,7 +139,8 @@
 <dl class="py property">
 <dt class="sig sig-object py" id="sis.SpotTable.gene_names">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">SpotTable.</span></span><span class="sig-name descname"><span class="pre">gene_names</span></span><a class="headerlink" href="#sis.SpotTable.gene_names" title="Link to this definition"></a></dt>
-<dd><p>Return an array of gene names corresponding to the gene IDs in the SpotTable.</p>
+<dd><p>Get the array of gene names corresponding to the gene IDs in the SpotTable.</p>
+<p>Setter also sets underlying gene IDs.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
 <dd class="field-odd"><p>Array of gene names corresponding to the stored gene IDs</p>
@@ -151,8 +157,8 @@
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="sis.SpotTable.z.html" class="btn btn-neutral float-left" title="sis.SpotTable.z" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="sis.SpotTable.save_csv.html" class="btn btn-neutral float-right" title="sis.SpotTable.save_csv" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="sis.SpotTable.gene_ids.html" class="btn btn-neutral float-left" title="sis.SpotTable.gene_ids" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="sis.SpotTable.unique_gene_names.html" class="btn btn-neutral float-right" title="sis.SpotTable.unique_gene_names" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
