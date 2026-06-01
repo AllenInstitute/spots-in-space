@@ -101,6 +101,7 @@ SegmentedSpotTable
 	sis.SegmentedSpotTable.load_merscope_spatialdata
 	sis.SegmentedSpotTable.load_xenium_spatialdata
 	sis.SegmentedSpotTable.load_cell_polygons
+    sis.SegmentedSpotTable.set_cell_ids_from_tiles
 
 .. rubric:: Properties
 .. autosummary::
