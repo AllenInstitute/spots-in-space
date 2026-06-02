@@ -9,8 +9,6 @@
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path('..', 'sis').resolve()))
-
 project = 'Spots-in-Space'
 copyright = '2026, Jacob Quon, Madeleine Hewitt, Luke Campagnola, Stephanie Seeman, Brian Long, Emily Gelfand, Meghan Turner, Michael Kunst'
 author = 'Jacob Quon, Madeleine Hewitt, Luke Campagnola, Stephanie Seeman, Brian Long, Emily Gelfand, Meghan Turner, Michael Kunst'
