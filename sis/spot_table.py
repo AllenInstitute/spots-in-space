@@ -98,23 +98,8 @@ class SpotTable:
         Indices used to select the subset of spots in this table from the parent spots.
     parent_region : tuple
         X,Y boundaries ((xmin, xmax), (ymin, ymax)) used to select this table from the parent table.
-    gene_ids : numpy.ndarray
-        Array of shape (N,) describing the gene detected in each transcript, as an index into *gene_id_to_name*.
-    gene_id_to_name : numpy.ndarray
-        Array mapping from values in *gene_ids* to string names. 
-        This attribute is not intended to be modified inplace via indexing, doing so may lead to unexpected behavior. 
-        To modify the gene_id_to_name mapping, use the gene_id_to_name setter, which will also update
-        the gene_name_to_id mapping and reset cached gene names.
-    gene_name_to_id : dict
-        Dictionary mapping from gene names to gene IDs.
     images : list[sis.image.ImageBase]
-        Image(s) associated with the data (e.g. nuclei stain).
-    _gene_names : numpy.ndarray
-        Cached array of gene names corresponding to the gene IDs in the SpotTable.
-    _xenium_min_qv : float or None
-        Minimum quality value (Q-Score) for transcripts stored in this spot table. 
-        Only relevant for Xenium data, where it corresponds to the 'qv' column in the transcripts file.
-        See https://www.10xgenomics.com/support/software/xenium-onboard-analysis/latest/analysis/xoa-output-understanding-outputs#transcript-file
+        Image(s) associated with the data (e.g. nuclei stain).        
     """
 
     def __init__(self, 
@@ -157,6 +142,9 @@ class SpotTable:
         self.parent_inds = parent_inds
         self.parent_region = parent_region
 
+        # _gene_ids - np.ndarray of shape (N,) describing the gene detected in each transcript, accessed via self.gene_ids
+        # _gene_name_to_id - dict mapping from gene names to gene IDs, accessed via self.gene_name_to_id
+        # _gene_id_to_name - np.ndarray mapping from gene IDs to gene names, accessed via self.gene_id_to_name
         if gene_names is not None:
             # gene_names are specified, so we need to create gene_ids and name/id mappings
             assert len(gene_names) == len(pos), "length of gene_names must match length of pos"
@@ -175,8 +163,8 @@ class SpotTable:
         else:
             raise Exception("Must specify either gene_names or gene_ids")
 
-        self._gene_names = None
-        self._unique_gene_names = None
+        self._gene_names = None # Cached array of gene names corresponding to the gene IDs in the SpotTable (np.ndarray)
+        self._unique_gene_names = None # Cached array of unique genes in the SpotTable (np.ndarray)
 
         self.images = []
         if images is None:
@@ -189,6 +177,10 @@ class SpotTable:
         else:
             raise TypeError(f'Unsupported type for image(s). Images must be of type ImageBase or a list of ImageBase.')
 
+        # Minimum quality value (Q-Score) for transcripts stored in this spot table. 
+        # Only relevant for Xenium data, where it corresponds to the 'qv' column in the transcripts file.
+        # See https://www.10xgenomics.com/support/software/xenium-onboard-analysis/latest/analysis/xoa-output-understanding-outputs#transcript-file
+        # float or None
         self._xenium_min_qv = xenium_min_qv
 
     def __len__(self):
@@ -1848,23 +1840,7 @@ class SegmentedSpotTable:
     cell_polygons : dict or None
         Polygons associated with each cell_id. Used to approximate the shapes of cells and measurements such as volume.
     seg_metadata : dict or None
-        Metadata about segmentation, e.g. method, parameters, options. Will be saved in the cell by gene anndata uns if created.
-    _old_cell_ids : numpy.ndarray or None
-        Array of old cell ids before the most recent change. Used to update polygons when cell_ids are changed
-    _cell_ids : numpy.ndarray
-        Array of integer cell ids per spot
-    _cell_labels : numpy.ndarray or None
-        Uniformly increasing cell ids stored as a string. Allows for user prefix and suffix
-    _cl_to_cid : dict or None
-        Dictionary mapping cell labels to cell ids
-    _cid_to_cl : dict or None
-        Dictionary mapping cell ids to cell labels
-    _cell_index : dict or None
-        Cached information about which transcripts belong to which cells, used to speed up lookups.
-    _cell_bounds : dict or None
-        Cached information about cell bounds, used to speed up lookups.
-    _unique_cell_ids : numpy.ndarray or None
-        Cached information about unique cell ids, used to speed up lookups.
+        Metadata about segmentation, e.g. method, parameters, options. Will be saved in the cell by gene anndata uns if created.  
     """
 
     def __init__(self, spot_table: SpotTable, cell_ids: np.ndarray, cell_labels: None|np.ndarray=None, cl_to_cid: None|dict=None, cid_to_cl: None|dict=None, cell_polygons: None|dict=None, seg_metadata: None|dict=None):
@@ -1894,14 +1870,14 @@ class SegmentedSpotTable:
             raise ValueError(f"Number of cell_ids {len(cell_ids)} does not match number of spots {len(spot_table)}")
 
         self.spot_table = spot_table
-        self._old_cell_ids = None
-        self._cell_ids = cell_ids
-        self._cell_labels = cell_labels
-        self._cl_to_cid = cl_to_cid
-        self._cid_to_cl = cid_to_cl
-        self._cell_index = None
-        self._cell_bounds = None
-        self._unique_cell_ids = None
+        self._old_cell_ids = None # np.ndarray of old cell ids before the most recent update. Used to update polygons when cell_ids are changed
+        self._cell_ids = cell_ids # np.ndarray of integer cell ids per spot. Accessed via self.cell_ids
+        self._cell_labels = cell_labels # np.ndarray of strings identifying transcripts with strings. Accessed via self.cell_labels
+        self._cl_to_cid = cl_to_cid # Dictionary mapping cell labels to cell ids
+        self._cid_to_cl = cid_to_cl # Dictionary mapping cell ids to cell labels
+        self._cell_index = None # Cached information about which transcripts belong to which cells, used to speed up lookups. Accessed via self.cell_indices
+        self._cell_bounds = None # Cached information about cell bounds, used to speed up lookups. Accessed via self.cell_bounds
+        self._unique_cell_ids = None # Cached array of unique cell ids, used to speed up lookups. Accessed via self.unique_cell_ids
         self.cell_polygons = cell_polygons
         self.seg_metadata = seg_metadata
 

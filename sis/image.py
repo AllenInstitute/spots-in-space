@@ -230,9 +230,7 @@ class Image(ImageBase):
     channels : list
         List of names given to each channel (e.g.: 'dapi')
     name : str or None
-        Optional unique identifier for this image
-    _data : numpy.ndarray
-        4D array of image data
+        Optional unique identifier for this image        
     """
     def __init__(self, data:np.ndarray, transform:ImageTransform, channels:list, name: str|None=None):
         """
@@ -253,7 +251,7 @@ class Image(ImageBase):
         self.transform = transform
         self.channels = channels
         self.name = name
-        self._data = data
+        self._data = data # 4D numpy.ndarray of image data. Accessed via get_data() and get_sub_data() methods
 
     @property
     def shape(self):
@@ -431,9 +429,7 @@ class MerscopeImageFile(ImageFile):
     channels : list
         List of names given to each channel (e.g.: 'dapi')
     name : str or None
-        Optional unique identifier for this image
-    _shape : tuple or None
-        Cached shape of the image, to avoid reading it from disk multiple times
+        Optional unique identifier for this image        
     """
     def __init__(self, file: str, transform:ImageTransform, axes: list|None, channels: list, name: str|None):
         """
@@ -456,7 +452,7 @@ class MerscopeImageFile(ImageFile):
         self.axes = axes
         self.channels = channels
         self.name = name
-        self._shape = None
+        self._shape = None # tuple or None - Cached shape of the image, to avoid reading it from disk multiple times. Accessed via the shape property.
 
     @classmethod
     def load(cls, image_file, transform_file, channel, name=None):
@@ -533,9 +529,7 @@ class StereoSeqImageFile(ImageFile):
     channels : list
         List of names given to each channel (e.g.: 'dapi')
     name : str or None
-        Optional unique identifier for this image
-    _shape : tuple or None
-        Cached shape of the image, to avoid reading it from disk multiple times
+        Optional unique identifier for this image        
     """
     def __init__(self, file: str, transform:ImageTransform, axes: list|None, channels: list, name: str|None):
         """
@@ -558,7 +552,7 @@ class StereoSeqImageFile(ImageFile):
         self.axes = axes
         self.channels = channels
         self.name = name
-        self._shape = None
+        self._shape = None # tuple or None - Cached shape of the image, to avoid reading it from disk multiple times. Accessed via the shape property.
 
     @classmethod
     def load(cls, image_file, xyscale, channel, name=None):
@@ -643,9 +637,7 @@ class XeniumImageFile(ImageFile):
     whole_image_array : numpy.ndarray or None
         Cached array of the whole image data, to avoid reading it from disk multiple times
     cache_image : bool
-        Xenium images are large and not memory mapped and thus we may want to keep them in memory or not. The trade off is speed vs memory.
-    _shape : tuple or None
-        Cached shape of the image, to avoid reading it from disk multiple times
+        Xenium images are large and not memory mapped and thus we may want to keep them in memory or not. The trade off is speed vs memory.        
     """
     
     def __init__(self, file: str, transform: ImageTransform, axes: list|None,
@@ -677,7 +669,7 @@ class XeniumImageFile(ImageFile):
         self.channels = channels
         self.name = name
         self.pyramid_level = pyramid_level
-        self._shape = None
+        self._shape = None # tuple or None - Cached shape of the image, to avoid reading it from disk multiple times. Accessed via the shape property.
         self.whole_image_array = None
         self.cache_image = cache_image
 
@@ -843,9 +835,7 @@ class ImageTransform:
     Attributes
     ----------
     matrix : numpy.ndarray
-        2x3 affine transformation matrix mapping from spots to pixels
-    _inverse : numpy.ndarray or None
-        Cached inverse of the transformation matrix
+        2x3 affine transformation matrix mapping from spots to pixels        
     """
     def __init__(self, matrix):
         """
@@ -856,7 +846,7 @@ class ImageTransform:
         """
         self.matrix = matrix
         assert matrix.shape == (2, 3)
-        self._inverse = None
+        self._inverse = None # numpy.ndarray or None - Cached inverse of the transformation matrix, used to avoid repeated calculations. Accessed via the inverse_matrix property.
 
     def map_to_pixels(self, points):
         """Map (x, y) positions to image pixels (row, col). 

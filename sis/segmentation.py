@@ -624,9 +624,7 @@ class CellposeSegmentationResult(SegmentationResult):
     image_transform : sis.image.ImageTransform
         The transform that relates image and spot coordinates.
     detect_z_planes : float or None
-        If float limit the z-planes to those that contain at least *detect_z_planes* fraction of spots.
-    _cell_ids : numpy.ndarray or None
-        The cell IDs assigned to each spot in the table, or None if not yet computed.
+        If float limit the z-planes to those that contain at least *detect_z_planes* fraction of spots.        
     """
     def __init__(self, method:SegmentationMethod, input_spot_table:SpotTable, cellpose_output:dict, image_transform:ImageTransform, detect_z_planes: float|None=None):
         """
@@ -646,7 +644,7 @@ class CellposeSegmentationResult(SegmentationResult):
         super().__init__(method, input_spot_table)
         self.cellpose_output = cellpose_output
         self.image_transform = image_transform
-        self._cell_ids = None
+        self._cell_ids = None # np.ndarray or None - the cell IDs assigned to each spot in the table, or None if not yet computed. Accessed via the cell_ids property, which computes it if not already done.
         self.detect_z_planes = detect_z_planes
         
     @property
