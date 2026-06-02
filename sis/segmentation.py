@@ -29,7 +29,7 @@ def run_segmentation(load_func, load_args:dict, method_class, method_args:dict, 
         The method of SpotTable used to load a dataset (e.g. SpotTable.load_merscope).
     load_args : dict
         Parameters passed to load_func.
-    method_class : SegmentationMethod
+    method_class : sis.segmentation.SegmentationMethod
         The SegmentationMethod used for segmentation.
     method_args : dict
         The arguments to pass to method_class.
@@ -57,68 +57,14 @@ def run_segmentation(load_func, load_args:dict, method_class, method_args:dict, 
         print(f"saved segmentated cell IDs to {cell_id_file}")
 
 
-class SegmentationResult:
-    """Base class defining a segmentation of SpotTable data--method, options, results
-        
-    Attributes
-    ----------
-    method : SegmentationMethod
-        The segmentation method used.
-    input_spot_table : sis.spot_table.SpotTable
-        The input spot table upon which segmentation was run
-    """
-    
-    def __init__(self, method: SegmentationMethod, input_spot_table: SpotTable):
-        """
-        Parameters
-        ----------
-        method : SegmentationMethod
-            The segmentation method used.
-        input_spot_table : sis.spot_table.SpotTable
-            The input spot table upon which segmentation was run
-        """
-        self.method = method
-        self.input_spot_table = input_spot_table
-
-    @property
-    def cell_ids(self):
-        """Array of segmented cell IDs for each spot in the table
-        """
-        raise NotImplementedError()        
-
-    def spot_table(self, min_spots: int|None=None):
-        """Return a SegmentedSpotTable with cell_ids determined by the segmentation.
-
-        Parameters
-        ----------
-        min_spots : int or None, optional
-            The minimum number of spots required for a cell to be considered valid. Cells with fewer spots will be assigned a cell ID of 0.
-        """
-        cell_ids = self.cell_ids
-
-        if min_spots is not None:
-            # Get rid of cells with fewer than min_spots
-            cell_ids = cell_ids.copy()
-            cids, counts = np.unique(cell_ids, return_counts=True)
-            for cid, count in zip(cids, counts):
-                if count < min_spots:
-                    mask = cell_ids == cid
-                    cell_ids[mask] = 0
-
-        return SegmentedSpotTable(self.input_spot_table, cell_ids)
-
-    def save(self, filename):
-        """Save the SegmentationResult to a pickle file.
-        """
-        pickle.dump(self, open(filename, 'wb'))
-
-
 class SegmentationMethod:
     """Base class defining segmentation methods.
 
     Subclasses should initialize with a dictionary of options, then calling
     run(spot_table) will execute the segmentation method and return a SegmentationResult.
-    
+                  
+    .. rubric:: Attributes
+             
     Attributes
     ----------
     options : dict
@@ -142,11 +88,11 @@ class SegmentationMethod:
         """Return the SpotTable instance to run segmentation on. 
         
         If spot_table is a string, load from npz file.
-        If a sub-region is specified in options, return the sub-table.
+        If a sub-region is specified in `options`, return the sub-table.
         
         Parameters
         ----------
-        spot_table : SpotTable or str
+        spot_table : sis.spot_table.SpotTable or str
             The spot table to run segmentation on.
         """
         if isinstance(spot_table, str):
@@ -165,30 +111,62 @@ class CellposeSegmentationMethod(SegmentationMethod):
 
     Will automatically segment from images attached to the SpotTable or
     generate an image from total mRNA.
-    
-    Example
-    -------
-    options = {
-        'region': ((xmin, xmax), (ymin, ymax)),  # or None for whole table
-        'cellpose_model': 'cyto2',
-        'images': {
-            'nuclei': 'DAPI',
-            'cyto': 'total_mrna',
-        },
-        'px_size': 0.108,          # um / px
-        'cell_dia': 10,            # um
-        'z_plane_thickness': 1.5,  # um
-        'cellpose_options': {
-            'gpu': True,
-            'batch_size': 8,
-        },
-        'dilate': 0,  # um - dilate segmentation after cellpose has finished
-    }
-        
+                      
+    .. rubric:: Attributes
+             
     Attributes
     ----------
     options : dict
-        The options for the segmentation method. (example detailed above)
+        The options for the segmentation method. 
+        
+        - region : tuple or str or None
+            The region to segment. Can be any of the following:
+            
+            - Tuple of ((xmin, xmax), (ymin, ymax)) for a subregion
+            - String for an image channel in the spot table to use as bounds (e.g. 'DAPI')
+            - None to use the full bounds of the spot table.
+        - cellpose_model : str
+            The cellpose model to use. Can be any of the following:
+            
+            - Path to a custom model file
+            - String for a pretrained model (e.g. 'cyto2')
+        - cellpose_gpu : bool or 'auto'
+            Whether to use GPU for cellpose segmentation. If 'auto', will use GPU if available.
+        - px_size : float
+            The size of pixels in the image in microns (i.e. the um / px value of your image).
+        - cell_dia : float or None
+            The estimated diameter of your cells in microns
+        - z_plane_thickness : float
+            The distance between z planes in microns (only used if segmenting in 3D)
+        - images : dict[str, dict]
+            The images channels to use for segmentation. Only supports 'nuclei' and 'cyto'
+            Values should be dictionaries with a channel key and optionally frames or frame key to specify which frames to use.
+            
+            - channel should be a string corresponding to an image channel in the spot table, or 'total_mrna' to generate an image from spot density.
+            - n_planes must be used in conjunction with 'total_mrna' to specify the total number of z planes in the image channel
+            - frames should be a tuple of the first (inclusive) and last (exclusive) indices of the frames e.g. frames=(2,5) would create an image from z planes 2, 3, and 4.
+            - frame can be used instead of frames if only one frame is needed, and should be an int corresponding to the index of the frame to use.
+            - if neither frame nor frames is specified, all frames are used
+        - cellpose_options : dict
+            Dictionary of options to pass to cellpose. See https://cellpose.readthedocs.io/en/latest/api.html#cellpose.models.CellposeModel.eval for more details.
+        
+        Example::
+
+            options = {
+                'region': ((2000, 3000), (2000, 3000)), 
+                'cellpose_model': '/path/to/model', 
+                'cellpose_gpu': 'auto',
+                'px_size': 0.108,
+                'cell_dia': 10, 
+                'z_plane_thickness': 1.5,
+                'images': {
+                    'nuclei': {'channel': 'DAPI', 'frames': (2,5)},
+                    'cyto': {'channel': 'total_mrna', 'n_planes': 7, 'frames': (2,5)}
+                }, 
+                'cellpose_options': {
+                    'batch_size': 8,
+                }
+            }
     """
     
     def __init__(self, options):
@@ -203,17 +181,17 @@ class CellposeSegmentationMethod(SegmentationMethod):
     def run(self, spot_table):
         """Run cellpose segmentation on a spot table and return a CellposeSegmentationResult
         
-        Specifications as to the nature of the segmentation are specified in self.options (of particular note is 'cellpose_model' and 'images').
+        Specifications as to the nature of the segmentation are specified in `options` (of particular note is 'cellpose_model' and 'images').
         
         Parameters
         ----------
-        spot_table : SpotTable
+        spot_table : sis.spot_table.SpotTable
             The spot table to run segmentation on.
             
         Raises
         ------
         ValueError
-            If 'detect_z_planes' is specified in options and 'frame' is also specified in the options['images']
+            If 'detect_z_planes' is specified in `options` and 'frame' is also specified in `options['images']`
         """
         import cellpose.models
         spot_table = self._get_spot_table(spot_table)
@@ -264,8 +242,8 @@ class CellposeSegmentationMethod(SegmentationMethod):
 
             # If the number of z-planes is too small we want to double the z-planes while still maintaining order
             if self.options.get('duplistack', False):
-                cyto_data = CellposeSegmentationMethod.duplistack_image(images['cyto'])
-                nuclei_data = CellposeSegmentationMethod.duplistack_image(images['nuclei'])
+                cyto_data = CellposeSegmentationMethod._duplistack_image(images['cyto'])
+                nuclei_data = CellposeSegmentationMethod._duplistack_image(images['nuclei'])
             else:
                 cyto_data = images['cyto'].get_data()
                 nuclei_data = images['nuclei'].get_data()
@@ -278,7 +256,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
         else:
             # If the number of z-planes is too small we want to double the z-planes while still maintaining order
             if self.options.get('duplistack', False):
-                image_data = CellposeSegmentationMethod.duplistack_image(list(images.values())[0]) # Since there is only one image, we just take the first value
+                image_data = CellposeSegmentationMethod._duplistack_image(list(images.values())[0]) # Since there is only one image, we just take the first value
             else:
                 image_data = list(images.values())[0].get_data()
             channels = [0, 0]
@@ -362,6 +340,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
             - Any other string returns an image channel attached to the spot table
             - {'channel': channel, 'frame': int} can be used to select a single frame
             - {'channel': 'total_mrna', 'n_planes': int, 'frame': int, 'gauss_kernel': (1, 3, 3), 'median_kernel': (2, 10, 10)} can be ued to configure total mrna image generation
+            
         spot_table : sis.spot_table.SpotTable
             The spot table which is either used to create the image or already contains the image
         px_size : float
@@ -448,7 +427,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
             The spot table used to create the image.
         image_shape : tuple
             The shape of the image.
-        image_transform : ImageTransform
+        image_transform : sis.image.ImageTransform
             The transform that relates image and spot coordinates (?).
         n_planes : int
             The number of z planes in the image.
@@ -462,7 +441,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
             
         Returns
         -------
-        Image
+        sis.image.Image
             The total mRNA image.
         """
 
@@ -499,11 +478,11 @@ class CellposeSegmentationMethod(SegmentationMethod):
         
         Parameters
         ----------
-        spot_table : SpotTable
+        spot_table : sis.spot_table.SpotTable
             The spot table to map to image pixels.
-        image : Image or None, optional
+        image : sis.image.Image or None, optional
             The image to use for mapping.
-        image_transform : ImageTransform or None, optional
+        image_transform : sis.image.ImageTransform or None, optional
             The transform that relates image and spot coordinates.
             Can be used in conjunction with image_shape as a replacement for image.
         image_shape : tuple or None, optional
@@ -514,7 +493,7 @@ class CellposeSegmentationMethod(SegmentationMethod):
             
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
             An array of shape (n_spots, 3) containing the (frame, row, col) positions of each spot.
         """
         # Only one of image and (image_transform, image_shape) should be provided
@@ -548,14 +527,14 @@ class CellposeSegmentationMethod(SegmentationMethod):
         return np.hstack([spot_px_z[:, np.newaxis], spot_px_rc])
 
     @staticmethod
-    def duplistack_image(image: Image):
+    def _duplistack_image(image: Image):
         """This method takes an image and creates a numpy array of its data duplicated in place
         
         e.g. an image with frames 1,2,3 would become an array with frames 1,1,2,2,3,3
 
         Parameters
         ----------
-        image : Image
+        image : sis.image.Image
             The image to duplistack.
         """
         img_data = image.get_data()
@@ -568,13 +547,71 @@ class CellposeSegmentationMethod(SegmentationMethod):
             
         return duplistacked_img_data
         
-
-class CellposeSegmentationResult(SegmentationResult):
-    """Class made for containing the result of running CellposeSegmentationMethod on a SpotTable
-    
+class SegmentationResult:
+    """Base class defining a segmentation of SpotTable data--method, options, results
+                      
+    .. rubric:: Attributes
+             
     Attributes
     ----------
-    method : SegmentationMethod
+    method : sis.segmentation.SegmentationMethod
+        The segmentation method used.
+    input_spot_table : sis.spot_table.SpotTable
+        The input spot table upon which segmentation was run
+    """
+    
+    def __init__(self, method: SegmentationMethod, input_spot_table: SpotTable):
+        """
+        Parameters
+        ----------
+        method : sis.segmentation.SegmentationMethod
+            The segmentation method used.
+        input_spot_table : sis.spot_table.SpotTable
+            The input spot table upon which segmentation was run
+        """
+        self.method = method
+        self.input_spot_table = input_spot_table
+
+    @property
+    def cell_ids(self):
+        """Array of segmented cell IDs for each spot in the table
+        """
+        raise NotImplementedError()        
+
+    def spot_table(self, min_spots: int|None=None):
+        """Return a SegmentedSpotTable with cell_ids determined by the segmentation.
+
+        Parameters
+        ----------
+        min_spots : int or None, optional
+            The minimum number of spots required for a cell to be considered valid. Cells with fewer spots will be assigned a cell ID of 0.
+        """
+        cell_ids = self.cell_ids
+
+        if min_spots is not None:
+            # Get rid of cells with fewer than min_spots
+            cell_ids = cell_ids.copy()
+            cids, counts = np.unique(cell_ids, return_counts=True)
+            for cid, count in zip(cids, counts):
+                if count < min_spots:
+                    mask = cell_ids == cid
+                    cell_ids[mask] = 0
+
+        return SegmentedSpotTable(self.input_spot_table, cell_ids)
+
+    def save(self, filename):
+        """Save the SegmentationResult to a pickle file.
+        """
+        pickle.dump(self, open(filename, 'wb'))
+        
+class CellposeSegmentationResult(SegmentationResult):
+    """Class made for containing the result of running CellposeSegmentationMethod on a SpotTable
+                  
+    .. rubric:: Attributes
+             
+    Attributes
+    ----------
+    method : sis.segmentation.SegmentationMethod
         The segmentation method used.
     input_spot_table : sis.spot_table.SpotTable
         The input spot table upon which segmentation was run
@@ -586,10 +623,8 @@ class CellposeSegmentationResult(SegmentationResult):
             - 'diams' (if non-custom model).
     image_transform : sis.image.ImageTransform
         The transform that relates image and spot coordinates.
-    _cell_ids : np.ndarray or None
-        The cell IDs assigned to each spot in the table, or None if not yet computed.
     detect_z_planes : float or None
-        If float limit the z-planes to those that contain at least *detect_z_planes* fraction of spots.
+        If float limit the z-planes to those that contain at least *detect_z_planes* fraction of spots.        
     """
     def __init__(self, method:SegmentationMethod, input_spot_table:SpotTable, cellpose_output:dict, image_transform:ImageTransform, detect_z_planes: float|None=None):
         """
@@ -609,7 +644,7 @@ class CellposeSegmentationResult(SegmentationResult):
         super().__init__(method, input_spot_table)
         self.cellpose_output = cellpose_output
         self.image_transform = image_transform
-        self._cell_ids = None
+        self._cell_ids = None # np.ndarray or None - the cell IDs assigned to each spot in the table, or None if not yet computed. Accessed via the cell_ids property, which computes it if not already done.
         self.detect_z_planes = detect_z_planes
         
     @property
@@ -618,7 +653,8 @@ class CellposeSegmentationResult(SegmentationResult):
         
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
+            The cell IDs assigned to each spot in the table. 0 or -1 indicates background (not assigned to a cell).
         """
         # use segmented masks to assign each spot to a cell
         if self._cell_ids is None:
@@ -644,6 +680,7 @@ class CellposeSegmentationResult(SegmentationResult):
         Returns
         -------
         sis.image.Image
+            An image containing the segmentation masks, with the appropriate transform to relate pixel coordinates to spot coordinates.
         """        
         # annotate segmentation mask with spot-to-pixel transform
         masks = self.cellpose_output['masks']
@@ -696,14 +733,14 @@ def dilate_labels(img, radius):
     
     Parameters
     ----------
-    img : np.ndarray
+    img : numpy.ndarray
         The input image with labeled regions.
     radius : float
         The radius by which to dilate the labeled regions.
     
     Returns
     -------
-    interpolated : np.ndarray
+    interpolated : numpy.ndarray
         The dilated image.
         
     Raises
@@ -745,7 +782,9 @@ class SegmentationPipeline:
     are not changed by the user. If you change them, be warned that the 
     metadata dictionary and spot table subregion may become outdated if the 
     appropriate methods are not called afterward.
-    
+                  
+    .. rubric:: Attributes
+             
     Attributes
     ----------
     image_path : Path or str
@@ -776,7 +815,7 @@ class SegmentationPipeline:
         Contains information on the jobs used to run polygon calculations on the hpc.
     meta_path : Path
         Path to file containing initial parameters and settings.
-    self.regions_path : Path
+    regions_path : Path
         Path to file containing tile boundary information
     seg_run_spec_path : Path
         Path to file containing segmentation run specifications
@@ -793,7 +832,7 @@ class SegmentationPipeline:
     polygon_subsets_path : Path
         Path to directory where cell polygon intermediate results are saved
     polygon_final_path : Path
-        Path to final cell polygon file (geojson or other format specified in polygon_opts)
+        Path to final cell polygon file (geojson or other format specified in `polygon_opts`)
     """
     def __init__(self, dt_file: Path|str, image_path: Path|str, output_dir: Path|str, dt_cache: Path|str|None, subrgn: str|tuple, seg_method: SegmentationMethod, seg_opts: dict, polygon_opts: dict|None=None, seg_hpc_opts: dict|None=None, polygon_hpc_opts: dict|None=None, hpc_opts: dict|None=None):
         """
@@ -811,10 +850,10 @@ class SegmentationPipeline:
             The subregion to segment. Set to a string, e.g. 'DAPI', to segment the 
             full region bounded by the associated image channel. To segment a 
             smaller region, set to a tuple corresponding to a bounding box.
-        seg_method : SegmentationMethod
+        seg_method : sis.segmentation.SegmentationMethod
             The segmentation method to use. Must be found in sis.segmentation.
         seg_opts : dict
-            Options to pass to seg_method.
+            Options to pass to `seg_method`.
         polygon_opts : dict or None, optional
             Options to pass to for cell polygon generation. Currently supports save_file_extension, alpha_inv_coeff, and separate z-planes.
             Default is None, which sets save_file_extension to 'geojson', alpha_inv_coeff to 4/3, and separate_z_planes to True   
@@ -865,282 +904,18 @@ class SegmentationPipeline:
         self.polygon_jobs = None
         
         # intermediate file paths
-        self.set_intermediate_file_paths()
+        self._set_intermediate_file_paths()
 
         # metadata dict of initial parameters
         self.meta_path = output_dir.joinpath('seg_meta.json')
         self.update_metadata()
-
-
-    @abstractmethod
-    def get_load_func(self):
-        """Get the function to load a spot table."""
-        return
-
-    @abstractmethod
-    def get_load_args(self):
-        """Get args to pass to loading function (e.g. when submitting jobs to hpc)."""
-        return
-
-    def set_intermediate_file_paths(self):
-        """Define locations within the output directory to save intermediate and output files.
-        If you add a step to this pipeline that generates a file, specify its 
-        path here.
-        """
-        output_dir = self.output_dir
-        self.regions_path = output_dir.joinpath('regions.json')
-        self.seg_run_spec_path = output_dir.joinpath('seg_run_spec.pkl')
-        self.polygon_run_spec_path = output_dir.joinpath('polygon_run_spec.pkl')
-        self.tile_save_path = output_dir.joinpath('seg_tiles/')
-        self.cid_path = output_dir.joinpath('segmentation.npy')
-        self.seg_spot_table_path = output_dir.joinpath('seg_spot_table.npz')
-        self.cbg_path = output_dir.joinpath('cell_by_gene.h5ad')
-        self.polygon_subsets_path = output_dir.joinpath('cell_polygons/')
-        self.polygon_final_path = self.output_dir.joinpath(f'cell_polygons.{self.polygon_opts["save_file_extension"]}')
-
-    def update_metadata(self):
-        """Update the metadata dictionary of segmentation input parameters.
-
-        It is recommended to call this method whenever a function changes one of the
-        SegmentationPipeline attributes set upon intialization.
-        """
-        self.meta = {
-                'dt_file': self.detected_transcripts_file,
-                'image_path': self.image_path,
-                'output_dir': self.output_dir,
-                'dt_cache': self.detected_transcripts_cache,
-                'subrgn': self.subrgn,
-                'seg_method': self.seg_method,
-                'seg_opts': self.seg_opts,
-                'polygon_opts': self.polygon_opts,
-                'seg_hpc_opts': self.seg_hpc_opts,
-                'polygon_hpc_opts': self.polygon_hpc_opts,  # hpc_opts not needed here
-            }
-
-    def save_metadata(self, overwrite=False):
-        """Save SegmentationPipeline metadata to the meta_path attribute (a json file in the output directory).
-
-        Parameters
-        ----------
-        overwrite : bool, optional
-            Whether to overwrite the current metadata file.
-            
-        Raises
-        ------
-        FileExistsError
-            If the metadata file already exists and overwrite is False.
-        """
-        if not overwrite and self.meta_path.exists():
-            raise FileExistsError('Metadata already saved and overwriting is not enabled.')
-        else:
-            # Make entries compatible with json
-            metadata_cl = self.meta.copy()
-            for k, v in self.meta.items():
-                if isinstance(v, PurePath):
-                    metadata_cl[k] = v.as_posix()
-                elif inspect.isclass(v):
-                    metadata_cl[k] = v.__module__ + '.' + v.__name__
-                elif not isinstance(v, str|tuple|dict):
-                    metadata_cl[k] = str(v)
-
-            with open(self.meta_path, 'w') as f:
-                json.dump(metadata_cl, f)
-
-    def load_metadata(self):
-        """Load the current SegmentationPipeline metadata json from the meta_path attribute into a dictionary.
-
-        Returns
-        -------
-        dict
-            SegmentationPipeline attributes and their values as stored in the metadata file.
-        """
-        with open(self.meta_path, 'r') as f:
-            meta = json.load(f)
-        return meta
-
-    def save_regions(self, regions: list, overwrite: bool=False):
-        """Save the segmentation tile subregion coordinates into the regions_path attribute.
-
-        Parameters
-        ----------
-        regions : list
-            The list of subregion coordinates for every tile.
-        overwrite : bool, optional
-            Whether to overwrite the regions json file if it exists in the output directory.
-            
-        Raises
-        ------
-        FileExistsError
-            If the regions file already exists and overwrite is False.
-        """
-        regions_df = pd.DataFrame(regions, columns=['xlim', 'ylim'])
-        if not overwrite and self.regions_path.exists():
-            raise FileExistsError('Regions are already saved and overwriting is not enabled.')
-        else:
-            regions_df.to_json(self.regions_path)
-
-    def load_regions(self):
-        """Load the subregion coordinates from the output directory.
-
-        Returns
-        -------
-        regions : list
-            The subregion coordinates for every tile.
-        """
-        assert self.regions_path.exists()
-        regions = pd.read_json(self.regions_path).values
-        regions = [tuple(r) for r in regions]
-        return regions
-
-    def save_run_spec(self, run_spec: dict, run_spec_path: Path, overwrite: bool=False):
-        """Save run specifications for a job on the HPC as a pkl file.
-
-        Parameters
-        ----------
-        run_spec : dict
-            The run specifications.
-        run_spec_path : Path
-            The path to the run spec.
-        overwrite : bool, optional
-            Whether to enable overwriting of the run spec. Default False.
-        
-        Raises
-        ------
-        FileExistsError
-            If the run spec file already exists and overwrite is False.
-        """
-        if not overwrite and run_spec_path.exists():
-            raise FileExistsError('Run spec already saved and overwriting is not enabled.')
-        else:
-            with open(run_spec_path, 'wb') as f:
-                pickle.dump(run_spec, f)
-
-    def load_run_spec(self, run_spec_path: Path|str):
-        """Load run specifications for a job on the HPC.
-
-        Parameters
-        ----------
-        run_spec_path : Path or str
-            File path to the run spec.
-        
-        Returns
-        -------
-        dict
-            The run specifications
-        """
-        with open(run_spec_path, 'rb') as f:
-            run_spec = pickle.load(f)
-        return run_spec
-
-    def save_cell_ids(self, cell_ids: np.ndarray, overwrite: bool=False):
-        """Save array of cell_ids to the cid_path attribute.
-        
-        Parameters
-        ----------
-        cell_ids : np.ndarray
-            The array of cell IDs.
-        overwrite : bool, optional
-            Whether to enable overwriting of the cell ids file. Default False.
-            
-        Raises
-        ------
-        FileExistsError
-            If the cell ids file already exists and overwrite is False.
-        """
-        if not overwrite and self.cid_path.exists():
-            raise FileExistsError('Cell ids already saved and overwriting is not enabled.')
-        else:
-            np.save(self.cid_path, cell_ids)
-
-    def load_cell_ids(self):
-        """Load array of cell_ids from the cid_path attribute
-        """
-        assert self.cid_path.exists()
-        cell_ids = np.load(self.cid_path)
-        return cell_ids
-
-    def save_seg_spot_table(self, overwrite: bool=False):
-        """Save the segmented spot table to the seg_spot_table_path attribute.
-        
-        Parameters
-        ----------
-        overwrite : bool, optional
-            Whether to enable overwriting of the segmented spot table file. Default False.
-            
-        Raises
-        ------
-        FileExistsError
-            If the segmented spot table file already exists and overwrite is False.
-        """
-        if not overwrite and self.seg_spot_table_path.exists():
-            raise FileExistsError('Segmented spot table already saved and overwriting is not enabled.')
-        else:
-            self.seg_spot_table.save_npz(self.seg_spot_table_path)
-
-    def load_seg_spot_table(self, allow_pickle: bool=True):
-        """Load the segmented spot table from the seg_spot_table_path attribute.
-        
-        Parameters
-        ----------
-        allow_pickle : bool, optional
-            Whether to allow loading pickled object arrays stored in npy files.
-            Must be enabled to load dictionaries and cell polygons.
-        """
-        assert self.seg_spot_table_path.exists()
-        seg_spot_table = SegmentedSpotTable.load_npz(self.seg_spot_table_path, allow_pickle=allow_pickle)
-        return seg_spot_table
-
-    def save_cbg(self, cell_by_gene: ad.AnnData, overwrite: bool=False):
-        """Save the cell by gene anndata object to the cbg_path attribute.
-        
-        Parameters
-        ----------
-        cell_by_gene : anndata.AnnData
-            The cell by gene anndata object.
-        overwrite : bool, optional
-            Whether to enable overwriting of the cell by gene file. Default False.
-            
-        Raises
-        ------
-        FileExistsError
-            If the cell by gene file already exists and overwrite is False.
-        """
-        if not overwrite and self.cbg_path.exists():
-            raise FileExistsError('Cell by gene already saved and overwriting is not enabled.')
-        else:
-            SegmentedSpotTable.save_anndata(self.cbg_path, cell_by_gene)
-
-    def load_cbg(self):
-        """Load the cell by gene anndata object from the cbg_path attribute
-        """
-        assert self.cbg_path.exists()
-        cell_by_gene = ad.read_h5ad(self.cbg_path)
-        return cell_by_gene
-
-    def load_raw_spot_table(self):
-        """Load the raw spot table [self.get_load_func(), self.get_load_args()], 
-        crop it by subregion [self.subrgn],
-        and set as an attribute. [self.raw_spot_table]
-        """
-        load_func = self.get_load_func()
-        load_args = self.get_load_args()
-        table = load_func(**load_args)
-        
-        # Subregion can be a channel name or tuple. If it's a channel name, get the bounds of the channel
-        if isinstance(self.subrgn, str):
-            subrgn = table.get_image(channel=self.subrgn).bounds()
-        else:
-            subrgn = self.subrgn
-
-        subtable = table.get_subregion(xlim=subrgn[0], ylim=subrgn[1])
-        self.raw_spot_table = subtable
 
     def run(self, x_format: str, x_dtype: str='uint16', additional_obs: dict|None=None, prefix: str|None='', suffix: str|None='', overwrite: bool=False, clean_up: str|bool|None='all_ints', tile_size: int=200, min_transcripts: int=0, rerun: bool=True):
         """Run all steps to perform tiled segmentation.
 
         Parameters
         ----------
-        x_format: str
+        x_format : str
             Desired format for the cell by gene anndata X. Options: 'dense' or
             'sparse'.
         x_dtype : str, optional
@@ -1148,32 +923,33 @@ class SegmentationPipeline:
         additional_obs : dict or None, optional
             Additional columns to add to the anndata.obs DataFrame.
             Keys are column names and values are arrays of the same length as the number of cells.
-        prefix: str or None, optional
+        prefix : str or None, optional
             The string to prepend to all cell labels. If both prefix and suffix are None, will prepend a uuid to all cell labels.
-        suffix: str or None, optional
+        suffix : str or None, optional
             The string to append to all cell labels. If both prefix and suffix are None, will prepend a uuid to all cell labels.
-        overwrite: bool, optional
+        overwrite : bool, optional
             Whether to allow overwriting of output files. Default False.
-        clean_up: str or bool or None, optional
+        clean_up : str or bool or None, optional
             Whether or not to clean up intermediate files after segmentation
             Accepts: 'all_ints', 'seg_ints', 'polygon_ints', 'none', True, False, None
             Default: cleans up all intermediate files.
-        tile_size: int, optional
+        tile_size : int, optional
             The maximum size of tiles to segment. Default 200. Increasing this
             parameter may also require increasing time and/or memory limits in
             seg_hpc_opts.
         min_transcripts : int, optional
             Minimum number of transcripts in a tile to be considered for segmentation. Default 0.
-        rerun: bool, optional
+        rerun : bool, optional
             If enabled, SegmentationPipeline will attempt to automatically rerun jobs that failed
             If job failed due to memory constaints, memory limit in will be doubled
             If job failed due to time constaints, time limit in will be doubled
         
         Returns
         -------
-        tuple[sis.spot_table.SegmentedSpotTable, anndata.AnnData]
-            - The segmented spot table.
-            - The cell by gene table.
+        sis.segmented.SegmentedSpotTable
+            The final segmented spot table
+        anndata.AnnData
+            The cell by gene table representing the segmentation
         """
 
         # update and save run metadata in case user updated parameters
@@ -1209,32 +985,139 @@ class SegmentationPipeline:
 
         return self.seg_spot_table, cell_by_gene
 
-    def resume(self):
-        raise NotImplementedError('Resuming from previous segmentation not implemented.')
-
-    def track_job_progress(self, jobs: SlurmJobArray):
-        """Track progress of submitted hpc jobs and display with tqdm until all jobs have ended.
-
+    @classmethod
+    def from_json(cls, json_file):
+        """Alternate constructor to load a SegmentationPipeline from a json file
+        
         Parameters
         ----------
-        jobs : sis.hpc.SlurmJobArray
-            Submitted slurm jobs to track.
+        json_file : Path
+            The path to the json file.
             
         Raises
         ------
-        RuntimeError
-            If none of the jobs completed properly, indicating a ubiquitous issue that must be resolved.
+        NotImplementedError
+            If the segmentation method specified in the json file does not exist
         """
-        print(f'Job IDs: {jobs[0].job_id}-{jobs[-1].job_id.split("_")[-1]}')
-        with tqdm(total=len(jobs)) as pbar:
-            while not jobs.is_done():
-                # Wait until all jobs are done to return, checking every 60 seconds
-                time.sleep(60)
-                n_done = int(np.sum([1 for job in jobs.jobs if job.is_done()]))
-                pbar.update(n_done - pbar.n)
-        # If none of the jobs completed properly we don't want to continue/rerun because it implies a ubiquitous issue which must be resolved
-        if not np.any([job.state().state == "COMPLETED" for job in jobs.jobs]):
-            raise RuntimeError(f'All jobs failed. Please check error logs in {self.output_dir.joinpath("hpc-jobs")}')
+        with open(json_file, 'r') as f:
+            config = json.load(f)
+            
+        # Cannot save the class in the json so we need to convert it back from string to the class
+        seg_method_name = config['seg_method'].rpartition('.')[-1]
+        if seg_method_name == 'CellposeSegmentationMethod':
+            config['seg_method'] = sis.segmentation.CellposeSegmentationMethod
+        else:
+            raise NotImplementedError(f'Segmentation method {seg_method_name} not implemented.')
+        
+        # Cannot save tuple in the json so we need to convert back from list
+        if isinstance(config['subrgn'], list):
+            config['subrgn'] = tuple([tuple(l) for l in config['subrgn']])
+
+        return cls(**config)
+
+    @abstractmethod
+    def _get_load_func(self):
+        """Get the function to load a spot table."""
+        return
+
+    @abstractmethod
+    def _get_load_args(self):
+        """Get args to pass to loading function (e.g. when submitting jobs to hpc)."""
+        return
+
+    def _set_intermediate_file_paths(self):
+        """Define locations within the output directory to save intermediate and output files.
+        If you add a step to this pipeline that generates a file, specify its 
+        path here.
+        """
+        output_dir = self.output_dir
+        self.regions_path = output_dir.joinpath('regions.json')
+        self.seg_run_spec_path = output_dir.joinpath('seg_run_spec.pkl')
+        self.polygon_run_spec_path = output_dir.joinpath('polygon_run_spec.pkl')
+        self.tile_save_path = output_dir.joinpath('seg_tiles/')
+        self.cid_path = output_dir.joinpath('segmentation.npy')
+        self.seg_spot_table_path = output_dir.joinpath('seg_spot_table.npz')
+        self.cbg_path = output_dir.joinpath('cell_by_gene.h5ad')
+        self.polygon_subsets_path = output_dir.joinpath('cell_polygons/')
+        self.polygon_final_path = self.output_dir.joinpath(f'cell_polygons.{self.polygon_opts["save_file_extension"]}')
+
+    def update_metadata(self):
+        """Update the metadata dictionary of segmentation input parameters.
+
+        It is recommended to call this method whenever a function changes one of the
+        SegmentationPipeline attributes set upon intialization.
+        """
+        self.meta = {
+                'dt_file': self.detected_transcripts_file,
+                'image_path': self.image_path,
+                'output_dir': self.output_dir,
+                'dt_cache': self.detected_transcripts_cache,
+                'subrgn': self.subrgn,
+                'seg_method': self.seg_method,
+                'seg_opts': self.seg_opts,
+                'polygon_opts': self.polygon_opts,
+                'seg_hpc_opts': self.seg_hpc_opts,
+                'polygon_hpc_opts': self.polygon_hpc_opts,  # hpc_opts not needed here
+            }
+
+    def save_metadata(self, overwrite=False):
+        """Save SegmentationPipeline metadata to the `meta_path` attribute (a json file in the output directory).
+
+        Parameters
+        ----------
+        overwrite : bool, optional
+            Whether to overwrite the current metadata file.
+            
+        Raises
+        ------
+        FileExistsError
+            If the metadata file already exists and overwrite is False.
+        """
+        if not overwrite and self.meta_path.exists():
+            raise FileExistsError('Metadata already saved and overwriting is not enabled.')
+        else:
+            # Make entries compatible with json
+            metadata_cl = self.meta.copy()
+            for k, v in self.meta.items():
+                if isinstance(v, PurePath):
+                    metadata_cl[k] = v.as_posix()
+                elif inspect.isclass(v):
+                    metadata_cl[k] = v.__module__ + '.' + v.__name__
+                elif not isinstance(v, str|tuple|dict):
+                    metadata_cl[k] = str(v)
+
+            with open(self.meta_path, 'w') as f:
+                json.dump(metadata_cl, f)
+
+    def load_metadata(self):
+        """Load the current SegmentationPipeline metadata json from the `meta_path` attribute into a dictionary.
+
+        Returns
+        -------
+        dict
+            SegmentationPipeline attributes and their values as stored in the metadata file.
+        """
+        with open(self.meta_path, 'r') as f:
+            meta = json.load(f)
+        return meta
+    
+    def load_raw_spot_table(self):
+        """Load the raw spot table [self._get_load_func(), self._get_load_args()], 
+        crop it by subregion `subrgn`,
+        and set as an attribute. `raw_spot_table`
+        """
+        load_func = self._get_load_func()
+        load_args = self._get_load_args()
+        table = load_func(**load_args)
+        
+        # Subregion can be a channel name or tuple. If it's a channel name, get the bounds of the channel
+        if isinstance(self.subrgn, str):
+            subrgn = table.get_image(channel=self.subrgn).bounds()
+        else:
+            subrgn = self.subrgn
+
+        subtable = table.get_subregion(xlim=subrgn[0], ylim=subrgn[1])
+        self.raw_spot_table = subtable
 
     def tile_seg_region(self, overwrite: bool=False, max_tile_size: int=200, overlap: int=30, min_transcripts=0):
         """Split the attached SpotTable into rectangular subregions (tiles).
@@ -1253,9 +1136,10 @@ class SegmentationPipeline:
         
         Returns
         -------
-        (tiles, regions) : tuple[list[SpotTable], list[tuple]]
-            - The grid of overlapping tiles.
-            - Subregion coordinates for each tile.
+        tiles : list[sis.spot_table.SpotTable]
+            A list containing SpotTables derived from an overlapping grid across the original SpotTable space (tiles)
+        regions : list[tuple]
+            A list of tuples containing the subregion coordinates for each tile in the format ((x_min, x_max), (y_min, y_max)).
         """
         print('Tiling segmentation region...')
         subtable = self.raw_spot_table
@@ -1265,152 +1149,43 @@ class SegmentationPipeline:
         regions = [tile.parent_region for tile in tiles]
 
         # save regions
-        self.save_regions(regions, overwrite)
+        self._save_regions(regions, overwrite)
 
         return tiles, regions
 
-    def get_seg_run_spec(self, regions: list|None=None, overwrite: bool=False, result_files: bool=True):
-        """Create a run specification for segmenting tiles on the HPC.
+    def _save_regions(self, regions: list, overwrite: bool=False):
+        """Save the segmentation tile subregion coordinates into the `regions_path` attribute.
 
         Parameters
         ----------
-        regions : list or None, optional
-            The list of subregion coorindates for every tile. If not provided,
-            will attempt to load subregion coordinates from disk.
+        regions : list
+            The list of subregion coordinates for every tile.
         overwrite : bool, optional
-            Whether to overwrite the run_spec file if it exists in the output directory.
-        result_files : bool, optional
-            Whether to save the spot table tiles as individual pickle files. Default True.
-            Recommended to set to False if wanting to save disk space.
-        
-        Returns
-        -------
-        dict
-            The segmentation run specifications.
-        """
-        if regions is None:
-            regions = self.load_regions()
-        self.tile_save_path.mkdir(exist_ok=True)
-
-        print(f"Generating segmentation spec for {len(regions)} tiles...")
-        run_spec = {}
-        for i, region in enumerate(regions):
-            # run_spec[i] = (function, args, kwargs)
-            run_spec[i] = (
-                run_segmentation,
-                (),
-                dict(
-                    load_func=self.get_load_func(),
-                    load_args=self.get_load_args(),
-                    subregion=region,
-                    method_class=self.seg_method,
-                    method_args=self.seg_opts,
-                    result_file=os.path.join(f'{self.tile_save_path.as_posix()}/', f'segmentation_result_{i}.pkl') if result_files else None,
-                    cell_id_file=os.path.join(f'{self.tile_save_path.as_posix()}/', f'segmentation_result_{i}.npy'),
-                )
-            )
-        
-        # save run_spec
-        self.save_run_spec(run_spec, self.seg_run_spec_path, overwrite)
-
-        return run_spec
-
-    def _check_overwrite_files(self, run_spec: dict, overwrite_file_keys: list[str], overwrite: bool):
-        """Helper function to check whether to overwrite files in a directory
-        
-        Parameters
-        ----------
-        run_spec : dict  
-            The run specifications used to submit the jobs which will output files that we may want to overwrite
-        overwrite_file_keys : list[str]
-            List of key-names to access in run_spec's kwargs dict to check for overwriting.
-        overwrite : bool
-            Whether to overwrite result files
+            Whether to overwrite the regions json file if it exists in the output directory.
             
         Raises
         ------
         FileExistsError
-            If the a file that already exists is trying to be written to the directory and overwrite is False.
+            If the regions file already exists and overwrite is False.
         """
-        if overwrite: # If we are allowed to overwrite, just return
-            return
-        
-        # Checking run_spec args (idx=2) for user-specified kwargs containing files that we may want to overwrite
-        files_to_check = [v[2][k] for v in run_spec.values() for k in overwrite_file_keys]
-        for file in files_to_check:
-            if file is not None and os.path.exists(file):
-                raise FileExistsError(f'Saved {file} file detected in directory and overwriting is disabled.')
-    
+        regions_df = pd.DataFrame(regions, columns=['xlim', 'ylim'])
+        if not overwrite and self.regions_path.exists():
+            raise FileExistsError('Regions are already saved and overwriting is not enabled.')
+        else:
+            regions_df.to_json(self.regions_path)
 
-    def submit_jobs(self, job_type: str, run_spec: dict|None=None, overwrite: bool=False):
-        """Submit array jobs to a SLURM managed HPC.
+    def load_regions(self):
+        """Load the subregion coordinates from the output directory.
 
-        Parameters
-        ----------
-        job_type : str
-            The type of jobs to submit. Set to 'segmentation' to run tiled segmentation or 'cell_polygons' to calculate cell polygons.
-        run_spec : dict or None, optional
-            The specifications to run the jobs on the HPC. If not provided, will attempt to load from the standard location on disk.
-        overwrite : bool, optional
-            Whether to overwrite result files. Default False.
-        
         Returns
         -------
-        sis.hpc.SlurmJobArray
-            Object representing submitted HPC jobs.
-            
-        Raises
-        ------
-        ValueError
-            If an invalid job type is specified. (i.e. not 'segmentation' or 'cell_polygons').
+        regions : list
+            The subregion coordinates for every tile.
         """
-        # Check job type and set variables
-        if 'segmentation' in job_type:
-            if run_spec is None:
-                run_spec = self.load_run_spec(self.seg_run_spec_path)
-            hpc_opts = self.seg_hpc_opts
-            self._check_overwrite_files(run_spec, ['result_file', 'cell_id_file'], overwrite)
-            # Set defaults
-            hpc_opts.setdefault('mem', '20G')
-            hpc_opts.setdefault('time', '00:30:00')
-            hpc_opts.setdefault('gpus_per_node', 1)
-            status_str = 'Segmenting tiles...'
-        elif 'cell_polygons' in job_type:
-            if run_spec is None:
-                run_spec = self.load_run_spec(self.polygon_run_spec_path)
-            hpc_opts = self.polygon_hpc_opts
-            self._check_overwrite_files(run_spec, ['result_file'], overwrite)
-            # Set defaults
-            hpc_opts.setdefault('mem', '10G')
-            hpc_opts.setdefault('time', '00:30:00')
-            hpc_opts.setdefault('gpus_per_node', None)
-            status_str = 'Calculating cell polygons...'
-        else:
-            raise ValueError('Invalid job type.')
-
-        job_path = self.output_dir.joinpath('hpc-jobs')
-        job_path.mkdir(exist_ok=True)
-        hpc_opts.update({'job_path': f'{job_path.as_posix()}/'})
-
-        hpc_config = {
-            'run_spec': run_spec,
-            'conda_env': hpc_opts['conda_env'],
-            'hpc_host': hpc_opts.get('hpc_host', 'localhost'),
-            'job_path': job_path,
-            'partition': hpc_opts.get('partition'),
-            'job_name': job_type,
-            'nodes': 1,
-            'ntasks': 1,
-            'array': f'0-{len(run_spec)-1}',
-            'mincpus': 1,
-            'mail_user': None,
-        }
-
-        hpc_config.update(**hpc_opts)
-        jobs = run_slurm_func(**hpc_config)
-        print(status_str)
-        self.track_job_progress(jobs)
-        return jobs
+        assert self.regions_path.exists()
+        regions = pd.read_json(self.regions_path).values
+        regions = [tuple(r) for r in regions]
+        return regions
 
     def merge_segmented_tiles(self, run_spec: dict|None=None, tiles: list[SegmentedSpotTable]|None=None, detect_z_planes: float|None=None, overwrite: bool=False):
         """Merge segmented tiles to generate and save the array of cell_ids.
@@ -1433,10 +1208,12 @@ class SegmentationPipeline:
         
         Returns
         -------
-        (cell_ids, merge_results, skipped) : tuple[numpy.ndarray, list[dict], list[int]]
-            - The array of cell_ids corresponding to each spot.
-            - Information about merge conflicts collected during tile merging.
-            - Indices of tiles skipped during segmentation.
+        cell_ids : numpy.ndarray
+            The array of cell_ids corresponding to each spot.
+        merge_results : list[dict]
+            Information about merge conflicts collected during tile merging.
+        skipped : list[int]
+            Indices of tiles skipped during segmentation.
             
         Raises
         ------
@@ -1444,7 +1221,7 @@ class SegmentationPipeline:
             If no tiles generated output files, indicating an issue with the segmentation process.
         """
         if run_spec is None:
-            run_spec = self.load_run_spec(self.seg_run_spec_path)
+            run_spec = self._load_run_spec(self.seg_run_spec_path)
 
         print('Merging tiles...')
         truncated_meta = {
@@ -1500,9 +1277,274 @@ class SegmentationPipeline:
             print('Warning: Some tiles were skipped.')
 
         # save cell_ids
-        self.save_cell_ids(cell_ids, overwrite)
+        self._save_cell_ids(cell_ids, overwrite)
 
         return cell_ids, merge_results, skipped
+
+    def _save_cell_ids(self, cell_ids: np.ndarray, overwrite: bool=False):
+        """Save array of cell_ids to the `cid_path` attribute.
+        
+        Parameters
+        ----------
+        cell_ids : numpy.ndarray
+            The array of cell IDs.
+        overwrite : bool, optional
+            Whether to enable overwriting of the cell ids file. Default False.
+            
+        Raises
+        ------
+        FileExistsError
+            If the cell ids file already exists and overwrite is False.
+        """
+        if not overwrite and self.cid_path.exists():
+            raise FileExistsError('Cell ids already saved and overwriting is not enabled.')
+        else:
+            np.save(self.cid_path, cell_ids)
+
+    def load_cell_ids(self):
+        """Load array of cell_ids from the `cid_path` attribute
+        """
+        assert self.cid_path.exists()
+        cell_ids = np.load(self.cid_path)
+        return cell_ids
+
+    def save_seg_spot_table(self, overwrite: bool=False):
+        """Save the segmented spot table to the `seg_spot_table_path` attribute.
+        
+        Parameters
+        ----------
+        overwrite : bool, optional
+            Whether to enable overwriting of the segmented spot table file. Default False.
+            
+        Raises
+        ------
+        FileExistsError
+            If the segmented spot table file already exists and overwrite is False.
+        """
+        if not overwrite and self.seg_spot_table_path.exists():
+            raise FileExistsError('Segmented spot table already saved and overwriting is not enabled.')
+        else:
+            self.seg_spot_table.save_npz(self.seg_spot_table_path)
+
+    def load_seg_spot_table(self, allow_pickle: bool=True):
+        """Load the segmented spot table from the `seg_spot_table_path` attribute.
+        
+        Parameters
+        ----------
+        allow_pickle : bool, optional
+            Whether to allow loading pickled object arrays stored in npy files.
+            Must be enabled to load dictionaries and cell polygons.
+        """
+        assert self.seg_spot_table_path.exists()
+        seg_spot_table = SegmentedSpotTable.load_npz(self.seg_spot_table_path, allow_pickle=allow_pickle)
+        return seg_spot_table
+
+    def merge_cell_polygons(self, run_spec: dict|None=None, overwrite: bool=False):
+        """Add cell polygons calculated across subsets of cells to the attached spot table in place.
+
+        Parameters
+        ----------
+        run_spec : dict or None, optional
+            The run specification for calculating polygons on the HPC. 
+            If not provided, will attempt to load from the standard location on disk.
+        overwrite : bool, optional
+            Whether to overwrite the polygon run spec if it exists in the output directory. Default False.
+            
+        Returns
+        -------
+        cell_polygons : dict
+            The cell polygons after merging.
+        skipped : list[int]
+            Indices of tiles that were skipped.
+            
+        Raises
+        ------
+        RuntimeError
+            If all no polygon output files were generated, indicating an issue with the process.
+        FileExistsError
+            If the polygons file already exists and overwrite is False.
+        """
+        if run_spec is None:
+            run_spec = self._load_run_spec(self.polygon_run_spec_path)
+
+        print('Merging cell polygons...')
+        skipped = []
+        for i, area_spec in enumerate(tqdm(run_spec.values())):
+            result_file = area_spec[2]['result_file']
+            cell_subset_file = area_spec[2]['cell_subset_file']
+            if not os.path.exists(result_file):
+                print(f"Skipping tile {i} : no result file generated")
+                skipped.append(i)
+                continue
+            # The reset_cache=False is important to allow reading in the various cell subsets without overwriting
+            self.seg_spot_table.load_cell_polygons(result_file, cell_ids=cell_subset_file, reset_cache=False, disable_tqdm=True)
+
+        if len(run_spec) == len(skipped):
+            raise RuntimeError('All tiles were skipped, check error logs.')
+
+        if len(skipped) > 0:
+            print('Warning: Some tiles were skipped.')
+
+        # save polygons
+        if not overwrite and self.polygon_final_path.exists():
+            raise FileExistsError('cell polygons already saved and overwriting is not enabled.')
+        self.seg_spot_table.save_cell_polygons(self.output_dir / f'cell_polygons.{self.polygon_opts["save_file_extension"]}')
+
+        return self.seg_spot_table.cell_polygons, skipped
+
+    def create_cell_by_gene(self, x_format: str, x_dtype: str='uint16', additional_obs: dict|None=None, prefix: str|None='', suffix: str|None='', overwrite: bool=False):
+        """Create and save a cell by gene AnnData object from the attached spot table.
+        
+        Parameters
+        ----------
+        x_format : str
+            Desired format for the cell by gene anndata X. Options: 'dense' or
+            'sparse'.
+        x_dtype : str, optional
+            The data type of the matrix.
+        additional_obs : dict or None, optional
+            Additional columns to add to the anndata.obs DataFrame.
+            Keys are column names and values are arrays of the same length as the number of cells.
+        prefix : str or None, optional
+            The string to prepend to all cell labels. If both prefix and suffix are None, will prepend a uuid to all cell labels.
+        suffix : str or None, optional
+            The string to append to all cell labels. If both prefix and suffix are None, will prepend a uuid to all cell labels.
+        overwrite : bool, optional
+            Whether to allow overwriting of output files. Default False.
+        
+        Returns
+        -------
+        cell_by_gene : anndata.AnnData
+            The cell by gene table.
+        """
+        self.seg_spot_table.generate_cell_labels(prefix=prefix, suffix=suffix)
+        cell_by_gene = self.seg_spot_table.cell_by_gene_anndata(x_format=x_format, x_dtype=x_dtype, additional_obs=additional_obs)
+        self._save_cbg(cell_by_gene, overwrite)
+
+        return cell_by_gene
+
+    def _save_cbg(self, cell_by_gene: ad.AnnData, overwrite: bool=False):
+        """Save the cell by gene anndata object to the `cbg_path` attribute.
+        
+        Parameters
+        ----------
+        cell_by_gene : anndata.AnnData
+            The cell by gene anndata object.
+        overwrite : bool, optional
+            Whether to enable overwriting of the cell by gene file. Default False.
+            
+        Raises
+        ------
+        FileExistsError
+            If the cell by gene file already exists and overwrite is False.
+        """
+        if not overwrite and self.cbg_path.exists():
+            raise FileExistsError('Cell by gene already saved and overwriting is not enabled.')
+        else:
+            SegmentedSpotTable.save_anndata(self.cbg_path, cell_by_gene)
+
+    def load_cbg(self):
+        """Load the cell by gene anndata object from the `cbg_path` attribute
+        """
+        assert self.cbg_path.exists()
+        cell_by_gene = ad.read_h5ad(self.cbg_path)
+        return cell_by_gene
+
+    def clean_up(self, mode="all_ints"):
+        """Clean up intermediate files after segmentation and polygon generation is complete.
+
+        Parameters
+        ----------
+        mode : str, optional 
+            Can be 'all_ints', 'seg_ints', 'polygon_ints', or 'none' depending on desired clean up. Defaults to 'all_ints'.
+            
+        Raises
+        ------
+        ValueError
+            If an invalid clean up mode is specified. (i.e. not 'all_ints', 'seg_ints', 'polygon_ints', or 'none').
+        """
+        if mode not in ['all_ints', 'seg_ints', 'polygon_ints', 'none']:
+            raise ValueError('Invalid clean up mode')
+        if mode == "all_ints" or mode == "seg_ints":
+            for file_path in self.tile_save_path.glob('*'):
+                file_path.unlink()
+            self.tile_save_path.rmdir()
+        if mode == "all_ints" or mode == "polygon_ints":
+            for file_path in self.polygon_subsets_path.glob('*'):
+                file_path.unlink()
+            self.polygon_subsets_path.rmdir()
+
+    def _check_overwrite_files(self, run_spec: dict, overwrite_file_keys: list[str], overwrite: bool):
+        """Helper function to check whether to overwrite files in a directory
+        
+        Parameters
+        ----------
+        run_spec : dict  
+            The run specifications used to submit the jobs which will output files that we may want to overwrite
+        overwrite_file_keys : list[str]
+            List of key-names to access in run_spec's kwargs dict to check for overwriting.
+        overwrite : bool
+            Whether to overwrite result files
+            
+        Raises
+        ------
+        FileExistsError
+            If the a file that already exists is trying to be written to the directory and overwrite is False.
+        """
+        if overwrite: # If we are allowed to overwrite, just return
+            return
+        
+        # Checking run_spec args (idx=2) for user-specified kwargs containing files that we may want to overwrite
+        files_to_check = [v[2][k] for v in run_spec.values() for k in overwrite_file_keys]
+        for file in files_to_check:
+            if file is not None and os.path.exists(file):
+                raise FileExistsError(f'Saved {file} file detected in directory and overwriting is disabled.')
+
+    def get_seg_run_spec(self, regions: list|None=None, overwrite: bool=False, result_files: bool=True):
+        """Create a run specification for segmenting tiles on the HPC.
+
+        Parameters
+        ----------
+        regions : list or None, optional
+            The list of subregion coorindates for every tile. If not provided,
+            will attempt to load subregion coordinates from disk.
+        overwrite : bool, optional
+            Whether to overwrite the run_spec file if it exists in the output directory.
+        result_files : bool, optional
+            Whether to save the spot table tiles as individual pickle files. Default True.
+            Recommended to set to False if wanting to save disk space.
+        
+        Returns
+        -------
+        dict
+            The segmentation run specifications.
+        """
+        if regions is None:
+            regions = self.load_regions()
+        self.tile_save_path.mkdir(exist_ok=True)
+
+        print(f"Generating segmentation spec for {len(regions)} tiles...")
+        run_spec = {}
+        for i, region in enumerate(regions):
+            # run_spec[i] = (function, args, kwargs)
+            run_spec[i] = (
+                run_segmentation,
+                (),
+                dict(
+                    load_func=self._get_load_func(),
+                    load_args=self._get_load_args(),
+                    subregion=region,
+                    method_class=self.seg_method,
+                    method_args=self.seg_opts,
+                    result_file=os.path.join(f'{self.tile_save_path.as_posix()}/', f'segmentation_result_{i}.pkl') if result_files else None,
+                    cell_id_file=os.path.join(f'{self.tile_save_path.as_posix()}/', f'segmentation_result_{i}.npy'),
+                )
+            )
+        
+        # save run_spec
+        self._save_run_spec(run_spec, self.seg_run_spec_path, overwrite)
+
+        return run_spec
 
     def get_polygon_run_spec(self, overwrite: bool=False):
         """Generates a run spec for running cell polygon jobs on the HPC.
@@ -1552,8 +1594,8 @@ class SegmentationPipeline:
                 sis.spot_table.run_cell_polygon_calculation,
                 (),
                 dict(
-                    load_func=self.get_load_func(),
-                    load_args=self.get_load_args(),
+                    load_func=self._get_load_func(),
+                    load_args=self._get_load_args(),
                     subregion=self.subrgn,
                     cell_id_file=self.cid_path.as_posix(),
                     cell_subset_file=self.polygon_subsets_path.joinpath(f'cell_id_subset_{i}.npy').as_posix(),
@@ -1563,148 +1605,143 @@ class SegmentationPipeline:
                 )
             )
 
-        self.save_run_spec(run_spec, self.polygon_run_spec_path, overwrite)
+        self._save_run_spec(run_spec, self.polygon_run_spec_path, overwrite)
 
         return run_spec
-
-    def merge_cell_polygons(self, run_spec: dict|None=None, overwrite: bool=False):
-        """Add cell polygons calculated across subsets of cells to the attached spot table in place.
+    
+    def _save_run_spec(self, run_spec: dict, run_spec_path: Path, overwrite: bool=False):
+        """Save run specifications for a job on the HPC as a pkl file.
 
         Parameters
         ----------
-        run_spec : dict or None, optional
-            The run specification for calculating polygons on the HPC. 
-            If not provided, will attempt to load from the standard location on disk.
+        run_spec : dict
+            The run specifications.
+        run_spec_path : Path
+            The path to the run spec.
         overwrite : bool, optional
-            Whether to overwrite the polygon run spec if it exists in the output directory. Default False.
-            
-        Returns
-        -------
-        (dict, list) : tuple[dict, list[int]]
-            - The cell polygons after merging.
-            - Indices of cell polygons that were skipped.
-            
+            Whether to enable overwriting of the run spec. Default False.
+        
         Raises
         ------
-        RuntimeError
-            If all no polygon output files were generated, indicating an issue with the process.
         FileExistsError
-            If the polygons file already exists and overwrite is False.
+            If the run spec file already exists and overwrite is False.
         """
-        if run_spec is None:
-            run_spec = self.load_run_spec(self.polygon_run_spec_path)
+        if not overwrite and run_spec_path.exists():
+            raise FileExistsError('Run spec already saved and overwriting is not enabled.')
+        else:
+            with open(run_spec_path, 'wb') as f:
+                pickle.dump(run_spec, f)
 
-        print('Merging cell polygons...')
-        skipped = []
-        for i, area_spec in enumerate(tqdm(run_spec.values())):
-            result_file = area_spec[2]['result_file']
-            cell_subset_file = area_spec[2]['cell_subset_file']
-            if not os.path.exists(result_file):
-                print(f"Skipping tile {i} : no result file generated")
-                skipped.append(i)
-                continue
-            # The reset_cache=False is important to allow reading in the various cell subsets without overwriting
-            self.seg_spot_table.load_cell_polygons(result_file, cell_ids=cell_subset_file, reset_cache=False, disable_tqdm=True)
+    def _load_run_spec(self, run_spec_path: Path|str):
+        """Load run specifications for a job on the HPC.
 
-        if len(run_spec) == len(skipped):
-            raise RuntimeError('All tiles were skipped, check error logs.')
-
-        if len(skipped) > 0:
-            print('Warning: Some tiles were skipped.')
-
-        # save polygons
-        if not overwrite and self.polygon_final_path.exists():
-            raise FileExistsError('cell polygons already saved and overwriting is not enabled.')
-        self.seg_spot_table.save_cell_polygons(self.output_dir / f'cell_polygons.{self.polygon_opts["save_file_extension"]}')
-
-        return self.seg_spot_table.cell_polygons, skipped
-    
-    
-    def create_cell_by_gene(self, x_format: str, x_dtype: str='uint16', additional_obs: dict|None=None, prefix: str|None='', suffix: str|None='', overwrite: bool=False):
-        """Create and save a cell by gene AnnData object from the attached spot table.
-        
         Parameters
         ----------
-        x_format : str
-            Desired format for the cell by gene anndata X. Options: 'dense' or
-            'sparse'.
-        x_dtype : str, optional
-            The data type of the matrix.
-        additional_obs : dict or None, optional
-            Additional columns to add to the anndata.obs DataFrame.
-            Keys are column names and values are arrays of the same length as the number of cells.
-        prefix: str or None, optional
-            The string to prepend to all cell labels. If both prefix and suffix are None, will prepend a uuid to all cell labels.
-        suffix: str or None, optional
-            The string to append to all cell labels. If both prefix and suffix are None, will prepend a uuid to all cell labels.
-        overwrite : bool, optional
-            Whether to allow overwriting of output files. Default False.
+        run_spec_path : Path or str
+            File path to the run spec.
         
         Returns
         -------
-        cell_by_gene : anndata.AnnData
-            The cell by gene table.
+        dict
+            The run specifications
         """
-        self.seg_spot_table.generate_cell_labels(prefix=prefix, suffix=suffix)
-        cell_by_gene = self.seg_spot_table.cell_by_gene_anndata(x_format=x_format, x_dtype=x_dtype, additional_obs=additional_obs)
-        self.save_cbg(cell_by_gene, overwrite)
+        with open(run_spec_path, 'rb') as f:
+            run_spec = pickle.load(f)
+        return run_spec
 
-        return cell_by_gene
-        
-    def clean_up(self, mode="all_ints"):
-        """Clean up intermediate files after segmentation and polygon generation is complete.
+    def submit_jobs(self, job_type: str, run_spec: dict|None=None, overwrite: bool=False):
+        """Submit array jobs to a SLURM managed HPC.
 
         Parameters
         ----------
-        mode : str, optional 
-            Can be 'all_ints', 'seg_ints', 'polygon_ints', or 'none' depending on desired clean up. Defaults to 'all_ints'.
+        job_type : str
+            The type of jobs to submit. Set to 'segmentation' to run tiled segmentation or 'cell_polygons' to calculate cell polygons.
+        run_spec : dict or None, optional
+            The specifications to run the jobs on the HPC. If not provided, will attempt to load from the standard location on disk.
+        overwrite : bool, optional
+            Whether to overwrite result files. Default False.
+        
+        Returns
+        -------
+        sis.hpc.SlurmJobArray
+            Object representing submitted HPC jobs.
             
         Raises
         ------
         ValueError
-            If an invalid clean up mode is specified. (i.e. not 'all_ints', 'seg_ints', 'polygon_ints', or 'none').
+            If an invalid job type is specified. (i.e. not 'segmentation' or 'cell_polygons').
         """
-        if mode not in ['all_ints', 'seg_ints', 'polygon_ints', 'none']:
-            raise ValueError('Invalid clean up mode')
-        if mode == "all_ints" or mode == "seg_ints":
-            for file_path in self.tile_save_path.glob('*'):
-                file_path.unlink()
-            self.tile_save_path.rmdir()
-        if mode == "all_ints" or mode == "polygon_ints":
-            for file_path in self.polygon_subsets_path.glob('*'):
-                file_path.unlink()
-            self.polygon_subsets_path.rmdir()
+        # Check job type and set variables
+        if 'segmentation' in job_type:
+            if run_spec is None:
+                run_spec = self._load_run_spec(self.seg_run_spec_path)
+            hpc_opts = self.seg_hpc_opts
+            self._check_overwrite_files(run_spec, ['result_file', 'cell_id_file'], overwrite)
+            # Set defaults
+            hpc_opts.setdefault('mem', '20G')
+            hpc_opts.setdefault('time', '00:30:00')
+            hpc_opts.setdefault('gpus_per_node', 1)
+            status_str = 'Segmenting tiles...'
+        elif 'cell_polygons' in job_type:
+            if run_spec is None:
+                run_spec = self._load_run_spec(self.polygon_run_spec_path)
+            hpc_opts = self.polygon_hpc_opts
+            self._check_overwrite_files(run_spec, ['result_file'], overwrite)
+            # Set defaults
+            hpc_opts.setdefault('mem', '10G')
+            hpc_opts.setdefault('time', '00:30:00')
+            hpc_opts.setdefault('gpus_per_node', None)
+            status_str = 'Calculating cell polygons...'
+        else:
+            raise ValueError('Invalid job type.')
 
+        job_path = self.output_dir.joinpath('hpc-jobs')
+        job_path.mkdir(exist_ok=True)
+        hpc_opts.update({'job_path': f'{job_path.as_posix()}/'})
 
-    @classmethod
-    def from_json(cls, json_file):
-        """Alternate constructor to load a SegmentationPipeline from a json file
-        
+        hpc_config = {
+            'run_spec': run_spec,
+            'conda_env': hpc_opts['conda_env'],
+            'hpc_host': hpc_opts.get('hpc_host', 'localhost'),
+            'job_path': job_path,
+            'partition': hpc_opts.get('partition'),
+            'job_name': job_type,
+            'nodes': 1,
+            'ntasks': 1,
+            'array': f'0-{len(run_spec)-1}',
+            'mincpus': 1,
+            'mail_user': None,
+        }
+
+        hpc_config.update(**hpc_opts)
+        jobs = run_slurm_func(**hpc_config)
+        print(status_str)
+        self.track_job_progress(jobs)
+        return jobs
+
+    def track_job_progress(self, jobs: SlurmJobArray):
+        """Track progress of submitted hpc jobs and display with tqdm until all jobs have ended.
+
         Parameters
         ----------
-        json_file : Path
-            The path to the json file.
+        jobs : sis.hpc.SlurmJobArray
+            Submitted slurm jobs to track.
             
         Raises
         ------
-        NotImplementedError
-            If the segmentation method specified in the json file does not exist
+        RuntimeError
+            If none of the jobs completed properly, indicating a ubiquitous issue that must be resolved.
         """
-        with open(json_file, 'r') as f:
-            config = json.load(f)
-            
-        # Cannot save the class in the json so we need to convert it back from string to the class
-        seg_method_name = config['seg_method'].rpartition('.')[-1]
-        if seg_method_name == 'CellposeSegmentationMethod':
-            config['seg_method'] = sis.segmentation.CellposeSegmentationMethod
-        else:
-            raise NotImplementedError(f'Segmentation method {seg_method_name} not implemented.')
-        
-        # Cannot save tuple in the json so we need to convert back from list
-        if isinstance(config['subrgn'], list):
-            config['subrgn'] = tuple([tuple(l) for l in config['subrgn']])
-
-        return cls(**config)
+        print(f'Job IDs: {jobs[0].job_id}-{jobs[-1].job_id.split("_")[-1]}')
+        with tqdm(total=len(jobs)) as pbar:
+            while not jobs.is_done():
+                # Wait until all jobs are done to return, checking every 60 seconds
+                time.sleep(60)
+                n_done = int(np.sum([1 for job in jobs.jobs if job.is_done()]))
+                pbar.update(n_done - pbar.n)
+        # If none of the jobs completed properly we don't want to continue/rerun because it implies a ubiquitous issue which must be resolved
+        if not np.any([job.state().state == "COMPLETED" for job in jobs.jobs]):
+            raise RuntimeError(f'All jobs failed. Please check error logs in {self.output_dir.joinpath("hpc-jobs")}')
 
     def rerun_failed_jobs(self, job_type: str, jobs: SlurmJobArray, run_spec: dict, mem: str|None=None, time: str|None=None, max_attempts: int=5):
         """This function takes jobs and the run_spec that submitted them and resubmits any failed jobs.
@@ -1729,7 +1766,7 @@ class SegmentationPipeline:
             
         Returns
         -------
-        jobs : SlurmJobArray
+        jobs : sis.hpc.SlurmJobArray
             The inputted SlurmJobArray with the completed rerun jobs inserted
         """
         indices_to_rerun, failure_types = self.find_failed_jobs(jobs)
@@ -1754,12 +1791,10 @@ class SegmentationPipeline:
         
         Returns
         ----------
-        (None, None) : tuple[None, None]
-            Indicates that all jobs completed successfully.
-        (to_rerun, failure_types) : tuple[list[int], dict]
-            If some jobs failed, returns a tuple containing:
-            - A list of the indices of the failed jobs in the inputted SlurmJobArray
-            - A dictionary with keys as types of failues and bools representing if that failure occured in the inputted SlurmJobArray
+        to_rerun : list[int] or None
+            A list of the indices of the failed jobs in the inputted SlurmJobArray. If no jobs failed, returns None.
+        failure_types : dict or None
+            A dictionary with keys as types of failues and bools representing if that failure occured in the inputted SlurmJobArray. If no jobs failed, returns None.
                 
         Raises
         ------
@@ -1887,10 +1922,16 @@ class SegmentationPipeline:
             jobs.jobs[jobs_idx] = SlurmJob(job.args, job.sbatch_output, job.job_file, job.host, array_id=new_jobs_idx, job_array=jobs)
         return jobs
 
+    def resume(self):
+        """Resume a segmentation pipeline from a previous run, checking for completed steps and only running the necessary steps to complete the pipeline. (Not implemented)
+        """
+        raise NotImplementedError('Resuming from previous segmentation not implemented.')
 
 class MerscopeSegmentationPipeline(SegmentationPipeline):
     """Class for running segmentation on Merscope data.
-    
+                  
+    .. rubric:: Attributes
+             
     Attributes
     ----------
     See sis.segmentation.SegmentationPipeline for inherited attributes.
@@ -1911,10 +1952,10 @@ class MerscopeSegmentationPipeline(SegmentationPipeline):
             The subregion to segment. Set to a string, e.g. 'DAPI', to segment the 
             full region bounded by the associated image channel. To segment a 
             smaller region, set to a tuple corresponding to a bounding box.
-        seg_method : SegmentationMethod
+        seg_method : sis.segmentation.SegmentationMethod
             The segmentation method to use. Must be found in sis.segmentation.
         seg_opts : dict
-            Options to pass to seg_method.
+            Options to pass to `seg_method`.
         polygon_opts : dict or None, optional
             Options to pass to for cell polygon generation. Currently supports save_file_extension and alpha_inv_coeff.
             Default is None, which sets save_file_extension to 'geojson' and alpha_inv_coeff to 4/3.    
@@ -1928,13 +1969,13 @@ class MerscopeSegmentationPipeline(SegmentationPipeline):
         """
         super().__init__(dt_file, image_path, output_dir, dt_cache, subrgn, seg_method, seg_opts, polygon_opts, seg_hpc_opts=seg_hpc_opts, polygon_hpc_opts=polygon_hpc_opts, hpc_opts=hpc_opts)
 
-    def get_load_func(self):
-        """Get the function to load a spot table.
+    def _get_load_func(self):
+        """Returns sis.SpotTable.load_merscope
         """
         return SpotTable.load_merscope
 
-    def get_load_args(self):
-        """Get args to pass to loading function (e.g. when submitting jobs to hpc).
+    def _get_load_args(self):
+        """Get args to pass to sis.SpotTable.load_merscope
         """
         load_args = {
                 'image_path': self.image_path,
@@ -1952,7 +1993,9 @@ class MerscopeSegmentationPipeline(SegmentationPipeline):
 
 class StereoSeqSegmentationPipeline(SegmentationPipeline):
     """Class for running segmentation on StereoSeq data.
-    
+                  
+    .. rubric:: Attributes
+             
     Attributes
     ----------
     See sis.segmentation.SegmentationPipeline for inherited attributes.
@@ -1973,10 +2016,10 @@ class StereoSeqSegmentationPipeline(SegmentationPipeline):
             The subregion to segment. Set to a string, e.g. 'DAPI', to segment the 
             full region bounded by the associated image channel. To segment a 
             smaller region, set to a tuple corresponding to a bounding box.
-        seg_method : SegmentationMethod
+        seg_method : sis.segmentation.SegmentationMethod
             The segmentation method to use. Must be found in sis.segmentation.
         seg_opts : dict
-            Options to pass to seg_method.
+            Options to pass to `seg_method`.
         polygon_opts : dict or None, optional
             Options to pass to for cell polygon generation. Currently supports save_file_extension and alpha_inv_coeff.
             Default is None, which sets save_file_extension to 'geojson' and alpha_inv_coeff to 4/3.    
@@ -1990,12 +2033,14 @@ class StereoSeqSegmentationPipeline(SegmentationPipeline):
         """
         super().__init__(dt_file, image_path, output_dir, dt_cache, subrgn, seg_method, seg_opts, polygon_opts, seg_hpc_opts=seg_hpc_opts, polygon_hpc_opts=polygon_hpc_opts, hpc_opts=hpc_opts)
 
-    def get_load_func(self):
-        """Get the function to load a spot table."""
+    def _get_load_func(self):
+        """Returns sis.SpotTable.load_stereoseq.
+        """
         return SpotTable.load_stereoseq
 
-    def get_load_args(self):
-        """Get args to pass to loading function (e.g. when submitting jobs to hpc)."""
+    def _get_load_args(self):
+        """Get args to pass to sis.SpotTable.load_stereoseq.
+        """
         load_args = {
                 'image_file': self.image_path,
                 'gem_file': self.detected_transcripts_file,
@@ -2012,7 +2057,9 @@ class StereoSeqSegmentationPipeline(SegmentationPipeline):
 
 class XeniumSegmentationPipeline(SegmentationPipeline):
     """Class for running segmentation on Xenium data.
-    
+                  
+    .. rubric:: Attributes
+             
     Attributes
     ----------
     See sis.segmentation.SegmentationPipeline for inherited attributes.
@@ -2037,10 +2084,10 @@ class XeniumSegmentationPipeline(SegmentationPipeline):
             The subregion to segment. Set to a string, e.g. 'DAPI', to segment the 
             full region bounded by the associated image channel. To segment a 
             smaller region, set to a tuple corresponding to a bounding box.
-        seg_method : SegmentationMethod
+        seg_method : sis.segmentation.SegmentationMethod
             The segmentation method to use. Must be found in sis.segmentation.
         seg_opts : dict
-            Options to pass to seg_method.
+            Options to pass to `seg_method`.
         polygon_opts : dict or None, optional
             Options to pass to for cell polygon generation. Currently supports save_file_extension and alpha_inv_coeff.
             Default is None, which sets save_file_extension to 'geojson' and alpha_inv_coeff to 4/3.    
@@ -2068,13 +2115,13 @@ class XeniumSegmentationPipeline(SegmentationPipeline):
         self.z_depth = seg_opts['z_plane_thickness'] # This is used for binning z-locations to image planes
         self.cache_image = cache_image
 
-    def get_load_func(self):
-        """Get the function to load a spot table.
+    def _get_load_func(self):
+        """Returns sis.SpotTable.load_xenium
         """
         return SpotTable.load_xenium
 
-    def get_load_args(self):
-        """Get args to pass to loading function (e.g. when submitting jobs to hpc).
+    def _get_load_args(self):
+        """Get args to pass to sis.SpotTable.load_xenium
         """
         load_args = {
                 'image_path': self.image_path,

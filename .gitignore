@@ -18,3 +18,4 @@ build
 merscope_test/
 xenium_test/
 .vscode
+docs/_build

@@ -30,7 +30,7 @@ from .spot_table import SpotTable
 from .image import XeniumImageFile
 
 
-def _is_supported_transformation(transformation: BaseTransformation) -> bool:
+def _is_supported_transformation(transformation: sd.transformations.BaseTransformation) -> bool:
     """Checks if a spatialdata transformation is supported by SIS.
     We only support identity, scaling, and translation transformations
 
@@ -40,7 +40,7 @@ def _is_supported_transformation(transformation: BaseTransformation) -> bool:
 
     Parameters
     ----------
-    transformation : BaseTransformation
+    transformation : spatialdata.transformations.BaseTransformation
         A spatialdata transformation to check
     
     Returns
@@ -272,7 +272,7 @@ def _polygons(features: geojson.FeatureCollection,
 
     Returns
     -------
-    geo_df : GeoDataFrame
+    geo_df : geopandas.GeoDataFrame
         geopandas dataframe of polygons to add to SpatialData object.
     """
     import warnings
@@ -442,7 +442,8 @@ def merscope_to_spatialdata(images_dir: str | Path,
     
     Returns
     -------
-    SpatialData of the the MERSCOPE images, transcripts, polygons, and cell-by-gene.
+    spatialdata.SpatialData 
+        SpatialData object of the the MERSCOPE images, transcripts, polygons, and cell-by-gene.
     
     Raises
     ------
@@ -549,7 +550,8 @@ def xenium_to_spatialdata(xenium_dir: str | Path,
     
     Returns
     -------
-    SpatialData of the the Xenium images, transcripts, polygons, and cell-by-gene.
+    spatialdata.SpatialData
+        SpatialData object of the the Xenium images, transcripts, polygons, and cell-by-gene.
     
     Raises
     ------

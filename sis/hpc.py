@@ -117,11 +117,8 @@ def run_slurm(*,
         
     Returns
     -------
-    SlurmJob
-        If no array is specified, returns a SlurmJob instance
-    SlurmJobArray
-        if an array is specified, returns a SlurmJobArray instance
-        
+    SlurmJob or SlurmJobArray
+        If no array is specified, returns a SlurmJob instance. Otherwise returns a SlurmJobArray instance
     """
     if array is None:
         # Slurm replaces "%j" with the job allocation number
@@ -172,6 +169,8 @@ def run_slurm(*,
 
 class SlurmJob:
     """Class representing a single SLURM job
+      
+    .. rubric:: Attributes
     
     Attributes
     ----------
@@ -318,7 +317,9 @@ class SlurmJob:
 
 class SlurmJobArray(SlurmJob):
     """Class representing a SLURM job array with a list of SlurmJob instances
-    
+                  
+    .. rubric:: Attributes
+             
     Attributes
     ----------
     args : dict
@@ -446,7 +447,9 @@ class SlurmJobArray(SlurmJob):
 class JobState:
     """Class representing the state of a SLURM job. 
     One of state_code or state must be provided and the other is derived.
-    
+                  
+    .. rubric:: Attributes
+             
     Attributes
     ----------
     state : str
@@ -723,7 +726,7 @@ def seconds_to_time(seconds: int):
     
     Parameters
     ----------
-    seconds: int
+    seconds : int
         time amount in a seconds (1800 or 217803)
     
     Returns
