@@ -36,10 +36,15 @@ pip install .
 ## Outputs
 
 This pipeline generates:
-1. **Cell-by-Gene Table:** A matrix with cells as rows and genes as columns
-2. **Metadata:** A file containing descriptive data for each segmented cell
-3. **Cell outlines:** In the form of a geojson file
+1. **Cell-by-Gene Table:** An h5ad file with a .X matrix with cells as rows and genes as columns, a .obs containing descriptive data for each segmented cell, a .var containing per gene information, and a .uns containing cell polygons and segmentation metadata.
+2. **Transcript assignments:** A .npy file containing cell ids of transcripts in the order of the input transcripts file.
+3. **Cell outlines:** A .geojson FeatureCollection file with geometry, id, and properties assignments.
+4. **SegmentedSpotTable:** A .npz file containing the SegmentedSpotTable object. Loadable via sis.SegmentedSpotTable.load_npz().
+5. **Regions:** A .json file containing the regions for each of the segmentation tiles.
+6. **Metadata:** A .json file containing metadata about the segmentation.
 
+## Docs
+Documentation for SIS classes and functions can be found at https://spots-in-space.readthedocs.io/en/latest/
 
 ## Level of support
 
