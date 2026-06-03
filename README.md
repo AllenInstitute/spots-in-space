@@ -43,7 +43,7 @@ This pipeline generates:
 5. **Regions:** A .json file containing the regions for each of the segmentation tiles.
 6. **Metadata:** A .json file containing metadata about the segmentation.
 
-## Docs
+## Documentation
 Documentation for SIS classes and functions can be found at https://spots-in-space.readthedocs.io/en/latest/
 
 ## Level of support
