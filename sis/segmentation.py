@@ -2137,3 +2137,81 @@ class XeniumSegmentationPipeline(SegmentationPipeline):
         load_args['cache_image'] = self.cache_image
 
         return load_args
+
+class G4xSegmentationPipeline(SegmentationPipeline):
+    """Class for running segmentation on Xenium data.
+                  
+    .. rubric:: Attributes
+             
+    Attributes
+    ----------
+    See sis.segmentation.SegmentationPipeline for inherited attributes.
+    z_depth : float
+        The depth of each z-plane. Used to assign z-locations to image planes.
+    cache_image : bool
+        Whether to cache images after retrieval. Default True.
+    """
+    def __init__(self, dt_file: Path|str, image_path: Path|str, output_dir: Path|str, dt_cache: Path|str|None, subrgn: str|tuple, seg_method: SegmentationMethod, seg_opts: dict, polygon_opts: dict|None=None, seg_hpc_opts: dict|None=None, polygon_hpc_opts: dict|None=None, hpc_opts: dict|None=None, cache_image: bool=True):
+        """
+        Parameters
+        ----------
+        dt_file : str or Path
+            Path to the detected transcripts file.
+        image_path : str or Path
+            Path to the images.
+        output_dir : str or Path
+            Where to save output files.
+        dt_cache : str or Path or None
+            Path to the detected transcripts cache file. Used for faster loading.
+        subrgn : str or tuple
+            The subregion to segment. Set to a string, e.g. 'DAPI', to segment the 
+            full region bounded by the associated image channel. To segment a 
+            smaller region, set to a tuple corresponding to a bounding box.
+        seg_method : sis.segmentation.SegmentationMethod
+            The segmentation method to use. Must be found in sis.segmentation.
+        seg_opts : dict
+            Options to pass to `seg_method`.
+        polygon_opts : dict or None, optional
+            Options to pass to for cell polygon generation. Currently supports save_file_extension and alpha_inv_coeff.
+            Default is None, which sets save_file_extension to 'geojson' and alpha_inv_coeff to 4/3.    
+        seg_hpc_opts : dict or None, optional
+            Options to use for segmenting tiles on the hpc. Default is None
+        polygon_hpc_opts : dict or None, optional
+            Options to use for calculating cell polygons on the hpc. Default is None
+        hpc_opts : dict or None, optional
+            Options to use for both segmenting tiles and calculating cell polygons on the hpc (can be used in place of submitting both seg_hpc_opts and polygon_hpc_opts).
+            Default is None
+        cache_image : bool, optional
+            Xenium images are large and not memory mapped and thus we may want to keep them in memory or not.
+            The trade off is speed vs memory.
+            
+        Raises
+        ------
+        ValueError
+            If 'z_plane_thickness' is not provided in seg_opts. This is required to match z coordinates to image planes.
+        """
+        super().__init__(dt_file, image_path, output_dir, dt_cache, subrgn, seg_method, seg_opts, polygon_opts, seg_hpc_opts=seg_hpc_opts, polygon_hpc_opts=polygon_hpc_opts, hpc_opts=hpc_opts)
+
+        self.cache_image = cache_image
+
+    def _get_load_func(self):
+        """Returns sis.SpotTable.load_xenium
+        """
+        return SpotTable.load_g4x
+
+    def _get_load_args(self):
+        """Get args to pass to sis.SpotTable.load_xenium
+        """
+        load_args = {
+                'image_path': self.image_path,
+                'transcript_file': self.detected_transcripts_file,
+                'cache_file': self.detected_transcripts_cache,
+        }
+        for k, v in load_args.items():
+            if isinstance(v, Path):
+                load_args[k] = v.as_posix()
+
+        load_args['max_rows'] = None
+        load_args['cache_image'] = self.cache_image
+
+        return load_args
