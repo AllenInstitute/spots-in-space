@@ -16,7 +16,7 @@ MultiLineString = optional_import('shapely.geometry', names=['MultiLineString'])
 unary_union, polygonize = optional_import('shapely.ops', ['unary_union', 'polygonize'])
 make_valid = optional_import('shapely.validation', names=['make_valid'])[0]
 
-from .image import ImageBase, ImageFile, ImageStack, ImageTransform, XeniumImageFile, StereoSeqImageFile
+from .image import ImageBase, ImageFile, ImageStack, ImageTransform, XeniumImageFile, StereoSeqImageFile, G4xImageFile
 from . import util
 from . import _version
 from .util import convert_value_nested_dict, parse_polygon_geodataframe
@@ -1006,6 +1006,90 @@ class SpotTable:
                 cls(pos=pos, gene_names=gene_names, images=images, xenium_min_qv=min_qv).save_npz(cache_file)
 
             return cls(pos=pos, gene_names=gene_names, images=images, xenium_min_qv=min_qv)
+
+        else:
+            print("Loading from npz..")
+            return cls.load_npz(cache_file, images=images)
+
+    @staticmethod
+    def _read_g4x_transcripts(transcript_file, image_transform, max_rows=None):
+        """Helper function to read a Xenium transcripts file. (currently supports only csv and parquet)
+        Intended to reduce duplicated code between SpotTable.load_xenium()
+        and SegmentedSpotTable.load_xenium().
+        
+        Parameters
+        ----------
+        transcript_file : str
+            Path to the detected transcripts file.
+        image_transform : sis.image.ImageTransform
+            Loaded g4x image transform used to take coordinates from pixel space to um space
+        max_rows : int or None, optional
+            Maximum number of rows to read from the CSV file
+            
+        Returns
+        -------
+        pos : numpy.ndarray
+            Array of shape (N, 2) giving the position of each detected transcript.
+        gene_names : numpy.ndarray
+            Array of shape (N,) giving the name of the gene detected in each transcript.
+        """
+        spot_dataframe = pandas.read_csv(transcript_file, nrows=max_rows)
+        
+        pos = spot_dataframe.loc[:,["x_pixel_coordinate", "y_pixel_coordinate"]].values
+
+        # We need to transform to micron coordinates
+        pos = image_transform.map_from_pixels(pos[:, [1, 0]])
+
+        gene_names = spot_dataframe.loc[:,"gene_name"].values.astype(str) # ensure string type. sometimes genes load as bstrings
+
+        return pos, gene_names
+
+    @classmethod
+    def load_g4x(cls, transcript_file: str, cache_file: str|None=None, image_path: str=None, max_rows: int=None, pyramid_level: int=0, cache_image: bool=True):
+        """Load Xenium data from a detected transcripts CSV file.
+            This is the preferred method for resegmentation. If you want the original Xenium
+            segmentation, use SegmentedSpotTable.load_xenium.
+            CSV reading is slow, so optionally cache the result to a .npz file.
+
+        Parameters
+        ----------
+        transcript_file : str
+            Path to the detected transcripts file.
+        cache_file : str, optional
+            Path to the detected transcripts cache file, which is an npz file 
+            representing the raw SpotTable (without cell_ids). If passed, will
+            create a cache file if one does not already exists.
+        image_path : str, optional
+            Path to directory containing a Xenium image stack.
+        max_rows : int, optional
+            Maximum number of rows to load from the CSV file.
+        pyramid_level : int, optional
+            Xenium images can have multiple resolutions stored in an image pyramid.
+            This parameter specifies which level of the pyramid to load.
+            Defaults to the highest resolution (level 0).
+        cache_image : bool, optional
+            Xenium images are large and not memory mapped and thus we may want to keep them in memory or not.
+            The trade off is speed vs memory.
+            
+        Returns
+        -------
+        sis.spot_table.SpotTable
+            SpotTable with data loaded from inputs.
+        """
+        # if requested, look for images as well (these are not saved in cache file)
+        if image_path is None:
+            raise ValueError('ImagePath must be set for G4x spot tables. SpotTables coordinates are in pixel space and must be converted to um space')
+        images = G4xImageFile.load(image_path, pyramid_level=pyramid_level, cache_image=cache_image)
+
+        if (cache_file is None) or (not Path(cache_file).exists()):
+            print("Loading transcripts...")
+            pos, gene_names = cls._read_g4x_transcripts(transcript_file=transcript_file, image_transform=images.transform, max_rows=max_rows)
+
+            if cache_file is not None:
+                print("Recompressing to npz..")
+                cls(pos=pos, gene_names=gene_names, images=images).save_npz(cache_file)
+
+            return cls(pos=pos, gene_names=gene_names, images=images)
 
         else:
             print("Loading from npz..")

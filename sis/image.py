@@ -826,6 +826,294 @@ class XeniumImageFile(ImageFile):
         else:
             return self.channels.index(channel) 
 
+class G4xImageFile(ImageFile):
+    """Represents a single image stored on disk, carrying metadata about:
+   
+    - The file containing image data
+    - The transform that maps from pixel coordinates to spot table coordinates
+    - Which axes are which
+    - What is represented by each channel
+        
+    Image data are lazy-loaded so that we can handle subregions without loading the entire image
+                  
+    .. rubric:: Attributes
+             
+    Attributes
+    ----------
+    file : str
+        Path to image file
+    transform : numpy.ndarray
+        ImageTransform relating (row, col) image pixel coordinates to (x, y) spot coordinates.
+    axes : list or None
+        List of axis names giving order of axes in *file*; options are 'frame', 'row', 'col', 'channel'
+    channels : list
+        List of names given to each channel (e.g.: 'dapi')
+    name : str or None
+        Optional unique identifier for this image
+    pyramid_level : int
+        G4x images are stored as OMEs which support image pyramids. This is the level of the pyramid to load.
+        This is not currently utilized anywhere, but included for potential future use.
+    whole_image_array : numpy.ndarray or None
+        Cached array of the whole image data, to avoid reading it from disk multiple times
+    cache_image : bool
+        G4x images are large and not memory mapped and thus we may want to keep them in memory or not. The trade off is speed vs memory.        
+    """
+    
+    def __init__(self, file: str, transform: ImageTransform, axes: list|None,
+                 channels: list, name: str|None,
+                 pyramid_level: int= 0, cache_image: bool = True):
+        """
+        Parameters
+        ----------
+        file : str
+            Path to image file
+        transform : numpy.ndarray
+            ImageTransform relating (row, col) image pixel coordinates to (x, y) spot coordinates.
+        axes : list or None
+            List of axis names giving order of axes in *file*; options are 'frame', 'row', 'col', 'channel'
+        channels : list
+            List of names given to each channel (e.g.: 'dapi')
+        name : str or None
+            Optional unique identifier for this image
+        pyramid_level : int, optional
+            G4x images are stored as OMEs which support image pyramids. This is the level of the pyramid to load.
+            This is not currently utilized anywhere, but included for potential future use.
+        cache_image : bool, optional
+            G4x images are large and not memory mapped and thus we may want to keep them in memory or not. The trade off is speed vs memory.
+        """
+        super().__init__()
+        self.file = file
+        self.transform = transform
+        self.axes = axes
+        self.channels = channels
+        self.name = name
+        self.pyramid_level = pyramid_level
+        self._shape = None # tuple or None - Cached shape of the image, to avoid reading it from disk multiple times. Accessed via the shape property.
+        self.whole_image_array = None
+        self.cache_image = cache_image
+
+    @classmethod
+    def load(cls, g4x_image_file, pyramid_level=0, cache_image=True, name=None):
+        """Read standard G4x image ome.tiff file, returning a G4xImageFile
+        
+        Parameters
+        ----------
+        g4x_image_file : str
+            Path to image file
+        pyramid_level : int, optional
+            G4x images are stored as OMEs which support image pyramids. This is the level of the pyramid to load.
+            This is not currently utilized anywhere, but included for potential future use.
+        cache_image : bool, optional
+            G4x images are large and not memory mapped and thus we may want to keep them in memory or not. 
+            The trade off is speed vs memory.
+        name : str or None, optional
+            Optional unique identifier for this image
+            
+        Returns
+        -------
+        stacks : list
+            List of ImageStacks, one for each stain
+        """
+        import xml.etree.ElementTree as ET
+
+        # extract the pixel size 
+        with tifffile.TiffFile(g4x_image_file) as tiff_image_file:
+            # this file should have OME metadata:
+            root = ET.fromstring(tiff_image_file.ome_metadata)
+        pixels = cls._find_by_localname(root, "Pixels")[0]
+        um_per_pixel_x, um_per_pixel_y = float(pixels.attrib["PhysicalSizeX"]), float(pixels.attrib["PhysicalSizeY"])
+
+        # and turn this into a transformation matrix
+        affine_matrix = np.eye(3)
+        affine_matrix[0,0] = um_per_pixel_x
+        affine_matrix[1,1] = um_per_pixel_y
+        um_to_pixel_matrix =  np.linalg.inv(affine_matrix)[:2]
+        
+        # swizzle first and second rows so we map from (x, y) to (row,col) instead of (col,row)
+        # since images take (row, col) as coordinates
+        transform = ImageTransform(um_to_pixel_matrix[::-1])
+
+        # extract the channel names
+        channel_elems = cls._find_by_localname(root, "Channel")
+        channels = ['' for _ in range(len(channel_elems))]
+        for c in channel_elems:
+            channels[int(c.attrib['ID'].split(':')[-1])] = c.attrib['Name']
+
+        return G4xImageFile(file=g4x_image_file, transform=transform, 
+                               axes=['frame', 'row', 'col', 'channel'], channels=channels,
+                               name=name,  pyramid_level=pyramid_level, cache_image=cache_image)
+        
+    @staticmethod
+    def _find_by_localname(root, localname):
+        """Helper function to find all XML elements with given localname (ignoring namespace)
+        
+        Parameters
+        ----------
+        root : xml.etree.ElementTree.Element
+            Root XML element to search
+        localname : str
+            Local name of element to find
+            
+        Returns
+        -------
+        xml.etree.ElementTree.Element or None
+            First element with given localname, or None if not found
+        """
+        results = []
+        for elem in root.iter():
+            if elem.tag.split('}')[-1] == localname:
+                results.append(elem)
+        if len(results) == 0:
+            raise ValueError(f'{localname} not found in xml elements')
+        return results
+
+    def _standard_image_shape(self, img_data):
+        """Swizzles the order of the axes so that it is in the standard SIS order
+        (frames, rows, columns, channels) (z, y, x, c)
+        
+        Parameters
+        ----------
+        img_data : numpy.ndarray
+            Image data to convert into the standard SIS order
+            
+        Returns
+        -------
+        numpy.ndarray
+            The image data with axes in standard SIS order.
+        """
+        if img_data.ndim == 2:
+            return img_data[np.newaxis, :, :, np.newaxis]
+        return np.moveaxis(img_data, 0, -1)[np.newaxis, :, :, :]
+
+    @property
+    def shape(self):
+        """Return 4D shape (frames, rows, columns, channels)
+        
+        Returns
+        -------
+        tuple
+            (frames, rows, columns, channels) values for this image
+        """
+        if self._shape is None: # Caching helps speed up retrieval of shape
+            import warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                with tifffile.TiffFile(self.file) as tcontext:
+                    # Query the file metadata for the shape
+                    import xml.etree.ElementTree as ET
+                    pixels = self._find_by_localname(ET.fromstring(tcontext.ome_metadata), 'Pixels')[0]
+                    self._shape = (int(pixels.attrib['SizeZ']), int(pixels.attrib['SizeY']), int(pixels.attrib['SizeX']), int(pixels.attrib['SizeC']))
+        return self._shape
+
+    def get_data(self, channel=None, pyramid_level=None):
+        """Return array of image data.
+        
+        Parameters
+        ----------
+        pyramid_level : int or None, optional
+            G4x images can have multiple resolutions stored in an image pyramid.
+            This parameter specifies which level of the pyramid to load.
+            
+        Returns
+        -------
+        numpy.ndarray
+            Image data at specified pyramid level
+        """
+        if pyramid_level is None:
+            pyramid_level = self.pyramid_level
+                        
+        if isinstance(self.whole_image_array, type(None)): # if it's not cached, we have to read
+            import warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                with tifffile.TiffFile(self.file) as src:
+                    if self.cache_image:
+                        # since the images are large, we leave it as an option whether to cache the images or not
+                        self.whole_image_array = self._standard_image_shape(src.series[0].levels[pyramid_level].asarray())
+                    else:
+                        if channel is None and self.shape[-1] > 1:
+                            raise ValueError('Channel must be specified if there are multiple channels')
+                        return self._standard_image_shape(src.series[0].levels[pyramid_level].asarray())[..., self._get_channel_index(channel)]
+        if channel is None and self.shape[-1] > 1:
+            raise ValueError('Channel must be specified if there are multiple channels')
+        return self.whole_image_array[..., self._get_channel_index(channel)]
+
+    def get_sub_data(self, frames: tuple, rows: tuple, cols: tuple, pyramid_level: int|None=None, channel: None=None):
+        """Get image data for a subregion (defined by frames, rows, and cols, NOT by spot coordinates).
+        If a pyramid level is specified, SIS automatically handles downscaling rows and cols to that pyramid level
+
+        Parameters
+        ----------
+        frames : tuple
+            first frame is inclusive, last_frame is exclusive
+        rows : tuple
+            first row is inclusive, last_row is exclusive
+        cols : tuple
+            first col is inclusive, last_col is exclusive
+        pyramid_level : int or None, optional
+            G4x images can have multiple resolutions stored in an image pyramid.
+            This parameter specifies which level of the pyramid to load.
+        channel : None
+            For G4x images this can be either 'nuclear' or 'cytoplasm'
+            
+        Returns
+        -------
+        numpy.ndarray
+            Subregion of image data
+        """
+        if pyramid_level is None:
+            pyramid_level = self.pyramid_level
+
+        # Resolve the decimation factor for the requested level
+        if pyramid_level > 0:
+            with rasterio.open(self.file) as base_ds:
+                overviews = base_ds.overviews(1)
+
+            if not overviews:
+                raise ValueError("File has no pyramid overviews.")
+            if pyramid_level >= len(overviews):
+                raise ValueError(
+                    f"pyramid_level {pyramid_level} out of range — "
+                    f"file has {len(overviews)} overview(s): {overviews}."
+                )
+
+            decimation = overviews[pyramid_level - 1]
+        else:
+            decimation = 1
+
+        import math
+        # Scale base-resolution coordinates into the level's pixel space
+        col_s = math.floor(cols[0] / decimation)
+        row_s = math.floor(rows[0] / decimation)
+        width   = math.ceil((cols[1] - cols[0]) / decimation)
+        height  = math.ceil((rows[1] - rows[0]) / decimation)
+
+        window = rasterio.windows.Window(col_s, row_s, width, height)
+
+        open_kwargs = {"overview_level": pyramid_level} if pyramid_level > 0 else {}
+
+        with rasterio.open(self.file, **open_kwargs) as ds:
+            # Clamp window to the dataset bounds so edge ROIs don't error
+            window = window.intersection(rasterio.windows.Window(0, 0, ds.width, ds.height))
+
+            if channel is None and self.shape[-1] > 1:
+                raise ValueError('Channel name must be specified if there are multiple channels')
+            data = ds.read(self._get_channel_index(channel) + 1, window=window)
+
+        return self._standard_image_shape(data)[..., 0]
+
+    def _get_channel_index(self, channel):
+        """Return the index of the given channel in the underlying data array
+        
+        Parameters
+        ----------
+        channel : str or None
+            Name of channel to return data from
+        """
+        if channel is None and len(self.channels) == 1:
+            return 0
+        else:
+            return self.channels.index(channel) 
 
 class ImageTransform:
     """Transfomation mapping between (x, y) spot coordinates and (row, col) image pixels
